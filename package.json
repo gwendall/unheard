@@ -15,9 +15,11 @@
     "eval": "vitest run --config vitest.eval.config.ts",
     "record-sky": "node scripts/record-sky.ts",
     "e2e": "playwright test",
-    "e2e:fixture": "tsx scripts/make-e2e-fixture.ts"
+    "e2e:fixture": "tsx scripts/make-e2e-fixture.ts",
+    "fetch-donations": "tsx --env-file-if-exists=.env.local scripts/fetch-donations.ts"
   },
   "dependencies": {
+    "@vercel/blob": "2.8.2",
     "next": "16.4.2",
     "react": "19.3.1",
     "react-dom": "19.3.1"
