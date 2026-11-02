@@ -57,6 +57,14 @@ test("finds the plane in a recording made through the real page", async ({ page 
     return route.fulfill({ headers: cors, json: { url: `https://teststore.private.blob.vercel-storage.com/${pathname}`, downloadUrl: "", pathname, contentType: "application/json", contentDisposition: "inline" } });
   });
   await expect(page.getByTestId("donate-heard")).toHaveValue(fixture().target);
+  // SHOTS=<dir>: the real result with its donation form, at desktop and phone widths.
+  if (process.env.SHOTS) {
+    await page.getByTestId("donate").scrollIntoViewIfNeeded();
+    await page.screenshot({ path: `${process.env.SHOTS}/donate-desktop.jpg`, quality: 70, scale: "css", fullPage: true });
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.screenshot({ path: `${process.env.SHOTS}/donate-phone.jpg`, quality: 70, scale: "css", fullPage: true });
+    await page.setViewportSize({ width: 1440, height: 900 });
+  }
   await expect(page.getByTestId("donate-send")).toBeDisabled();
   await page.getByTestId("donate-consent").check();
   await page.getByTestId("donate-send").click();
