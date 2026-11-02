@@ -1,0 +1,12 @@
+node_modules/
+.next/
+out/
+*.tsbuildinfo
+next-env.d.ts
+.env*.local
+.vercel
+test-results/
+.DS_Store
+evals/reports/
+e2e/fixtures/
+evals/.cache/

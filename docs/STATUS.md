@@ -1,0 +1,67 @@
+# Status
+
+Updated 2026-11-02.
+
+## Where it is
+
+- Prototype, private repo `gwendall/unheard`, not deployed. Web app (Next.js 16, React 19,
+  Tailwind 4), analysis entirely in the browser (`lib/core`), two small API routes
+  (`/api/aircraft`: adsb.lol with adsb.fi fallback, location rounded to 0.1°; `/api/weather`:
+  Open-Meteo elevation and temperature).
+- Pipeline: RTS-smoothed ADS-B tracks, emission-time Doppler model (temperature lapse, wind
+  supported but unknown in production), four-window evidence stack (2 s to 0.25 s, 20 Hz to
+  3.8 kHz), sweep of tone (40 Hz to 2 kHz) and clock (±2 s), score against each aircraft's own
+  wrong guesses, verdict strong / possible / none.
+- Tests: unit (`pnpm test`), evals (`pnpm eval`, see `evals/README.md`), E2E in Chromium with a
+  fake microphone (`pnpm e2e`).
+
+## Results (2026-11-02)
+
+See the latest reports in `evals/reports/` (regenerate with `pnpm eval`). Numbers below are
+filled in from the runs of this date.
+
+Thresholds: strong at score 9 and lead 2.5, possible at 6.5 and 1.5 (`lib/core/match.ts`).
+
+| eval | scenarios | strong and right | any and right | strong but wrong | false strong |
+|---|---|---|---|---|---|
+| synthetic (SEEDS=60) | 72 heard, 60 empty | 0.29 | 0.42 | 0 | 0 |
+| synthetic, CI corpus (SEEDS=30) | 36 heard, 30 empty | 0.39 | 0.50 | 0 | 0 |
+| real-tracks (Phoenix, adsb.lol) | 34 heard | 0.47 | 0.59 | 0 | 0 |
+| real-audio (AeroSonicDB, Adelaide) | 10 heard, 8 empty | 0.20 | 0.70 | 0 | 0 |
+
+- Synthetic, by findability (oracle score with a perfect model): above 6, 23 of 23 named
+  (18 strong), 0 wrong; 4 to 6, 4 of 6; under 4 (43 of 72, faint on purpose), 3.
+- Nothing to find: worst score 8.19 (synthetic: a loud aircraft left out of the data and a
+  decoy close to its curve), 4.41 on real audio. Strong starts at 9.
+- Real audio: the Bell 412 helicopter twice (12.5 and 9.9, strong), a Cessna 172 (7.9),
+  a Beech King Air (9.0), two 737s at 0.9 to 1.9 kHz (6.9 and 6.6), the second helicopter
+  (EC135) when the Bell is left out; missed a Dash 8, a 737 and an E190 (scores 4.5 to 5.5),
+  never a wrong name. The microphone position is only known to tens or hundreds of metres.
+- Speed: median 0.7 s (real audio, 60 s clips) to 2.1 s (synthetic, 120 s) per analysis in
+  Node on this Mac.
+
+## Next
+
+1. Founder: record real flybys with `?capture=1` on a phone (a light-aircraft field, a heliport,
+   an approach path), fill `truth`, commit them to `evals/fixtures/real/`. First real phone data.
+2. Deploy a protected preview so the page can be opened on a phone (getUserMedia needs HTTPS).
+3. A silent aircraft can borrow part of a loud line: in the page's example, JET881 (no sound
+   at all) scores 8.6 beside the Cessna's 12.7, and the worst synthetic case with the heard
+   aircraft left out of the data reached 8.19. Strong at 9 holds on every eval today, with a
+   thin margin. Fix in the matcher: score each candidate again on the frames the best match
+   does not explain, or ask a curve to fit its whole audible span. Then lower STRONG.
+4. Wind: Open-Meteo wind at 10 m and aloft into `Air.wind` (the synthetic eval shows wind costs
+   about one score point at 8 m/s).
+5. Two aircraft heard at once (two helicopters at Adelaide): say both when both curves stand out
+   and do not overlap, instead of "none" for want of a lead.
+6. Speed: the wide band costs about 4x; coarse-to-fine tone search if a phone takes more than a
+   few seconds.
+7. adsb.lol rate limit (about one request every 2 s per address): the API route must share one
+   upstream poll per area across users; ask adsb.lol for a key before any launch.
+
+## Needs the founder
+
+- Commercial or not? AeroSonicDB (CC BY-NC), ADS-B Exchange samples and OpenSky restrict
+  commercial use; adsb.lol (ODbL) does not. The evals use the restricted sets only locally.
+- Request access to AeroSonicDB 3K (3,058 events): an email to its author with the project.
+- Name and domain (Unheard is a working name).

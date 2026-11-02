@@ -1,0 +1,54 @@
+@import "tailwindcss";
+
+@theme {
+  --color-night: #05070d;
+  --color-deep: #0a0f1c;
+  --color-panel: #0e1526;
+  --color-line: #1c2640;
+  --color-ink: #e9edf5;
+  --color-mute: #8d97ab;
+  --color-faint: #5b6478;
+  --color-amber: #ffb547;
+  --color-amber-soft: #ffd58f;
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+}
+
+html {
+  background: var(--color-night);
+  color: var(--color-ink);
+  color-scheme: dark;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  min-height: 100dvh;
+  background:
+    radial-gradient(120% 60% at 50% -10%, rgba(64, 88, 160, 0.22), transparent 60%),
+    radial-gradient(80% 40% at 80% 0%, rgba(255, 181, 71, 0.06), transparent 70%),
+    var(--color-night);
+}
+
+::selection {
+  background: rgba(255, 181, 71, 0.35);
+}
+
+/* A few faint stars, drawn once, behind everything. */
+.stars {
+  background-image:
+    radial-gradient(1px 1px at 12% 18%, rgba(255, 255, 255, 0.55), transparent 60%),
+    radial-gradient(1px 1px at 72% 9%, rgba(255, 255, 255, 0.45), transparent 60%),
+    radial-gradient(1.5px 1.5px at 38% 32%, rgba(255, 255, 255, 0.35), transparent 60%),
+    radial-gradient(1px 1px at 88% 41%, rgba(255, 255, 255, 0.4), transparent 60%),
+    radial-gradient(1px 1px at 22% 63%, rgba(255, 255, 255, 0.25), transparent 60%),
+    radial-gradient(1px 1px at 61% 74%, rgba(255, 255, 255, 0.2), transparent 60%),
+    radial-gradient(1.5px 1.5px at 93% 82%, rgba(255, 255, 255, 0.25), transparent 60%),
+    radial-gradient(1px 1px at 5% 90%, rgba(255, 255, 255, 0.2), transparent 60%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

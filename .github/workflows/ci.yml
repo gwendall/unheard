@@ -1,0 +1,44 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  check:
+    # The local-ci Mac while the repository is private; GitHub's runners once it is public
+    # (a self-hosted runner never serves a public repository).
+    runs-on: ${{ github.event.repository.private && fromJSON('["self-hosted", "local-ci"]') || 'ubuntu-latest' }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm build
+
+  eval:
+    # The synthetic and real-track evals are the ratchet of the matcher (evals/baseline.json).
+    # The real-audio eval needs licensed data that never enters git: it runs on demand.
+    runs-on: ${{ github.event.repository.private && fromJSON('["self-hosted", "local-ci"]') || 'ubuntu-latest' }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm eval evals/synthetic evals/real-tracks
