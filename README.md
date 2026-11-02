@@ -1,8 +1,11 @@
 # Unheard
 
-There's a plane you can't hear. Hold your phone up for two minutes: Unheard finds the faint,
-pitch-bending hum of an aircraft in the recording and tells you which one it was, by matching
-its Doppler curve against live ADS-B flight data.
+There's a plane you can't hear. Hold your phone up to the sky for two minutes: Unheard finds
+the faint, pitch-bending hum of an aircraft in the recording and tells you which one it was, by
+matching its Doppler curve against live ADS-B flight data.
+
+Everything runs in your browser. Your recording never leaves your phone unless you choose to
+donate it.
 
 Made by Gwendall.
 
@@ -19,16 +22,40 @@ Made by Gwendall.
    its unknown tone (40 Hz to 2 kHz) and the phone's clock error (±2 s), scored against its own
    wrong guesses, and the best aircraft wins if it stands clear of the others.
 
-Everything runs in the browser: the recording never leaves the phone. One function,
-`analyze()` in `lib/core/pipeline.ts`, is the whole analysis for the page, the tests and the evals.
+One function, `analyze()` in `lib/core/pipeline.ts`, is the whole analysis for the page, the
+tests and the evals. What the evals measure is what runs in production.
+
+## Scoreboard
+
+Every number below comes from `pnpm eval`, through the same `analyze()` as the page. The rule
+that never bends: when Unheard says it is sure, it must be right.
+
+<!-- scoreboard:start -->
+| Eval | Data | Named, sure and right | Named and right | Sure but wrong | Sure with nothing to find |
+|---|---|---|---|---|---|
+| synthetic | made-up flybys, faint on purpose | 14 / 36 | 18 / 36 | 0 | 0 / 30 |
+| real-tracks | real adsb.lol tracks (Phoenix), made-up sound | 16 / 34 | 20 / 34 | 0 | none in this set |
+| real-audio | AeroSonicDB recordings (Adelaide) | 2 / 10 | 7 / 10 | 0 | 0 / 8 |
+
+No phone recording is in the benchmark yet: the first ones are the next step.
+<!-- scoreboard:end -->
+
+## What it is not
+
+Unheard names the plane above the place where you stand. It does not, and will not, search for
+where a recording was made. The inverse problem (sweep the listener's position until a curve
+fits) is a short step from this code, and the method has been public since
+[colsto's video](https://www.youtube.com/watch?v=UytYrhYLOKI). We do not ship it, and donated
+recordings are anonymised before they leave the phone: the listener sits at the origin of a
+local frame, with no latitude or longitude, no absolute time and no aircraft identifier.
 
 ## Run
 
 ```sh
 pnpm install
-URL=$(machine serve -- pnpm exec next dev -p {port})   # never a raw next dev on this Mac
-open "$URL"            # ?capture=1 adds a "Download recording bundle" button after a result
-machine serve --stop -- pnpm exec next dev -p {port}
+pnpm dev               # then open the printed URL; ?capture=1 adds a "Download recording bundle" button
+pnpm test              # unit tests
+SEEDS=10 pnpm eval evals/synthetic   # a quick eval, about a minute
 ```
 
 ## Tests and evals
@@ -39,6 +66,32 @@ machine serve --stop -- pnpm exec next dev -p {port}
 | Synthetic eval | 66+ made-up scenes: faint, far, windy, crowded sky, plane missing from the data | `pnpm eval evals/synthetic` | CI (ratchet) |
 | Real tracks | real ADS-B recorded with `pnpm record-sky`, made-up sound, half the polls | `pnpm eval evals/real-tracks` | CI (ratchet) |
 | Real audio | AeroSonicDB recordings + ADS-B Exchange history, and the page's own capture bundles | `node scripts/fetch-aerosonic.ts && pnpm eval evals/real-audio` | on demand (licensed data, not in git) |
-| E2E | the real page in Chromium, fake microphone playing a fixture, replayed ADS-B | `BASE_URL=$URL pnpm e2e` | on demand |
+| E2E | the real page in Chromium, fake microphone playing a fixture, replayed ADS-B | `BASE_URL=<url> pnpm e2e` | on demand |
 
 See `evals/README.md` for the metrics, the baseline and how to add real recordings.
+
+## Contribute
+
+You can help without writing code: record a flyby and donate it. Or add a city's sky, an
+aircraft's sound, a better matcher, or build a listening station. See
+[CONTRIBUTING.md](CONTRIBUTING.md), and [docs/OPEN-SOURCE.md](docs/OPEN-SOURCE.md) for the plan.
+
+## Data and licenses
+
+- Code: [MIT](LICENSE).
+- Flight track fixtures in `evals/fixtures/sky/`: from [adsb.lol](https://adsb.lol), under the
+  [ODbL 1.0](https://opendatacommons.org/licenses/odbl/1-0/). Attribution: adsb.lol and its
+  feeders.
+- Donated recordings: planned under CC BY 4.0. They carry adsb.lol positions too, so how the two
+  licenses combine is still to be confirmed before the first public release of the dataset.
+- [AeroSonicDB](https://zenodo.org/records/10215080) (CC BY-NC 4.0) and ADS-B Exchange history
+  samples (evaluation only) are downloaded by `scripts/fetch-aerosonic.ts` into `evals/.cache/`.
+  They are never stored in this repository.
+
+## Credits
+
+- [adsb.lol](https://adsb.lol) and its feeders, for open flight data.
+- [Open-Meteo](https://open-meteo.com), for elevation and temperature.
+- The authors of [AeroSonicDB](https://zenodo.org/records/10215080), for the first real
+  recordings the matcher was tested on.
+- [colsto's video](https://www.youtube.com/watch?v=UytYrhYLOKI), which started it all.
