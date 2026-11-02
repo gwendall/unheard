@@ -14,6 +14,10 @@ Updated 2026-11-02.
   wrong guesses, verdict strong / possible / none.
 - Tests: unit (`pnpm test`), evals (`pnpm eval`, see `evals/README.md`), E2E in Chromium with a
   fake microphone (`pnpm e2e`).
+- Open-source prep (03/11, still private): MIT `LICENSE`, public `README.md` with a scoreboard
+  and a "What it is not" section, `CONTRIBUTING.md` (four ways to help), `CODE_OF_CONDUCT.md`,
+  `docs/OPEN-SOURCE.md` (phases, go-public checklist: uninstall the local-ci runners first,
+  listening station design).
 
 ## Results (2026-11-02)
 
