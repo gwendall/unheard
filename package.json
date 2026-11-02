@@ -14,6 +14,7 @@
     "test": "vitest run",
     "eval": "vitest run --config vitest.eval.config.ts",
     "record-sky": "node scripts/record-sky.ts",
+    "scoreboard": "node scripts/scoreboard.ts",
     "e2e": "playwright test",
     "e2e:fixture": "tsx scripts/make-e2e-fixture.ts"
   },

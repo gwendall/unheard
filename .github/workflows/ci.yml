@@ -32,6 +32,7 @@ jobs:
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm test
+      - run: pnpm scoreboard --check
       - run: pnpm build
 
   eval:
@@ -39,8 +40,15 @@ jobs:
     # The real-audio eval needs licensed data that never enters git: it runs on demand.
     runs-on: ${{ github.event.repository.private && fromJSON('["self-hosted", "local-ci"]') || 'ubuntu-latest' }}
     timeout-minutes: ${{ github.event.repository.private && 210 || 30 }}
+    # The eval delta comments on the pull request (a fork's token stays read-only: summary only).
+    permissions:
+      contents: read
+      pull-requests: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          # The merge commit and its first parent, the base branch: the delta's reference.
+          fetch-depth: 2
       # On the Mac, Node 22 and pnpm are the Mac's own (the runner's PATH), as in ragequit: two
       # jobs running pnpm/action-setup at once share ~/setup-pnpm and break each other (02/11).
       - uses: pnpm/action-setup@v4
@@ -52,3 +60,8 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile --prefer-offline
       - run: pnpm eval evals/synthetic evals/real-tracks
+      - name: Eval delta
+        if: ${{ !cancelled() }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/eval-delta.ts synthetic real-tracks

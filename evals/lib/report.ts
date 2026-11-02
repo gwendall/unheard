@@ -1,7 +1,8 @@
 // Runs scenarios through the production analyze(), scores the answers, writes a report and
 // checks it against the committed baseline (a ratchet: an eval fails when a metric gets worse).
 
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { heardAt } from "../../lib/core/doppler";
 import { curveScore } from "../../lib/core/match";
 import { analyze, type AnalysisOptions } from "../../lib/core/pipeline";
@@ -73,25 +74,96 @@ export type Summary = {
 
 const share = (k: number, n: number) => (n ? round(k / n) : 0);
 
-export function summarize(outcomes: Outcome[]): Summary {
+/** What an eval found, as counts: the source of the scoreboard (evals/results.json). */
+export type Counts = {
+  heard: { n: number; strongHit: number; anyHit: number; wrongStrong: number; wrongPossible: number };
+  empty: { n: number; falseStrong: number; falsePossible: number };
+};
+
+export function countsOf(outcomes: Outcome[]): Counts {
   const heard = outcomes.filter((o) => o.correct !== null);
   const empty = outcomes.filter((o) => o.correct === null);
-  const ms = outcomes.map((o) => o.ms).sort((a, b) => a - b);
   return {
     heard: {
       n: heard.length,
-      strongHit: share(heard.filter((o) => o.verdict === "strong" && o.correct).length, heard.length),
-      anyHit: share(heard.filter((o) => o.verdict !== "none" && o.correct).length, heard.length),
-      wrongStrong: share(heard.filter((o) => o.verdict === "strong" && !o.correct).length, heard.length),
-      wrongPossible: share(heard.filter((o) => o.verdict === "possible" && !o.correct).length, heard.length),
+      strongHit: heard.filter((o) => o.verdict === "strong" && o.correct).length,
+      anyHit: heard.filter((o) => o.verdict !== "none" && o.correct).length,
+      wrongStrong: heard.filter((o) => o.verdict === "strong" && !o.correct).length,
+      wrongPossible: heard.filter((o) => o.verdict === "possible" && !o.correct).length,
     },
     empty: {
       n: empty.length,
-      falseStrong: share(empty.filter((o) => o.verdict === "strong").length, empty.length),
-      falsePossible: share(empty.filter((o) => o.verdict === "possible").length, empty.length),
+      falseStrong: empty.filter((o) => o.verdict === "strong").length,
+      falsePossible: empty.filter((o) => o.verdict === "possible").length,
     },
+  };
+}
+
+export function summarize(outcomes: Outcome[]): Summary {
+  const { heard, empty } = countsOf(outcomes);
+  const ms = outcomes.map((o) => o.ms).sort((a, b) => a - b);
+  return {
+    heard: {
+      n: heard.n,
+      strongHit: share(heard.strongHit, heard.n),
+      anyHit: share(heard.anyHit, heard.n),
+      wrongStrong: share(heard.wrongStrong, heard.n),
+      wrongPossible: share(heard.wrongPossible, heard.n),
+    },
+    empty: { n: empty.n, falseStrong: share(empty.falseStrong, empty.n), falsePossible: share(empty.falsePossible, empty.n) },
     msMedian: ms[ms.length >> 1] ?? 0,
   };
+}
+
+export type Results = Record<string, Counts & { date: string }>;
+
+const RESULTS = new URL("../results.json", import.meta.url);
+
+export function readResults(): Results {
+  return existsSync(RESULTS) ? (JSON.parse(readFileSync(RESULTS, "utf8")) as Results) : {};
+}
+
+/** vitest runs the eval files in parallel workers: one writer at a time (mkdir is atomic). */
+function locked(fn: () => void) {
+  const lock = fileURLToPath(RESULTS) + ".lock";
+  const nap = new Int32Array(new SharedArrayBuffer(4));
+  for (let i = 0; ; i++) {
+    try {
+      mkdirSync(lock);
+      break;
+    } catch {
+      if (i > 600) throw new Error(`${lock} held for 30 s: remove it if no eval is running`);
+      Atomics.wait(nap, 0, 0, 50);
+    }
+  }
+  try {
+    fn();
+  } finally {
+    rmSync(lock, { recursive: true, force: true });
+  }
+}
+
+/**
+ * Writes this eval's counts into evals/results.json (committed: the scoreboard and the eval
+ * delta read it). Only the default corpus counts: a run with SEEDS or PER_FILE set is a probe,
+ * not the benchmark. The date moves only when the counts do.
+ */
+export function recordResults(name: string, outcomes: Outcome[], canonical: boolean) {
+  if (!canonical) {
+    console.log(`evals/results.json: ${name} not recorded (not the default corpus)`);
+    return;
+  }
+  const counts = countsOf(outcomes);
+  locked(() => {
+    const all = readResults();
+    const before = all[name];
+    const same = before && JSON.stringify({ heard: before.heard, empty: before.empty }) === JSON.stringify(counts);
+    all[name] = { ...counts, date: same ? before.date : new Date().toISOString().slice(0, 10) };
+    const sorted = Object.fromEntries(Object.keys(all).sort().map((k) => [k, all[k]]));
+    const tmp = fileURLToPath(RESULTS) + ".tmp";
+    writeFileSync(tmp, JSON.stringify(sorted, null, 2) + "\n");
+    renameSync(tmp, RESULTS);
+  });
 }
 
 const quantiles = (xs: number[]) => {

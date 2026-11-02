@@ -1,0 +1,47 @@
+{
+  "real-audio": {
+    "heard": {
+      "n": 10,
+      "strongHit": 2,
+      "anyHit": 7,
+      "wrongStrong": 0,
+      "wrongPossible": 0
+    },
+    "empty": {
+      "n": 8,
+      "falseStrong": 0,
+      "falsePossible": 0
+    },
+    "date": "2026-11-02"
+  },
+  "real-tracks": {
+    "heard": {
+      "n": 34,
+      "strongHit": 16,
+      "anyHit": 20,
+      "wrongStrong": 0,
+      "wrongPossible": 0
+    },
+    "empty": {
+      "n": 0,
+      "falseStrong": 0,
+      "falsePossible": 0
+    },
+    "date": "2026-11-02"
+  },
+  "synthetic": {
+    "heard": {
+      "n": 36,
+      "strongHit": 14,
+      "anyHit": 18,
+      "wrongStrong": 0,
+      "wrongPossible": 0
+    },
+    "empty": {
+      "n": 30,
+      "falseStrong": 0,
+      "falsePossible": 0
+    },
+    "date": "2026-11-02"
+  }
+}

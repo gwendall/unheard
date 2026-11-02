@@ -1,6 +1,6 @@
 import { expect, it } from "vitest";
 import { aerosonicScenarios, bundleScenarios } from "./lib/real";
-import { againstBaseline, run, summarize, writeReport, type Outcome } from "./lib/report";
+import { againstBaseline, recordResults, run, summarize, writeReport, type Outcome } from "./lib/report";
 
 // Real sound, real ADS-B. AeroSonicDB needs `node scripts/fetch-aerosonic.ts` first (cache, not
 // committed); capture bundles live in evals/fixtures/real/ once a human has written their truth.
@@ -19,5 +19,6 @@ it("real recordings", async () => {
     "The microphone position is a public spot near the recorder: tens to hundreds of metres off.",
   ]);
   console.log(JSON.stringify(summary));
+  recordResults("real-audio", outcomes, true);
   expect(againstBaseline("real-audio", summary)).toEqual([]);
 });
