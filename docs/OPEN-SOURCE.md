@@ -62,7 +62,11 @@ Do these in order. The first one is a security issue, not a formality.
 7. **Docs scrub:** read `README.md`, `CONTRIBUTING.md`, `docs/` and `evals/` as a stranger.
    Machine-specific notes for agents (`CLAUDE.md`, `AGENTS.md`) may stay. The "Needs the founder"
    list in `docs/STATUS.md` is fine to keep.
-8. **Change the visibility**, then open the starter issues.
+8. **Abuse limits on donations:** today the site's Vercel Authentication is what keeps
+   strangers away from `/api/donate`. Before the site opens to the public (a separate decision
+   from the repository's visibility), add a Vercel Firewall rate limit on that route (a few
+   tokens per address per ten minutes) and an alert on the Blob store's size.
+9. **Change the visibility**, then open the starter issues.
 
 ## The listening station
 

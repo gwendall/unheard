@@ -40,9 +40,11 @@ The benchmark has no phone recording yet, and phones are what Unheard is for.
 1. Go somewhere aircraft pass low: near a small airfield, a heliport, under an approach path.
 2. Open the page, tap "Listen to the sky" when you hear or see one coming, keep the phone still
    and pointed up for the whole pass, ideally two minutes.
-3. After the result, use the donate button and tell us what you saw: which aircraft, or that you
-   are not sure. The recording is anonymised on your phone before it is sent (see
-   [What it is not](README.md#what-it-is-not)).
+3. Under the result, use "Give this recording": listen to it first, pick what you heard (one of
+   the listed aircraft, none at all, or not sure), add a note if you like, tick the box. Your
+   phone anonymises it before sending: no location, no time, no aircraft identity (the site's
+   "What is sent" page, and [What it is not](README.md#what-it-is-not)). Keep the donation id it
+   shows to have it removed later.
 
 Recordings where nothing was found are as useful as the others: they are how we learn why.
 
