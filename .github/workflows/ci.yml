@@ -14,15 +14,21 @@ jobs:
     # The local-ci Mac while the repository is private; GitHub's runners once it is public
     # (a self-hosted runner never serves a public repository).
     runs-on: ${{ github.event.repository.private && fromJSON('["self-hosted", "local-ci"]') || 'ubuntu-latest' }}
-    timeout-minutes: 20
+    # On the Mac the job first waits in local-ci's queue (up to 3 h behind the release gate's lab
+    # lock): a shorter timeout cancels it in line and orphans its hook, as on 02/11. As ragequit.
+    timeout-minutes: ${{ github.event.repository.private && 210 || 20 }}
     steps:
       - uses: actions/checkout@v4
+      # On the Mac, Node 22 and pnpm are the Mac's own (the runner's PATH), as in ragequit: two
+      # jobs running pnpm/action-setup at once share ~/setup-pnpm and break each other (02/11).
       - uses: pnpm/action-setup@v4
+        if: runner.environment == 'github-hosted'
       - uses: actions/setup-node@v4
+        if: runner.environment == 'github-hosted'
         with:
           node-version: 22
           cache: pnpm
-      - run: pnpm install --frozen-lockfile
+      - run: pnpm install --frozen-lockfile --prefer-offline
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm test
@@ -32,13 +38,17 @@ jobs:
     # The synthetic and real-track evals are the ratchet of the matcher (evals/baseline.json).
     # The real-audio eval needs licensed data that never enters git: it runs on demand.
     runs-on: ${{ github.event.repository.private && fromJSON('["self-hosted", "local-ci"]') || 'ubuntu-latest' }}
-    timeout-minutes: 30
+    timeout-minutes: ${{ github.event.repository.private && 210 || 30 }}
     steps:
       - uses: actions/checkout@v4
+      # On the Mac, Node 22 and pnpm are the Mac's own (the runner's PATH), as in ragequit: two
+      # jobs running pnpm/action-setup at once share ~/setup-pnpm and break each other (02/11).
       - uses: pnpm/action-setup@v4
+        if: runner.environment == 'github-hosted'
       - uses: actions/setup-node@v4
+        if: runner.environment == 'github-hosted'
         with:
           node-version: 22
           cache: pnpm
-      - run: pnpm install --frozen-lockfile
+      - run: pnpm install --frozen-lockfile --prefer-offline
       - run: pnpm eval evals/synthetic evals/real-tracks
