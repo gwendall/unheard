@@ -45,6 +45,31 @@ test("finds the plane in a recording made through the real page", async ({ page 
   await page.waitForTimeout(62_000);
   await page.getByTestId("stop").click();
   await expect(page.getByTestId("verdict")).toHaveText(`It was ${callsign}.`, { timeout: 90_000 });
+
+  // Give it to the dataset. The Blob store is mocked: what matters is what leaves the page.
+  let sent = "";
+  const cors = { "access-control-allow-origin": "*", "access-control-allow-headers": "*", "access-control-allow-methods": "PUT, OPTIONS" };
+  await page.route("**/api/donate", (route) => route.fulfill({ json: { type: "blob.generate-client-token", clientToken: "vercel_blob_client_teststore_e30" } }));
+  await page.route(/vercel\.com\/api\/blob/, (route) => {
+    if (route.request().method() === "OPTIONS") return route.fulfill({ status: 204, headers: cors });
+    sent = route.request().postDataBuffer()?.toString("utf8") ?? "";
+    const pathname = "donations/v1/recording-e2eTest42.json";
+    return route.fulfill({ headers: cors, json: { url: `https://teststore.private.blob.vercel-storage.com/${pathname}`, downloadUrl: "", pathname, contentType: "application/json", contentDisposition: "inline" } });
+  });
+  await expect(page.getByTestId("donate-heard")).toHaveValue(fixture().target);
+  await expect(page.getByTestId("donate-send")).toBeDisabled();
+  await page.getByTestId("donate-consent").check();
+  await page.getByTestId("donate-send").click();
+  await expect(page.getByTestId("donated")).toContainText("e2eTest42", { timeout: 30_000 });
+  const donation = JSON.parse(sent) as { anonymous: boolean; recording: { listener: { lat: number; lon: number }; start: number }; truth: { heard: string } };
+  expect(donation.anonymous).toBe(true);
+  expect(donation.recording.listener).toEqual({ lat: 0, lon: 0, elevation: 0 });
+  expect(donation.recording.start).toBe(946_684_800);
+  expect(donation.truth.heard).toMatch(/^x\d\d$/);
+  const flightData = JSON.stringify({ ...donation, recording: { ...donation.recording, wav: "" } });
+  expect(flightData).not.toContain(fixture().target);
+  expect(flightData).not.toContain(callsign);
+  expect(flightData).not.toContain("48.77");
 });
 
 test("the example ends on a strong match", async ({ page }) => {

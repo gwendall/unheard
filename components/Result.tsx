@@ -8,10 +8,26 @@ import { stateAt } from "@/lib/core/track";
 import { norm } from "@/lib/core/geo";
 import { describe, feet, km, knots, nameOf, seconds } from "@/lib/client/format";
 import { isTonal } from "@/lib/client/types";
+import type { Bundle } from "@/lib/bundle";
+import { Donate } from "./Donate";
 import { Spectrum } from "./Spectrum";
 import { TrackPlot } from "./TrackPlot";
 
-export function Result({ analysis, rec, example, onBundle, onAgain }: { analysis: Analysis; rec: Recording; example: boolean; onBundle: (() => void) | null; onAgain: () => void }) {
+export function Result({
+  analysis,
+  rec,
+  example,
+  device,
+  onBundle,
+  onAgain,
+}: {
+  analysis: Analysis;
+  rec: Recording;
+  example: boolean;
+  device: Bundle["device"] | null;
+  onBundle: (() => void) | null;
+  onAgain: () => void;
+}) {
   const { verdict } = analysis;
   const best = verdict.kind === "none" ? null : verdict.best;
   const [showCurve, setShowCurve] = useState(false);
@@ -103,6 +119,8 @@ export function Result({ analysis, rec, example, onBundle, onAgain }: { analysis
           <p className="text-sm text-pretty text-faint">The score says how far each plane&apos;s curve stands above chance in your recording. With no plane to find, no score has reached {STRONG.score} in our tests.</p>
         </div>
       )}
+
+      {!example && <Donate rec={rec} analysis={analysis} device={device} />}
 
       <div className="flex flex-col gap-3 sm:flex-row">
         <button type="button" onClick={onAgain} className="rounded-full bg-ink px-6 py-3 font-medium text-night transition hover:bg-white">
