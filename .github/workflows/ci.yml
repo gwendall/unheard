@@ -17,12 +17,16 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+      # On the Mac, Node 22 and pnpm are the Mac's own (the runner's PATH), as in ragequit: two
+      # jobs running pnpm/action-setup at once share ~/setup-pnpm and break each other (02/11).
       - uses: pnpm/action-setup@v4
+        if: runner.environment == 'github-hosted'
       - uses: actions/setup-node@v4
+        if: runner.environment == 'github-hosted'
         with:
           node-version: 22
           cache: pnpm
-      - run: pnpm install --frozen-lockfile
+      - run: pnpm install --frozen-lockfile --prefer-offline
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm test
@@ -35,10 +39,14 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+      # On the Mac, Node 22 and pnpm are the Mac's own (the runner's PATH), as in ragequit: two
+      # jobs running pnpm/action-setup at once share ~/setup-pnpm and break each other (02/11).
       - uses: pnpm/action-setup@v4
+        if: runner.environment == 'github-hosted'
       - uses: actions/setup-node@v4
+        if: runner.environment == 'github-hosted'
         with:
           node-version: 22
           cache: pnpm
-      - run: pnpm install --frozen-lockfile
+      - run: pnpm install --frozen-lockfile --prefer-offline
       - run: pnpm eval evals/synthetic evals/real-tracks
