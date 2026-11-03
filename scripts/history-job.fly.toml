@@ -1,0 +1,4 @@
+# Only to build the job's image (`fly deploy --build-only`, "Hosting" in docs/history-format.md):
+# the Machines are made by `fly machine run`, this app serves nothing.
+app = "unheard-history"
+primary_region = "iad"

@@ -16,14 +16,15 @@ type table of tar1090-db (https://github.com/wiedehopf/tar1090-db) at the commit
 ## Layout
 
 ```
+<base>/days.json                       the days built, on a hosted copy
 <base>/<YYYY-MM-DD>/manifest.json      what a reader needs: tiles, counts, sizes, hashes
 <base>/<YYYY-MM-DD>/<lat0>_<lon0>.bin.gz   one tile
 <base>/<YYYY-MM-DD>/build.json         how long that build took (not needed to read)
 ```
 
-`<base>` is one setting: our bucket, a folder served in development, or anyone's mirror. The core
-code never names a URL: it takes a fetcher (`Fetcher` in `lib/history.ts`: a path under the base in,
-bytes or null out), `httpFetcher(base)` for HTTP.
+`<base>` is one setting: our bucket ("Hosting" below), a folder served in development, or anyone's
+mirror. The core code never names a URL: it takes a fetcher (`Fetcher` in `lib/history.ts`: a path
+under the base in, bytes or null out), `httpFetcher(base)` for HTTP.
 
 A tile is 1° by 1°, named by its south-west corner (`37_-122` covers 37 to 38° N, 122 to 121° W).
 A tile whose file would pass 5 MB is cut in four tiles of half the side, again if need be
@@ -112,6 +113,33 @@ The seven first columns are 16 bits each, stored as the change from the run's pr
 modulo 65536 (the first point of a run: its value itself), all their low bytes then all their high
 bytes; the flags are one byte each. Columns of small changes, not records, so gzip packs a point
 in about 6 bytes.
+
+## Hosting
+
+Our copy is at **https://unheard-history.fly.storage.tigris.dev/** (the `<base>` above), a public
+Tigris bucket (`unheard-history`): no key, any origin (CORS: GET and HEAD). `days.json` at the top
+lists the days built; everything else follows the layout above and never changes once written
+(`Cache-Control: public, max-age=31536000, immutable`; `days.json`: 5 minutes). The bucket cannot be
+listed: read `days.json`, then each day's manifest. The licence is the one above: ODbL 1.0,
+"© adsb.lol contributors".
+
+`scripts/history-job.ts` fills it, from a scheduled Fly Machine of the app `unheard-history`
+(`--schedule daily`, stops when done): yesterday's day if adsb.lol has published it, then older
+missing days going backwards to 2026-01-01, within a time budget. Tiles go first and the manifest
+last, so a day with a manifest is complete; a failed day leaves none and is tried again next run.
+To change the job, build the image and point the Machine at it:
+
+```
+fly deploy --build-only --push --config scripts/history-job.fly.toml -a unheard-history \
+  --dockerfile scripts/history-job.Dockerfile --ignorefile scripts/history-job.dockerignore --image-label history-job-N .
+fly machine update <id> -a unheard-history --image registry.fly.io/unheard-history:history-job-N
+```
+
+To mirror it, copy the files over plain HTTP, or run the same job against your own S3 bucket
+(`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_ENDPOINT_URL_S3`, `AWS_REGION`, `BUCKET_NAME`;
+the header of the script lists the settings). To rebuild one day, `pnpm history:build <day>` and
+compare `content` with the manifest ("Determinism" above). A reader takes any of them as its base:
+`httpFetcher(base)`, or `pnpm where <audio> --day <day> --near <lat,lon> --history <base>`.
 
 ## Versions
 
