@@ -1,0 +1,10 @@
+5128581	New York City	New York City	NYC,Nueva York,Нью-Йорк,ニューヨーク	40.71427	-74.00597	P	PPL	US		NY				8804190			America/New_York	2024-01-01
+5133640	Oyster Bay	Oyster Bay		40.86565	-73.53207	P	PPL	US		NY				6707			America/New_York	2024-01-01
+5133643	Oyster Bay Cove	Oyster Bay Cove		40.87093	-73.51096	P	PPL	US		NY				2251			America/New_York	2024-01-01
+5119347	Glen Cove	Glen Cove		40.86232	-73.63374	P	PPL	US		NY				27400			America/New_York	2024-01-01
+5304391	Mesa	Mesa	Mesa,Меса	33.42227	-111.82264	P	PPLA2	US		AZ				504258			America/Phoenix	2024-01-01
+5288636	Apache Junction	Apache Junction		33.41505	-111.54958	P	PPL	US		AZ				38499			America/Phoenix	2024-01-01
+5317058	Scottsdale	Scottsdale		33.50921	-111.89903	P	PPL	US		AZ				241361			America/Phoenix	2024-01-01
+2988507	Paris	Paris	Lutece,Parigi,Париж,パリ	48.85341	2.3488	P	PPLC	FR		11				2138551			Europe/Paris	2024-01-01
+2990440	Nice	Nice	Nizza,Ницца	43.70313	7.26608	P	PPLA2	FR		93				342669			Europe/Paris	2024-01-01
+1850147	Tokyo	Tokyo	東京,Токио	35.6895	139.69171	P	PPLC	JP		40				8336599			Asia/Tokyo	2024-01-01

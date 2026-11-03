@@ -15,6 +15,7 @@
     "eval": "vitest run --config vitest.eval.config.ts",
     "record-sky": "node scripts/record-sky.ts",
     "history:build": "node scripts/history-index.ts",
+    "places:build": "node scripts/places-build.ts",
     "where": "tsx scripts/where.ts",
     "scoreboard": "node scripts/scoreboard.ts",
     "e2e": "playwright test",

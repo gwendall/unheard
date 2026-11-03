@@ -1,0 +1,5 @@
+FR.93	Provence-Alpes-Côte d'Azur	Provence-Alpes-Cote d'Azur	2985244
+FR.11	Île-de-France	Ile-de-France	3012874
+JP.40	Tokyo	Tokyo	1850144
+US.AZ	Arizona	Arizona	5551752
+US.NY	New York	New York	5128638
