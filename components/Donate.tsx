@@ -7,7 +7,8 @@ import { anonymize } from "@/lib/anonymize";
 import { encodeWav, makeBundle, type Bundle } from "@/lib/bundle";
 import type { Analysis, Recording } from "@/lib/core/pipeline";
 import { checkDonation, DONATION_PATH } from "@/lib/donation";
-import { km, nameOf } from "@/lib/client/format";
+import type { AircraftMeta } from "@/lib/adsb";
+import { km } from "@/lib/client/format";
 
 const UNSURE = "unsure";
 const NONE = "none";
@@ -15,7 +16,7 @@ const NONE = "none";
 type State = { kind: "form" } | { kind: "sending" } | { kind: "sent"; id: string } | { kind: "error"; message: string };
 
 /** Lets someone give a real recording, anonymised on the phone, to the dataset the evals run on. */
-export function Donate({ rec, analysis, device }: { rec: Recording; analysis: Analysis; device: Bundle["device"] | null }) {
+export function Donate({ rec, analysis, device, title }: { rec: Recording; analysis: Analysis; device: Bundle["device"] | null; title: (meta: AircraftMeta) => string }) {
   const { verdict } = analysis;
   const named = verdict.kind === "none" ? null : verdict.best;
   const [heard, setHeard] = useState<string>(named?.id ?? UNSURE);
@@ -91,7 +92,7 @@ export function Donate({ rec, analysis, device }: { rec: Recording; analysis: An
         <select value={heard} onChange={(e) => setHeard(e.target.value)} className="rounded-lg border border-line bg-night px-3 py-2 text-ink" data-testid="donate-heard">
           {verdict.ranked.slice(0, 8).map((m) => (
             <option key={m.id} value={m.id}>
-              {`${nameOf(m.meta)}${m.closest ? `, ${km(m.closest.range)} at closest` : ""}`}
+              {`${title(m.meta)}${m.closest ? `, ${km(m.closest.range)} at closest` : ""}`}
             </option>
           ))}
           <option value={NONE}>No aircraft at all</option>

@@ -1,13 +1,15 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import type { AircraftMeta } from "@/lib/adsb";
 import type { Nearby } from "@/lib/client/nearby";
 import { audible, HORIZON } from "@/lib/client/chance";
 import { clock, height, km, nameOf } from "@/lib/client/format";
 import { lookUp, type Identity } from "@/lib/client/names";
 
 /** Identities of the aircraft shown, looked up once each, filled in as the answers come. */
-export function useIdentities(list: Nearby[], at: { lat: number; lon: number } | null): Map<string, Identity> {
+/** The names people use (flight, model), looked up once per aircraft from the phone. */
+export function useIdentities(list: { meta: AircraftMeta }[], at: { lat: number; lon: number } | null): Map<string, Identity> {
   const [ids, setIds] = useState<Map<string, Identity>>(() => new Map());
   const asked = useRef(new Set<string>());
   useEffect(() => {
