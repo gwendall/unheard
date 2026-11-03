@@ -43,6 +43,14 @@ request, CI posts this run's counts next to the base branch's (`scripts/eval-del
   confidence flag is right. Each part writes `evals/reports/wherewhen-<part>-<km>.md`, so the
   parts can run at once. Slow (minutes per recording); never in CI.
 
+## Check a video
+
+- `leak` (`evals/leak.eval.ts`): the check page's path (`lib/core/leak.ts`) with no flight data,
+  on the synthetic corpus and the real clips: tones found chunk by chunk, taken out along their
+  curves on the sound at its own rate, searched again. Then `analyze()` with the flight data,
+  before and after: a recording whose tones were found and taken out must name nobody, strong or
+  possible. Also counts what "no aircraft tone found" misses (named from the flight data, no tone).
+
 ## Corpora
 
 - `synthetic` (`evals/lib/synthetic.ts`): made-up flybys, exact truth, clock error, wind and
