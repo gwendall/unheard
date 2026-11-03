@@ -4,7 +4,9 @@
     "shareTitle": "Unheard: your phone names the plane flying over you",
     "description": "Hold your phone up to the sky for a couple of minutes. Unheard picks out the faint drone of a plane in the noise and tells you which plane it was, from live flight data.",
     "ogAlt": "There's a plane you can't hear. Your phone hears it. Unheard names it. A glowing amber tone bends down across a night-blue spectrogram, as the pitch of a passing plane does.",
-    "privacyTitle": "What is sent · Unheard"
+    "privacyTitle": "What is sent · Unheard",
+    "elsewhereTitle": "Somewhere else · Unheard",
+    "elsewhereDescription": "Make your recording sound like it was made in another city: Unheard puts under your voice the real planes flying over it right now, with the Doppler curves an investigator would match to flight data."
   },
   "og": { "lines": ["There’s a plane", "you can’t hear."], "sub": "Your phone hears it. Unheard names it.", "size": 100 },
   "nav": { "home": "Unheard, home", "language": "Language" },
@@ -209,6 +211,71 @@
     "less": "Show fewer",
     "added": "Added to your planes on this phone ({n})."
   },
+  "elsewhere": {
+    "title": "Make your recording sound like it was made somewhere else.",
+    "lead": "A video recently located a security camera from the faint curves passing planes leave in its sound, matched to flight data. Unheard reads those curves. Here it writes them: the real planes flying over another city right now, as heard from a spot there, under your voice.",
+    "link": "New: make a recording sound like it was made somewhere else",
+    "fromResult": "Make a recording sound like it was made somewhere else",
+    "place": { "title": "Pick a place", "random": "Anywhere, at random", "coords": "Coordinates", "coordsLabel": "Latitude and longitude", "coordsPlaceholder": "37.98, 23.73" },
+    "places": { "athens": "Athens", "london": "London", "newYork": "New York", "paris": "Paris", "tokyo": "Tokyo", "saoPaulo": "São Paulo", "losAngeles": "Los Angeles", "mexicoCity": "Mexico City", "lisbon": "Lisbon", "sydney": "Sydney", "berlin": "Berlin", "rome": "Rome" },
+    "audio": {
+      "title": "Your recording",
+      "record": "Record a voice note",
+      "file": "Choose an audio file",
+      "stop": "Stop",
+      "voiceNote": "Voice note",
+      "change": "Change",
+      "note": "It never leaves this page. Thirty seconds or more works best: a curve needs time to bend.",
+      "trimmed": "Only its first two minutes are used."
+    },
+    "make": "Make it sound like {place}",
+    "makeRandom": "Make it sound like somewhere else",
+    "working": {
+      "searching": "Looking for a city with a plane low enough: {place}",
+      "polls": "Asking for the flights over {place} ({i} of {n})",
+      "plant": "Putting their curves under your voice",
+      "check": "Checking it the way an investigator would"
+    },
+    "result": {
+      "chip": "Somewhere else",
+      "title": "These curves point to {place}, at {time} UTC.",
+      "spot": "A spot {distance} {direction} the centre, where {name} passed {range} away, {height} up.",
+      "conclusion": "Anyone matching the curves in this file to the flight data of that minute, as in the video, would put the microphone there.",
+      "map": "See the spot on a map",
+      "listen": "Your recording, from {place}",
+      "listenText": "You should not hear the planes: they sit {db} dB under your voice, as a distant plane does.",
+      "plane": "The added plane, brought out",
+      "planeText": "The same file {times} faster, filtered to the band of its curve: what the analysis sees, made audible.",
+      "download": "Download the WAV",
+      "curve": "Your file, zoomed on the band where the added tone bends. The rails show the curve that flight leaves, heard from that spot.",
+      "proofTitle": "The proof",
+      "proofStrong": "Unheard's own matcher, run on this file at that spot with the flight data of that minute, says: “{verdict}” Score {score}. Strong starts at {strong}.",
+      "proofPossible": "Unheard's own matcher, run on this file at that spot with the flight data of that minute, says: “{verdict}” Score {score}, a faint match: strong starts at {strong}.",
+      "proofNone": "Unheard's own matcher, run on this file at that spot, names no plane clearly (best score {score}, strong starts at {strong}). Try a longer recording or another place.",
+      "added": { "one": "{n} plane added", "other": "{n} planes added" },
+      "pointed": "the one it points to",
+      "limits": [
+        "It adds curves. It does not remove those of the planes really over you when you recorded.",
+        "Between the polls, each flight's path is dead reckoned. Matched against the true tracks of that minute instead, the added plane is still named in most of our test scenes.",
+        "Checked where you really recorded, with the planes of your own sky, Unheard itself can be misled too: one of them may borrow an added curve.",
+        "Everything happens on this page: your recording is never sent."
+      ],
+      "again": "Another place",
+      "restart": "Start over"
+    },
+    "cardinals": ["N", "S", "E", "W"],
+    "compass": ["north of", "north-east of", "east of", "south-east of", "south of", "south-west of", "west of", "north-west of"],
+    "kinds": { "piston": "propeller", "turboprop": "turboprop", "helicopter": "helicopter", "jet": "jet" },
+    "errors": {
+      "noPlane": "No plane flies low enough near the centre of {place} right now. Try another place, or anywhere at random.",
+      "noPlaneAnywhere": "No plane flies low enough near the centre of the cities tried right now. Try again in a few minutes.",
+      "flights": "The flight data did not answer. Try again in a moment.",
+      "decode": "This file could not be read as audio. Try a WAV, MP3 or M4A file.",
+      "microphone": "The microphone could not be opened. Allow it for this site, or choose a file instead.",
+      "short": "This recording is too short: give it at least 10 seconds.",
+      "coords": "Type the coordinates as latitude, longitude, for example 37.98, 23.73."
+    }
+  },
   "follow": "Follow it live",
   "footer": {
     "github": "Open source on GitHub",
@@ -223,7 +290,8 @@
         "body": [
           "Your recording is analysed on your phone and stays there. The page asks our server for the aircraft around you with your position rounded to about 10 km, and for the ground height and temperature with your position rounded to about 100 m. Unheard saves neither; the host's request logs keep them for a short time. To give the planes their names (airline, route, model), the page asks adsbdb.com about the aircraft around you by their codes, never with your position, and Unheard's server asks planespotters.net for a photo of the one it found, by its code too. Nothing else leaves your phone.",
           "The planes you found are kept in this browser's storage to show your list on the home page. Nothing of it is sent, and Clear removes it.",
-          "The language you pick in the menu is kept in a cookie for a year, so the site opens in it next time."
+          "The language you pick in the menu is kept in a cookie for a year, so the site opens in it next time.",
+          "On Somewhere else, the page asks our server for the aircraft over the place you pick, never with your own position, and your recording stays on the page."
         ]
       },
       {

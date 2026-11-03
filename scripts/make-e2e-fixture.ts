@@ -4,6 +4,8 @@
 //
 // e2e/fixtures/flyby.wav        what the fake microphone plays, from t = 0
 // e2e/fixtures/flyby-polls.json { listener, target, polls: [{ t, poll }] }, t in seconds from t = 0
+// e2e/fixtures/voice.wav        a 40 s voice note (48 kHz) for the "somewhere else" page
+// e2e/fixtures/elsewhere-polls.json  { centre, polls }: three real adsb.lol polls over Phoenix, 3 s apart
 
 import { mkdirSync, writeFileSync } from "node:fs";
 import { STANDARD_AIR } from "../lib/core/doppler";
@@ -12,6 +14,8 @@ import { buildTrack } from "../lib/core/track";
 import { encodeWav } from "../lib/bundle";
 import { fabricatePolls } from "../lib/client/fabricate";
 import { exampleActors, EXAMPLE_TARGET } from "../lib/client/example";
+import { recordedSkies, voiceLike } from "../evals/lib/elsewhere";
+import { rng } from "../evals/lib/sim";
 
 const T0 = 1_800_000_000;
 const DURATION = 85;
@@ -40,3 +44,9 @@ mkdirSync(dir, { recursive: true });
 writeFileSync(new URL("flyby.wav", dir), encodeWav(samples, RATE));
 writeFileSync(new URL("flyby-polls.json", dir), JSON.stringify({ listener, target: EXAMPLE_TARGET, callsign: target.meta.callsign, polls }));
 console.log(`fixture: ${DURATION} s at ${RATE} Hz, ${polls.length} polls`);
+
+// The same sky as the first recorded scene of evals/somewhere-else (adsb.lol data, ODbL).
+const sky = recordedSkies(1)[0];
+writeFileSync(new URL("voice.wav", dir), encodeWav(voiceLike(rng(5), 40, RATE, 45), RATE));
+writeFileSync(new URL("elsewhere-polls.json", dir), JSON.stringify({ centre: sky.centre, polls: sky.live }));
+console.log(`fixture: a 40 s voice note, ${sky.live.length} polls over ${sky.name}`);
