@@ -85,6 +85,12 @@ Thresholds: strong at score 9 and lead 2.5, possible at 6.5 and 1.5 (`lib/core/m
   microphone is recovered from the published offsets (2 m rms), the start from the UTC ridge.
 - Speed: median 0.7 s (real audio, 60 s clips) to 2.1 s (synthetic, 120 s) per analysis in
   Node on this Mac.
+- Somewhere else (2026-11-03, `evals/somewhere-else`, CI corpus: 15 made-up skies and 15 real
+  Phoenix skies, voice notes of 30 to 60 s). The page's own check names the planted plane
+  strongly in 0.90 of scenes, and never a plane it did not plant. With the true tracks of that
+  minute instead of the page's dead reckoning: 0.70. From 3 km away: 0. The planes sit 47 dB under
+  the voice (median). At home, with home's own sky, one of home's planes is named strongly in
+  0.37 of scenes: see Next #2.
 
 ## Next
 
@@ -93,9 +99,16 @@ Thresholds: strong at score 9 and lead 2.5, possible at 6.5 and 1.5 (`lib/core/m
    made through the page itself.
 2. A silent aircraft can borrow part of a loud line: in the page's example, JET881 (no sound
    at all) scores 8.6 beside the Cessna's 12.7, and the worst synthetic case with the heard
-   aircraft left out of the data reached 8.19. Strong at 9 holds on every eval today, with a
-   thin margin. Fix in the matcher: score each candidate again on the frames the best match
-   does not explain, or ask a curve to fit its whole audible span. Then lower STRONG.
+   aircraft left out of the data reached 8.19. Strong at 9 holds on the synthetic, real-track
+   and real-audio evals, with a thin margin. The somewhere-else eval breaks it: its voice notes
+   carry loud lines from planes that are not in home's flight data, and read at home, one of
+   home's planes gets a strong in 11 of 30 scenes (scores 9.2 to 16.7). At the fake spot with
+   the true tracks, an E145 12.6 km away that was never planted outscored the planted Cessna
+   (22.5 to 17.8). So strong is not safe when loud planes are missing from the data (no
+   transponder, outside the polled radius): here up to eight at once, where the synthetic
+   eval's single left-out plane peaked at 8.19. Fix in the matcher: score each candidate again
+   on the frames the best match does not explain, or ask a curve to fit its whole audible
+   span. Then lower STRONG.
 3. Wind: Open-Meteo wind at 10 m and aloft into `Air.wind` (the synthetic eval shows wind costs
    about one score point at 8 m/s).
 4. Two aircraft heard at once (two helicopters at Adelaide, a jet and a Cessna in Livermore

@@ -29,7 +29,8 @@ jobs:
       - run: pnpm build
 
   eval:
-    # The synthetic and real-track evals are the ratchet of the matcher (evals/baseline.json).
+    # The synthetic and real-track evals are the ratchet of the matcher (evals/baseline.json);
+    # somewhere-else reads back the curves the "Somewhere else" page plants.
     # The real-audio eval needs licensed data that never enters git: it runs on demand.
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -48,7 +49,7 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile --prefer-offline
-      - run: pnpm eval evals/synthetic evals/real-tracks
+      - run: pnpm eval evals/synthetic evals/real-tracks evals/somewhere-else
       - name: Eval delta
         if: ${{ !cancelled() }}
         env:
