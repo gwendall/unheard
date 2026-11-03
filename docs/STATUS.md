@@ -22,6 +22,32 @@ Updated 2026-11-03.
   (phases, the go-public checklist as done on 03/11, listening station design). CI runs on
   GitHub's runners; workflows from outside contributors wait for a maintainer's approval.
 
+## The product (redesign of 2026-11-03)
+
+What a visitor goes through, and where it lives:
+
+- **Home** (`components/Hero.tsx`, `app/[lang]/page.tsx`): the headline, one action (Listen to
+  the sky), the example result as a card that opens it, what you need, the QR code for a
+  computer, how it works in three steps as the visitor lives them, and "Does it work?" read from
+  `evals/results.json` at build time. Once you have found planes, "Your planes" lists them.
+- **The sky first** (`components/Listener.tsx`, `SkyList.tsx`, `lib/client/chance.ts`): before
+  the microphone, the page shows the aircraft around you by their names (adsbdb), which one will
+  pass closest and when, and says so in its headline. It watches for 10 minutes, then pauses.
+- **A guided recording**: started when a plane is coming, it follows that plane's countdown and
+  stops on its own once its sound has passed (30 s minimum, 5 min maximum).
+- **The result** (`components/Result.tsx`): "It was a Cessna 172 Skyhawk." with the route, the
+  registration and owner, a planespotters photo (`/api/photo`), six facts (distance, height,
+  speed, sound delay, the hum's pitch, the Doppler fall), Hear it (the recording, then the plane
+  brought out of it: sped up and band-passed, `lib/client/reveal.ts`), a share card
+  (`lib/client/card.ts`, the phone's share sheet), a link to follow it live (globe.adsb.lol),
+  the spectrum and the map, every plane checked, and the donation form.
+- **Your planes** (`lib/client/logbook.ts`, `components/Logbook.tsx`): every real find kept in
+  this browser's storage only, listed on the home, clearable.
+- **Languages** (`lib/i18n`, `proxy.ts`): English and French. `/en` and `/fr` are each
+  language's address; the bare address answers in the browser's language by rewrite. Every word
+  lives in `lib/i18n/en.ts` and `fr.ts`, same shape checked by the type.
+- **Installable**: `app/manifest.ts`, generated icons (`app/icon.tsx`, `app/apple-icon.tsx`).
+
 ## Results (2026-11-02)
 
 See the latest reports in `evals/reports/` (regenerate with `pnpm eval`). Numbers below are
@@ -65,6 +91,9 @@ Thresholds: strong at score 9 and lead 2.5, possible at 6.5 and 1.5 (`lib/core/m
 6. adsb.lol rate limit (about one request every 2 s per address): the API route must share one
    upstream poll per area across users (the site is public now; Vercel Hobby allows a single
    rate-limit rule, spent on `/api/donate`); ask adsb.lol for a key.
+7. Product, next: a notification when a plane is about to pass close while the sky screen is
+   open (Notification API: Android, computers, and iPhones with Unheard on the home screen); a
+   result page with its own address to share as a link, beside the picture.
 
 ## Needs the founder
 
@@ -73,3 +102,5 @@ Thresholds: strong at score 9 and lead 2.5, possible at 6.5 and 1.5 (`lib/core/m
 - Request access to AeroSonicDB 3K (3,058 events): an email to its author with the project.
 - Donations license: CC BY 4.0 for the sound, but the anonymised tracks come from adsb.lol
   (ODbL). Confirm the combination before the first release of the dataset.
+- If it ever becomes commercial: adsbdb.com (names, routes) and planespotters.net (photos, credit
+  and link required) are free services with their own terms; check them first.
