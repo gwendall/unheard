@@ -358,10 +358,6 @@
       "yes": "We look for the hum of propeller planes and helicopters, 40 to 400 Hz, whose pitch falls as they pass: the tone that can place a recording on flight data.",
       "no": "We do not look for jets yet (in our tests on real recordings we missed all four), for the hum of the power grid (ENF), which can date a recording, or for anything else a video shows or says."
     },
-    "home": {
-      "title": "Does your video give away where you are?",
-      "text": "The hum of a plane in the background can place it. Check a file and take those tones out, in your browser.",
-      "link": "Check a video"
-    }
+    "link": "New: check whether your video gives away where you are"
   }
 }

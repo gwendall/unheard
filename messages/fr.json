@@ -361,10 +361,6 @@
       "yes": "Nous cherchons le bourdonnement des avions à hélice et des hélicoptères, de 40 à 400 Hz, dont la hauteur baisse à leur passage : le son qui peut situer un enregistrement grâce aux données de vol.",
       "no": "Nous ne cherchons pas encore les avions à réaction (dans nos tests sur de vrais enregistrements, nous les avons manqués tous les quatre), ni le ronflement du réseau électrique (ENF), qui peut dater un enregistrement, ni rien de ce qu'une vidéo montre ou dit d'autre."
     },
-    "home": {
-      "title": "Votre vidéo dit où vous êtes ?",
-      "text": "Le bourdonnement d'un avion au loin peut la situer. Vérifiez un fichier et retirez-en ces sons, dans votre navigateur.",
-      "link": "Vérifier une vidéo"
-    }
+    "link": "Nouveau : vérifiez si votre vidéo dit où vous êtes"
   }
 }

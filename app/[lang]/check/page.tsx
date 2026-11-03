@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { Check } from "@/components/Check";
-import { alternates, messages, type Locale } from "@/lib/i18n";
+import { alternates, LANGUAGES, messages, pathFor, type Locale } from "@/lib/i18n";
 
 // Does a video give away where it was made? The faint tone of a propeller plane in its sound,
 // matched to flight data, can place it. This page finds those tones in a file and takes them out,
@@ -9,7 +9,14 @@ import { alternates, messages, type Locale } from "@/lib/i18n";
 export async function generateMetadata({ params }: PageProps<"/[lang]/check">): Promise<Metadata> {
   const lang = (await params).lang as Locale;
   const { meta } = await messages(lang);
-  return { title: meta.checkTitle, description: meta.checkDescription, alternates: alternates(lang, "/check") };
+  return {
+    title: meta.checkTitle,
+    description: meta.checkDescription,
+    alternates: alternates(lang, "/check"),
+    // The layout's image (app/[lang]/opengraph-image.tsx) stays; the rest of these objects is replaced, not merged.
+    openGraph: { type: "website", siteName: "Unheard", locale: LANGUAGES[lang].og, title: meta.checkTitle, description: meta.checkDescription },
+    twitter: { card: "summary_large_image", title: meta.checkTitle, description: meta.checkDescription },
+  };
 }
 
 export default async function CheckPage({ params }: PageProps<"/[lang]/check">) {
@@ -25,7 +32,7 @@ export default async function CheckPage({ params }: PageProps<"/[lang]/check">) 
           {t.private}
         </p>
       </header>
-      <Check />
+      <Check elsewhere={pathFor(lang, "/somewhere-else")} />
       <section className="flex flex-col gap-3" aria-labelledby="scope">
         <h2 id="scope" className="text-sm font-medium tracking-wide text-mute uppercase">
           {t.scope.title}
