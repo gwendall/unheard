@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { airlineName, identityOf, isAirlineCallsign, routeFits, spoken, type Route } from "./names";
+import fr from "../../messages/fr.json";
+
+const FR = fr.article;
 
 const paris = { city: "Paris", code: "CDG", lat: 49.0097, lon: 2.5479 };
 const nice = { city: "Nice", code: "NCE", lat: 43.6584, lon: 7.2159 };
@@ -40,7 +43,7 @@ describe("names", () => {
     expect(spoken(identityOf({ hex: "a", type: "C172", callsign: "FGDEM" }, null, null))).toBe("a Cessna 172 Skyhawk");
     expect(spoken(identityOf({ hex: "b", type: "EC35", callsign: "SAMU31" }, null, null))).toBe("an Airbus H135");
     expect(spoken(identityOf({ hex: "c", type: "A320", callsign: "AFR7700" }, null, route))).toBe("Air France AF7700");
-    expect(spoken(identityOf({ hex: "b", type: "EC35", callsign: "SAMU31" }, null, null), "fr")).toBe("un Airbus H135");
-    expect(spoken(identityOf({ hex: "c", type: "A320", callsign: "AFR7700" }, null, route), "fr")).toBe("Air France AF7700");
+    expect(spoken(identityOf({ hex: "b", type: "EC35", callsign: "SAMU31" }, null, null), FR)).toBe("un Airbus H135");
+    expect(spoken(identityOf({ hex: "c", type: "A320", callsign: "AFR7700" }, null, route), FR)).toBe("Air France AF7700");
   });
 });

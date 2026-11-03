@@ -1,8 +1,7 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
-import { height, km, seconds } from "@/lib/client/format";
-import { useT } from "@/lib/i18n/client";
+import { useI18n } from "./I18n";
 import { Logbook } from "./Logbook";
 
 const noop = () => () => {};
@@ -10,13 +9,10 @@ const noop = () => () => {};
 const useHydrated = () => useSyncExternalStore(noop, () => true, () => false);
 
 export function Hero({ onListen, onExample, error, qr }: { onListen: () => void; onExample: () => void; error: string | null; qr: string }) {
-  const t = useT().hero;
+  const t = useI18n().m.hero;
   return (
     <div className="flex flex-col gap-8">
-      <div className="flex flex-col gap-4">
-        <p className="font-mono text-sm tracking-[0.2em] text-amber uppercase">Unheard</p>
-        <h1 className="text-5xl leading-[1.02] font-semibold tracking-tight text-balance sm:text-6xl">{t.title}</h1>
-      </div>
+      <h1 className="text-5xl leading-[1.02] font-semibold tracking-tight text-balance sm:text-6xl">{t.title}</h1>
       <div className="grid gap-10 lg:grid-cols-2 lg:items-start lg:gap-14">
         <div className="flex flex-col gap-6">
           <p className="text-lg text-pretty text-mute sm:text-xl">
@@ -61,11 +57,13 @@ export function Hero({ onListen, onExample, error, qr }: { onListen: () => void;
  */
 function ExampleCard({ onOpen }: { onOpen: () => void }) {
   const hydrated = useHydrated();
-  const { example: t, facts: f } = useT();
+  const { m, f } = useI18n();
+  const { example: t, facts: label } = m;
   const facts: [string, string][] = [
-    [km(690), f.closest],
-    [hydrated ? height(550) : "550 m", f.above],
-    [seconds(2), f.delay],
+    [f.km(690), label.closest],
+    // Feet for American English, known only once in the browser.
+    [hydrated ? f.height(550) : f.km(550), label.above],
+    [f.seconds(2), label.delay],
   ];
   return (
     <button

@@ -7,8 +7,8 @@ import { STRONG, type Match } from "@/lib/core/match";
 import type { AircraftMeta } from "@/lib/adsb";
 import { stateAt } from "@/lib/core/track";
 import { norm } from "@/lib/core/geo";
-import { useFormat, useLang, useT } from "@/lib/i18n/client";
-import type { Dict } from "@/lib/i18n";
+import type { Messages } from "@/lib/i18n";
+import { useI18n } from "./I18n";
 import { identityOf, spoken } from "@/lib/client/names";
 import { photoOf, type Photo } from "@/lib/client/photo";
 import { aircraftType, isTonal } from "@/lib/client/types";
@@ -36,10 +36,8 @@ export function Result({
   onBundle: (() => void) | null;
   onAgain: () => void;
 }) {
-  const all = useT();
+  const { m: all, f, fill, plural } = useI18n();
   const t = all.result;
-  const f = useFormat();
-  const lang = useLang();
   const { verdict } = analysis;
   const best = verdict.kind === "none" ? null : verdict.best;
   const [showCurve, setShowCurve] = useState(false);
@@ -89,8 +87,8 @@ export function Result({
     record({ at: savedAt, hex: best.meta.hex, title, kind, sure, range: facts.range, height: Math.max(0, facts.height), route: from && to ? { from, to } : null });
   }, [example, best, facts, title, kind, sure, savedAt, from, to]);
   const log = useLogbook();
-  const name = identity ? spoken(identity, lang) : null;
-  const detail = identity ? [identity.route ? all.route(identity.route.from.city, identity.route.to.city) : null, identity.detail || null].filter(Boolean).join(" · ") : "";
+  const name = identity ? spoken(identity, all.article) : null;
+  const detail = identity ? [identity.route ? fill(all.route, { from: identity.route.from.city, to: identity.route.to.city }) : null, identity.detail || null].filter(Boolean).join(" · ") : "";
 
   return (
     <section className="flex flex-col gap-8" aria-live="polite">
@@ -100,8 +98,8 @@ export function Result({
           <span>{verdict.kind === "strong" ? t.found : verdict.kind === "possible" ? t.faint : t.nothing}</span>
         </div>
         <h2 className="text-4xl font-semibold tracking-tight text-balance sm:text-5xl" data-testid="verdict">
-          {verdict.kind === "strong" && t.strong(name ?? "")}
-          {verdict.kind === "possible" && t.possible(name ?? "")}
+          {verdict.kind === "strong" && fill(t.strong, { name: name ?? "" })}
+          {verdict.kind === "possible" && fill(t.possible, { name: name ?? "" })}
           {verdict.kind === "none" && t.none}
         </h2>
         {best && detail && (
@@ -114,13 +112,13 @@ export function Result({
             <a href={`https://globe.adsb.lol/?icao=${best.meta.hex}`} target="_blank" rel="noreferrer" className="text-amber-soft underline-offset-4 hover:underline" data-testid="follow">
               {all.follow} <span aria-hidden>→</span>
             </a>
-            {log.some((e) => e.hex === best.meta.hex) && <span data-testid="logged">{all.logbook.added(log.length)}</span>}
+            {log.some((e) => e.hex === best.meta.hex) && <span data-testid="logged">{fill(all.logbook.added, { n: log.length })}</span>}
           </p>
         )}
         {verdict.kind === "possible" && <p className="text-pretty text-faint">{t.guess}</p>}
         {verdict.kind === "none" && (
           <p className="max-w-prose text-lg text-pretty text-mute">
-            {t.noneText(analysis.seen)}
+            {plural(analysis.seen, t.noneText)}
           </p>
         )}
       </header>
@@ -134,7 +132,7 @@ export function Result({
                 src={photo.src}
                 width={photo.width}
                 height={photo.height}
-                alt={identity ? t.photographed(identity.title) : t.theAircraft}
+                alt={identity ? fill(t.photographed, { title: identity.title }) : t.theAircraft}
                 className="h-auto w-full rounded-2xl border border-line bg-deep object-cover opacity-0 transition-opacity duration-500 data-[loaded]:opacity-100"
                 onLoad={(e) => e.currentTarget.setAttribute("data-loaded", "")}
               />
@@ -152,10 +150,10 @@ export function Result({
 
       {best && facts && identity && !example && (
         <Share
-          text={t.shareText(verdict.kind === "possible", spoken(identity, lang), f.km(facts.range))}
+          text={fill(verdict.kind === "possible" ? t.shareTextPossible : t.shareText, { name: spoken(identity, all.article), distance: f.km(facts.range) })}
           card={{
-            lead: t.shareLead(verdict.kind === "possible"),
-            name: spoken(identity, lang),
+            lead: verdict.kind === "possible" ? t.shareLeadPossible : t.shareLead,
+            name: spoken(identity, all.article),
             detail,
             facts: [
               [f.km(facts.range), t.shareFacts.closest],
@@ -189,7 +187,7 @@ export function Result({
       {verdict.ranked.length > 0 && (
         <details className="group flex flex-col gap-3" open={verdict.kind === "none"}>
           <summary className="cursor-pointer text-sm font-medium tracking-wide text-mute uppercase marker:text-faint">
-            {t.checked(Math.min(8, verdict.ranked.length))}
+            {fill(t.checked, { n: Math.min(8, verdict.ranked.length) })}
           </summary>
           <ol className="mt-3 flex flex-col divide-y divide-line overflow-hidden rounded-2xl border border-line bg-deep">
             {verdict.ranked.slice(0, 8).map((m) => {
@@ -201,7 +199,7 @@ export function Result({
                   <div className="min-w-0 flex-1">
                     <div className={`truncate font-medium ${top ? "text-amber-soft" : ""}`}>{id.title}</div>
                     <div className="truncate text-sm text-faint">
-                      {[id.detail || null, m.closest ? t.atClosest(f.km(m.closest.range)) : null, tonal === false ? t.jet : null].filter(Boolean).join(" · ")}
+                      {[id.detail || null, m.closest ? fill(t.atClosest, { distance: f.km(m.closest.range) }) : null, tonal === false ? t.jet : null].filter(Boolean).join(" · ")}
                     </div>
                   </div>
                   <div className="flex w-28 shrink-0 items-center gap-2 sm:w-40">
@@ -214,7 +212,7 @@ export function Result({
               );
             })}
           </ol>
-          <p className="mt-3 text-sm text-pretty text-faint">{t.score(STRONG.score)}</p>
+          <p className="mt-3 text-sm text-pretty text-faint">{fill(t.score, { strong: STRONG.score })}</p>
         </details>
       )}
 
@@ -237,7 +235,7 @@ export function Result({
 type Facts = { emitted: number; height: number; speed: number; range: number; delay: number };
 
 /** What its hum is, by kind of aircraft. */
-function humOf(type: string | undefined, hum: Dict["result"]["hum"]): string {
+function humOf(type: string | undefined, hum: Messages["result"]["hum"]): string {
   const kind = aircraftType(type)?.kind;
   if (kind === "piston" || kind === "turboprop") return hum.prop;
   if (kind === "helicopter") return hum.rotor;
@@ -247,8 +245,8 @@ function humOf(type: string | undefined, hum: Dict["result"]["hum"]): string {
 
 /** The numbers worth telling a friend, each in a word or two. */
 function Facts({ best, facts }: { best: Match<AircraftMeta>; facts: Facts }) {
-  const { result: t, facts: label } = useT();
-  const f = useFormat();
+  const { m, f } = useI18n();
+  const { result: t, facts: label } = m;
   let lo = Infinity;
   let hi = -Infinity;
   for (const f of best.factor) {

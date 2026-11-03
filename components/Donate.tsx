@@ -8,7 +8,8 @@ import { encodeWav, makeBundle, type Bundle } from "@/lib/bundle";
 import type { Analysis, Recording } from "@/lib/core/pipeline";
 import { checkDonation, DONATION_PATH } from "@/lib/donation";
 import type { AircraftMeta } from "@/lib/adsb";
-import { useFormat, useLang, useT } from "@/lib/i18n/client";
+import { pathFor } from "@/lib/locales";
+import { Rich, useI18n } from "./I18n";
 
 const UNSURE = "unsure";
 const NONE = "none";
@@ -23,9 +24,8 @@ export function Donate({ rec, analysis, device, title }: { rec: Recording; analy
   const [note, setNote] = useState("");
   const [consent, setConsent] = useState(false);
   const [state, setState] = useState<State>({ kind: "form" });
-  const t = useT().donate;
-  const lang = useLang();
-  const f = useFormat();
+  const { locale, m: all, f, fill } = useI18n();
+  const t = all.donate;
   // The exact sound that would be sent, to listen to before giving it.
   const audio = useMemo(() => URL.createObjectURL(new Blob([encodeWav(rec.samples, rec.sampleRate).slice().buffer], { type: "audio/wav" })), [rec]);
   useEffect(() => () => URL.revokeObjectURL(audio), [audio]);
@@ -51,19 +51,22 @@ export function Donate({ rec, analysis, device, title }: { rec: Recording; analy
     }
   }
 
-  const removal = state.kind === "sent" ? t.removal(state.id) : [];
   if (state.kind === "sent") {
     return (
       <div className="flex flex-col gap-2 rounded-2xl border border-line bg-deep p-5" data-testid="donated">
         <h3 className="font-medium text-balance">{t.thanks}</h3>
         <p className="text-sm text-pretty text-mute">
-          {removal[0]}
-          <span className="font-mono text-ink">{removal[1]}</span>
-          {removal[2]}
-          <a href="mailto:unheard@gwendall.com" className="text-amber-soft underline-offset-4 hover:underline">
-            {removal[3]}
-          </a>
-          {removal[4]}
+          <Rich
+            text={t.removal}
+            parts={{
+              id: <span className="font-mono text-ink">{state.id}</span>,
+              email: (
+                <a href="mailto:unheard@gwendall.com" className="text-amber-soft underline-offset-4 hover:underline">
+                  unheard@gwendall.com
+                </a>
+              ),
+            }}
+          />
         </p>
       </div>
     );
@@ -82,7 +85,7 @@ export function Donate({ rec, analysis, device, title }: { rec: Recording; analy
         <h3 className="font-medium text-balance">{t.title}</h3>
         <p className="text-sm text-pretty text-mute">
           {t.why}{" "}
-          <Link href={`/${lang}/privacy`} className="text-amber-soft underline-offset-4 hover:underline">
+          <Link href={pathFor(locale, "/privacy")} className="text-amber-soft underline-offset-4 hover:underline">
             {t.whatIsSent}
           </Link>
         </p>
@@ -98,7 +101,7 @@ export function Donate({ rec, analysis, device, title }: { rec: Recording; analy
         <select value={heard} onChange={(e) => setHeard(e.target.value)} className="rounded-lg border border-line bg-night px-3 py-2 text-ink" data-testid="donate-heard">
           {verdict.ranked.slice(0, 8).map((m) => (
             <option key={m.id} value={m.id}>
-              {`${title(m.meta)}${m.closest ? t.atClosest(f.km(m.closest.range)) : ""}`}
+              {`${title(m.meta)}${m.closest ? fill(t.atClosest, { distance: f.km(m.closest.range) }) : ""}`}
             </option>
           ))}
           <option value={NONE}>{t.none}</option>

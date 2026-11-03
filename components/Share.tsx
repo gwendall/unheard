@@ -2,14 +2,14 @@
 
 import { useState } from "react";
 import { drawCard, type Card } from "@/lib/client/card";
-import { useT } from "@/lib/i18n/client";
+import { useI18n } from "@/components/I18n";
 
 const SITE = "https://unheard.gwendall.com";
 
 /** Shares the card through the phone's share sheet; on a computer, saves it and copies the text. */
 export function Share({ card, text }: { card: Card; text: string }) {
   const [state, setState] = useState<"idle" | "busy" | "saved" | "error">("idle");
-  const t = useT().share;
+  const t = useI18n().m.share;
 
   async function share() {
     setState("busy");

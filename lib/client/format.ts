@@ -1,15 +1,15 @@
 import type { AircraftMeta } from "../adsb";
-import { locale, type Lang } from "../i18n/lang";
+import { DEFAULT_LOCALE, LANGUAGES, type Locale } from "../locales";
 import { aircraftType } from "./types";
 
 /** Feet and miles per hour for American English, metres and km/h everywhere else. */
 export const imperial = () => typeof navigator !== "undefined" && /^en-US$/i.test(navigator.language);
 
 /** Distances, heights and times as people say them in a language: "1.2 km" or "1,2 km". */
-export function formatFor(lang: Lang) {
-  const loc = locale(lang);
-  // French keeps the number and its unit together.
-  const unit = lang === "fr" ? "\u00a0" : " ";
+export function formatFor(locale: Locale) {
+  const loc = LANGUAGES[locale].tag;
+  // Every language but English keeps the number and its unit together.
+  const unit = locale === DEFAULT_LOCALE ? " " : "\u00a0";
   const n = (x: number, digits = 0) => x.toLocaleString(loc, { minimumFractionDigits: digits, maximumFractionDigits: digits });
   return {
     km: (m: number) => (m < 950 ? `${n(Math.round(m / 10) * 10)}${unit}m` : `${n(m / 1000, m < 9500 ? 1 : 0)}${unit}km`),
@@ -24,7 +24,7 @@ export function formatFor(lang: Lang) {
 export type Format = ReturnType<typeof formatFor>;
 
 export const clock = (s: number) => `${s < 0 ? "-" : ""}${Math.floor(Math.abs(s) / 60)}:${String(Math.floor(Math.abs(s) % 60)).padStart(2, "0")}`;
-export const { km, height, speed, seconds } = formatFor("en");
+export const { km, height, speed, seconds } = formatFor(DEFAULT_LOCALE);
 
 /** What to call an aircraft: its callsign, else its registration, else its hex code. */
 export function nameOf(meta: AircraftMeta): string {

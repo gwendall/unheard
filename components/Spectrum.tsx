@@ -5,7 +5,7 @@ import type { Analysis } from "@/lib/core/pipeline";
 import type { Match } from "@/lib/core/match";
 import type { AircraftMeta } from "@/lib/adsb";
 import { colorOf } from "@/lib/client/colormap";
-import { useT } from "@/lib/i18n/client";
+import { useI18n } from "@/components/I18n";
 
 type Band = { lo: number; hi: number };
 
@@ -91,7 +91,7 @@ export function paintSpectrum(ctx: CanvasRenderingContext2D, w: number, h: numbe
 }
 
 export function Spectrum({ analysis, match, showCurve }: { analysis: Analysis; match: Match<AircraftMeta> | null; showCurve: boolean }) {
-  const label = useT().plots.spectrum;
+  const label = useI18n().m.plots.spectrum;
   const canvas = useRef<HTMLCanvasElement>(null);
   const band = useMemo(() => bandOf(match), [match]);
   const { spec } = analysis;

@@ -7,9 +7,9 @@
   "packageManager": "pnpm@10.20.0",
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "node scripts/check-messages.ts && next build",
     "start": "next start",
-    "lint": "eslint",
+    "lint": "eslint && node scripts/check-messages.ts",
     "typecheck": "next typegen && tsc --noEmit",
     "test": "vitest run",
     "eval": "vitest run --config vitest.eval.config.ts",

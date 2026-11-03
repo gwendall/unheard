@@ -5,7 +5,7 @@ import type { AircraftMeta } from "@/lib/adsb";
 import type { Match } from "@/lib/core/match";
 import type { Recording } from "@/lib/core/pipeline";
 import { asHeard, revealed, speedFor } from "@/lib/client/reveal";
-import { useT } from "@/lib/i18n/client";
+import { useI18n } from "@/components/I18n";
 
 /** The band the plane's curve went through in the recording. */
 function bandOf(match: Match<AircraftMeta>): { lo: number; hi: number } | null {
@@ -41,7 +41,9 @@ export function HearIt({ rec, match }: { rec: Recording; match: Match<AircraftMe
     };
   }, [rec, band, match, speed]);
   const planeUrl = plane && plane.for === match ? plane.url : null;
-  const t = useT().hearIt;
+  const { m, fill, plural } = useI18n();
+  const t = m.hearIt;
+  const times = String(speed) in t.times ? t.times[String(speed) as keyof typeof t.times] : plural(speed, t.times);
 
   return (
     <div className="flex flex-col gap-4" data-testid="hear-it">
@@ -55,7 +57,7 @@ export function HearIt({ rec, match }: { rec: Recording; match: Match<AircraftMe
         {match && (
           <div className="flex flex-col gap-2 rounded-2xl border border-amber/30 bg-amber/5 p-4">
             <p className="font-medium text-amber-soft">{t.plane}</p>
-            <p className="text-sm text-pretty text-mute">{t.planeText(speed)}</p>
+            <p className="text-sm text-pretty text-mute">{speed > 1 ? fill(t.planeTextFaster, { times }) : t.planeText}</p>
             {planeUrl ? <audio controls src={planeUrl} className="w-full [color-scheme:dark]" preload="metadata" data-testid="revealed" /> : <p className="text-sm text-faint">{t.preparing}</p>}
           </div>
         )}

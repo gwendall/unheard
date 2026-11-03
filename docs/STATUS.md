@@ -43,9 +43,15 @@ What a visitor goes through, and where it lives:
   the spectrum and the map, every plane checked, and the donation form.
 - **Your planes** (`lib/client/logbook.ts`, `components/Logbook.tsx`): every real find kept in
   this browser's storage only, listed on the home, clearable.
-- **Languages** (`lib/i18n`, `proxy.ts`): English and French. `/en` and `/fr` are each
-  language's address; the bare address answers in the browser's language by rewrite. Every word
-  lives in `lib/i18n/en.ts` and `fr.ts`, same shape checked by the type.
+- **Languages**, the way every site of the family has them (Koe, Wham, Kiku, istheinternetok):
+  English at `/`, French at `/fr` (`/en` redirects to `/`). A first visit goes to the browser's
+  first language; after that, to the one picked in the menu of the header or the footer (the
+  `unheard-lang` cookie, English included). Link previews and crawlers get the page they asked
+  for (`next.config.ts`). Every word lives in `messages/<code>.json`; `scripts/check-messages.ts`
+  (in `lint` and `build`) holds each language to English's keys, lists and `{placeholders}`.
+  French is written with plain spaces, `lib/typography.ts` puts the no-break ones.
+  **Adding a language**: its `messages/<code>.json`, and a line in `LOCALES` and `LANGUAGES`
+  (`lib/locales.ts`); the routes, the menu, the alternates and the check follow.
 - **Installable**: `app/manifest.ts`, generated icons (`app/icon.tsx`, `app/apple-icon.tsx`).
 
 ## Results (2026-11-02)

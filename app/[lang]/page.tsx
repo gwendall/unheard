@@ -2,7 +2,8 @@ import Link from "next/link";
 import { renderSVG } from "uqr";
 import { Listener } from "@/components/Listener";
 import results from "@/evals/results.json";
-import { dict, locale, type Lang } from "@/lib/i18n";
+import { LanguageMenu } from "@/components/LanguageMenu";
+import { fill, LANGUAGES, messages, pathFor, plural, type Locale } from "@/lib/i18n";
 
 // The way from a computer to a phone: a QR code of the site, drawn once on the server. The bare
 // address, so the phone opens it in its own language.
@@ -20,12 +21,12 @@ const real = results["real-audio"].heard;
 const lastRun = new Date(evals.map((e) => e.date).sort().at(-1)!);
 
 export default async function Home({ params }: PageProps<"/[lang]">) {
-  const lang = (await params).lang as Lang;
-  const t = dict(lang);
-  const measured = lastRun.toLocaleDateString(locale(lang), { month: "long", day: "numeric", year: "numeric", timeZone: "UTC" });
+  const lang = (await params).lang as Locale;
+  const t = await messages(lang);
+  const measured = lastRun.toLocaleDateString(LANGUAGES[lang].tag, { month: "long", day: "numeric", year: "numeric", timeZone: "UTC" });
   const proof = [
-    { value: String(sureWrong), label: t.proof.wrong(sureWrong, tested, nothing) },
-    { value: t.proof.realValue(real.anyHit, real.n), label: t.proof.real(real.strongHit) },
+    { value: fill("{n}", { n: sureWrong }, lang), label: plural(lang, sureWrong, t.proof.wrong, { tested, nothing }) },
+    { value: fill(t.proof.realValue, { hit: real.anyHit, n: real.n }, lang), label: fill(t.proof.real, { strong: real.strongHit }, lang) },
     { value: t.proof.yoursValue, label: t.proof.yours },
   ];
   return (
@@ -59,25 +60,23 @@ export default async function Home({ params }: PageProps<"/[lang]">) {
           ))}
         </dl>
         <p className="mt-4 text-sm text-faint">
-          {t.proof.measured(measured)}{" "}
+          {fill(t.proof.measured, { date: measured }, lang)}{" "}
           <a href={`${REPO}#scoreboard`} className="text-mute underline-offset-4 transition hover:text-ink hover:underline">
             {t.proof.scoreboard} <span aria-hidden>→</span>
           </a>
         </p>
       </section>
-      <footer className="mx-auto mt-auto flex w-full max-w-6xl flex-wrap gap-x-6 gap-y-2 px-5 pb-10 text-sm text-faint sm:px-8">
+      <footer className="mx-auto mt-auto flex w-full max-w-6xl flex-wrap items-center gap-x-6 gap-y-3 px-5 pb-10 text-sm text-faint sm:px-8">
+        <LanguageMenu current={lang} label={t.nav.language} full />
         <a href={REPO} className="transition hover:text-ink">
           {t.footer.github}
         </a>
-        <Link href={`/${lang}/privacy`} className="transition hover:text-ink">
+        <Link href={pathFor(lang, "/privacy")} className="transition hover:text-ink">
           {t.footer.privacy}
         </Link>
         <a href="mailto:unheard@gwendall.com" className="transition hover:text-ink">
           unheard@gwendall.com
         </a>
-        <Link href={`/${t.footer.other.lang}`} hrefLang={t.footer.other.lang} lang={t.footer.other.lang} className="transition hover:text-ink">
-          {t.footer.other.label}
-        </Link>
         <a href="https://gwendall.com" className="transition hover:text-ink sm:ml-auto">
           {t.footer.madeBy}
         </a>

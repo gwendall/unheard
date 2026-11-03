@@ -5,7 +5,7 @@ import type { AircraftMeta } from "@/lib/adsb";
 import type { Nearby } from "@/lib/client/nearby";
 import { audible, HORIZON } from "@/lib/client/chance";
 import { nameOf } from "@/lib/client/format";
-import { useFormat, useT } from "@/lib/i18n/client";
+import { useI18n } from "./I18n";
 import { lookUp, type Identity } from "@/lib/client/names";
 
 /** Identities of the aircraft shown, looked up once each, filled in as the answers come. */
@@ -36,9 +36,8 @@ export function ranked(around: Nearby[], limit = 6): Nearby[] {
 }
 
 export function SkyList({ list, ids, receivedAt, now, target }: { list: Nearby[]; ids: Map<string, Identity>; receivedAt: number; now: number; target: string | null }) {
-  const all = useT();
-  const t = all.list;
-  const f = useFormat();
+  const { m, f, fill } = useI18n();
+  const t = m.list;
   if (!list.length) return null;
   return (
     <div className="flex flex-col gap-3">
@@ -48,9 +47,9 @@ export function SkyList({ list, ids, receivedAt, now, target }: { list: Nearby[]
           const id = ids.get(n.meta.hex);
           const hear = audible(n);
           const left = countdown(n, receivedAt, now);
-          const route = id?.route ? all.route(id.route.from.city, id.route.to.city) : null;
-          const detail = [route, id?.detail || null, t.up(f.height(Math.max(0, n.height)))].filter(Boolean).join(" · ");
-          const when = Math.abs(left) <= 15 ? t.passingNow : left < 0 ? t.movingAway : left < HORIZON ? t.closestIn(f.clock(left), f.km(n.closestAt)) : t.farOff;
+          const route = id?.route ? fill(m.route, { from: id.route.from.city, to: id.route.to.city }) : null;
+          const detail = [route, id?.detail || null, fill(t.up, { height: f.height(Math.max(0, n.height)) })].filter(Boolean).join(" · ");
+          const when = Math.abs(left) <= 15 ? t.passingNow : left < 0 ? t.movingAway : left < HORIZON ? fill(t.closestIn, { when: f.clock(left), distance: f.km(n.closestAt) }) : t.farOff;
           return (
             <li key={n.meta.hex} className={`flex items-center justify-between gap-4 px-4 py-3 ${n.meta.hex === target ? "bg-amber/5" : ""}`}>
               <div className="min-w-0">
