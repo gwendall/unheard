@@ -14,7 +14,8 @@
 // answer needs the curve along the line's span. A line no aircraft of the data explains is
 // reported: a plane we hear that the flight data does not have.
 
-import type { Air } from "./doppler";
+import { pathSpeed, type Air } from "./doppler";
+import { bestOf, framesOf, shapeOf } from "./flyby";
 import { matchMasked, STRONG, type Candidate, type Mask, type Match, type MatchOptions } from "./match";
 import type { Stack } from "./spectrogram";
 import { findTraces, type Trace, type TraceOptions } from "./trace";
@@ -68,7 +69,7 @@ const DEFAULTS: Required<ExplainOptions> = {
 };
 
 /** Log tolerance of a line: the relative one, or toleranceHz at its median tone if wider. */
-function toleranceOf(line: Trace, o: Required<ExplainOptions>): number {
+export function toleranceOf(line: Trace, o: Required<ExplainOptions> = DEFAULTS): number {
   const f: number[] = [];
   for (let k = line.from; k <= line.to; k++) if (Number.isFinite(line.freq[k])) f.push(line.freq[k]);
   f.sort((a, b) => a - b);
@@ -246,6 +247,27 @@ export function flybyFit(line: Trace, times: ArrayLike<number>, tol: number, foc
   return best;
 }
 
+/**
+ * The share of a line that a curve (per frame, heard over emitted; NaN where unknown) follows at
+ * whichever tone suits it best: any tone, not just the matcher's and its family (a propeller's
+ * blade-pass and its engine's firing tone are one aircraft at no simple ratio).
+ */
+export function sameCurve(line: Trace, factor: ArrayLike<number>, tol: number): number {
+  const n = line.to - line.from + 1;
+  const res = new Float64Array(n);
+  let m = 0;
+  for (let k = line.from; k <= line.to; k++) {
+    const f = factor[k];
+    if (!Number.isFinite(f) || !(f > 0) || !Number.isFinite(line.freq[k])) continue;
+    res[m++] = Math.log(line.freq[k] / f);
+  }
+  if (!m) return 0;
+  const off = bestOffset(res, m, tol);
+  let count = 0;
+  for (let i = 0; i < m; i++) if (Math.abs(res[i] - off) <= tol) count++;
+  return count / n;
+}
+
 export type Follow = {
   /** Line tone over the curve's tone at the ratio that fits best (one of FAMILY). */
   ratio: number;
@@ -392,6 +414,8 @@ export type Line = {
   by: string[];
   /** Aircraft that borrowed it, and were scored again without it. */
   borrowed: string[];
+  /** The most of it any aircraft of the data follows at a tone of its own (0 before they are checked). */
+  shape: number;
 };
 
 export type Explained<M> = {
@@ -403,6 +427,73 @@ export type Explained<M> = {
 };
 
 /**
+ * What an unexplained line must show to be told to a visitor (evals/ghost.eval.ts, where each number
+ * comes from): a straight flyby follows this share of it, it stands this far above scrambled copies
+ * of the recording, no aircraft of the data follows this share of it at any tone, and read as a
+ * straight pass it is this far away, in metres. Street sound makes confident falling lines too
+ * (a machine winding down, a car, a voice), nearly all of them read as passing within 300 m.
+ */
+export const GHOST = { share: 0.8, confidence: 20, shape: 0.5, distance: 300 };
+
+/** A line we can tell a visitor about: a sound passing that the flight data does not have. */
+export type Ghost = {
+  /** Seconds from the start of the recording. */
+  from: number;
+  to: number;
+  /** The tone heard at either end, Hz. */
+  hzFrom: number;
+  hzTo: number;
+  /** Read as a straight pass (lib/core/flyby.ts): its speed in m/s and closest distance in m, an order of magnitude. */
+  speed: number;
+  distance: number;
+  /** Per base frame, the flyby's tone in Hz (NaN outside the line). */
+  curve: Float32Array;
+};
+
+/** Whether two lines are one sound: heard at once, and the flyby of the first follows the second at a tone of its own. */
+function sameSound(a: Line, b: Line, times: ArrayLike<number>): boolean {
+  const from = Math.max(a.trace.from, b.trace.from);
+  const to = Math.min(a.trace.to, b.trace.to);
+  if (to - from < 0.5 * Math.min(a.trace.to - a.trace.from, b.trace.to - b.trace.from)) return false;
+  const at = Float64Array.from({ length: b.trace.to - b.trace.from + 1 }, (_, i) => times[b.trace.from + i]);
+  const factor = new Float32Array(times.length).fill(NaN);
+  flybyLogs(at, a.flyby.beta, a.flyby.T, a.flyby.t0, new Float64Array(at.length)).forEach((log, i) => {
+    factor[b.trace.from + i] = Math.exp(log);
+  });
+  return sameCurve(b.trace, factor, toleranceOf(b.trace)) >= 0.5;
+}
+
+/** A line read as a straight pass: the grid of lib/core/flyby.ts, sturdier than the free flyby's own numbers when the line is only part of a pass. */
+export function readLine(trace: Trace, times: ArrayLike<number>, air: Air): { speed: number; distance: number } {
+  const { t, y } = framesOf(trace, Float64Array.from(times), 0);
+  return bestOf(shapeOf(t, y, pathSpeed(air, 300)));
+}
+
+/** The lines to tell a visitor about, strongest first, each sound once (a tone and its neighbour, a ridge read twice). */
+export function ghostLines(lines: Line[], times: ArrayLike<number>, air: Air): { line: Line; speed: number; distance: number }[] {
+  const out: { line: Line; speed: number; distance: number }[] = [];
+  for (const line of lines) {
+    if (line.by.length || line.flyby.share < GHOST.share || line.trace.confidence < GHOST.confidence || line.shape >= GHOST.shape) continue;
+    const read = readLine(line.trace, times, air);
+    if (read.distance < GHOST.distance || out.some((g) => sameSound(g.line, line, times))) continue;
+    out.push({ line, ...read });
+  }
+  return out;
+}
+
+/** What the page tells of them. Never touches the verdict. */
+export function ghostsOf(lines: Line[], times: ArrayLike<number>, air: Air): Ghost[] {
+  return ghostLines(lines, times, air).map(({ line: { trace, flyby }, speed, distance }) => {
+    const curve = new Float32Array(times.length).fill(NaN);
+    const at = Float64Array.from({ length: trace.to - trace.from + 1 }, (_, i) => times[trace.from + i]);
+    flybyLogs(at, flyby.beta, flyby.T, flyby.t0, new Float64Array(at.length)).forEach((log, i) => {
+      curve[trace.from + i] = Math.exp(log + flyby.logF0);
+    });
+    return { from: times[trace.from], to: times[trace.to], hzFrom: curve[trace.from], hzTo: curve[trace.to], speed, distance, curve };
+  });
+}
+
+/**
  * Checks every aircraft that matters against the lines heard. An aircraft that borrows a line is
  * scored again with it taken out of the evidence, as long as it is the best or the runner-up the
  * best's lead is counted from, and the best could be strong; the ranking comes back re-sorted.
@@ -412,7 +503,7 @@ export async function explainLines<M>(stack: Stack, start: number, candidates: C
   const times = stack.base.times;
   const hop = times.length > 1 ? times[1] - times[0] : 0;
   const tols = traces.map((t) => toleranceOf(t, o));
-  const lines: Line[] = traces.map((trace, i) => ({ trace, flyby: flybyFit(trace, times, tols[i]), by: [], borrowed: [] }));
+  const lines: Line[] = traces.map((trace, i) => ({ trace, flyby: flybyFit(trace, times, tols[i]), by: [], borrowed: [], shape: 0 }));
   if (!lines.length) return { ranked, lines, unexplained: [] };
   const byId = new Map(candidates.map((c) => [c.id, c]));
   /** The lines a match borrows (and, the first time, the lines it explains, for the report). */
@@ -460,6 +551,9 @@ export async function explainLines<M>(stack: Stack, start: number, candidates: C
   }
   const out = entries.map((e) => e.m).filter((m) => Number.isFinite(m.score));
   out.sort((a, b) => b.score - a.score);
+  lines.forEach((l, i) => {
+    for (const m of out) l.shape = Math.max(l.shape, sameCurve(l.trace, m.factor, tols[i]));
+  });
   const unexplained = lines.filter((l) => !l.by.length && l.flyby.share >= o.aircraft).map((l) => l.trace);
   return { ranked: out, lines, unexplained };
 }
