@@ -7,7 +7,12 @@
 // finds is the recording's own noise.
 
 /** A tone to take out: its heard fundamental, Hz, at `times` (seconds from the first sample). NaN where it is not heard. */
-export type Curve = { times: ArrayLike<number>; freq: ArrayLike<number> };
+export type Curve = {
+  times: ArrayLike<number>;
+  freq: ArrayLike<number>;
+  /** This curve's own `width` (ScrubOptions): a loud tone's skirts reach further. */
+  width?: number;
+};
 
 export type ScrubOptions = {
   /** How many harmonics to take out, the fundamental included. */
@@ -92,11 +97,12 @@ export function scrub(samples: Float32Array, sampleRate: number, curves: Curve[]
   for (const curve of curves) {
     const f = perSample(curve, n, sampleRate);
     const phase = phaseOf(f, sampleRate);
+    const width = curve.width ?? o.width;
     for (let h = 1; h <= o.harmonics; h++) for (let pass = 0; pass < o.passes; pass++) {
-      const len = lengthOf(sampleRate, o.width, h);
+      const len = lengthOf(sampleRate, width, h);
       // Down to 0 Hz, only where the curve is known (and below Nyquist).
       for (let i = 0; i < n; i++) {
-        const on = within(f[i], h, o.width, 0, sampleRate) ? 1 : 0;
+        const on = within(f[i], h, width, 0, sampleRate) ? 1 : 0;
         const a = h * phase[i];
         re[i] = on * out[i] * Math.cos(a);
         im[i] = -on * out[i] * Math.sin(a);
@@ -174,14 +180,15 @@ function fill(out: Float64Array, rate: number, curves: Curve[], o: Required<Scru
     const f = perSample(curve, n, rate);
     const phase = phaseOf(f, rate);
     const coarse = Float32Array.from({ length: blocks }, (_, j) => f[Math.min(n - 1, j * BLOCK + (BLOCK >> 1))]);
+    const width = curve.width ?? o.width;
     for (let h = 1; h <= o.harmonics; h++) {
-      const len = Math.max(3, Math.round(lengthOf(rate, o.width, h) / 1.3));
-      const away = 3 * o.width * h;
+      const len = Math.max(3, Math.round(lengthOf(rate, width, h) / 1.3));
+      const away = 3 * width * h;
       const taken = Uint8Array.from({ length: blocks }, (_, j) => {
         const mine = h * coarse[j];
         const near = earlier.some((other) => {
           const k = Math.min(o.harmonics, Math.max(1, Math.round(mine / other[j])));
-          return Math.abs(mine - k * other[j]) < o.width * Math.max(h, k);
+          return Math.abs(mine - k * other[j]) < width * Math.max(h, k);
         });
         return near ? 1 : 0;
       });
@@ -190,9 +197,9 @@ function fill(out: Float64Array, rate: number, curves: Curve[], o: Required<Scru
         re[i] = 0;
         im[i] = 0;
         weight[i] = 0;
-        if (taken[(i / BLOCK) | 0] || !within(f[i], h, o.width, 0, rate)) continue;
-        const below = within(f[i], h, o.width, -away, rate);
-        const above = within(f[i], h, o.width, away, rate);
+        if (taken[(i / BLOCK) | 0] || !within(f[i], h, width, 0, rate)) continue;
+        const below = within(f[i], h, width, -away, rate);
+        const above = within(f[i], h, width, away, rate);
         if (!below && !above) continue;
         const share = 1 / Math.sqrt(Number(below) + Number(above));
         const a = h * phase[i];

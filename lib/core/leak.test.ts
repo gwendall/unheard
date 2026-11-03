@@ -49,6 +49,12 @@ describe("chunksOf", () => {
 });
 
 describe("toneOf and curveOf", () => {
+  it("asks scrub for a wider band for a very loud tone", () => {
+    const tone = (confidence: number): Tone => ({ times: Float64Array.from([10, 10.25, 10.5]), freq: Float32Array.from([100, 99, 98]), confidence });
+    expect(curveOf(tone(30)).width).toBeUndefined();
+    expect(curveOf(tone(400)).width).toBeGreaterThan(3);
+  });
+
   it("puts a chunk's trace on the file's clock, and the curve scrub follows along it", () => {
     const K = 400;
     const times = Float64Array.from({ length: K }, (_, k) => 1.024 + k * 0.25);

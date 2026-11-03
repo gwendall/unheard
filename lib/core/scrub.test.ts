@@ -109,6 +109,15 @@ describe("scrub", () => {
     expect(kept).toBeLessThan(1.1);
   });
 
+  it("gives a curve its own band when it asks for one", () => {
+    const tone = 205;
+    const raw = Float32Array.from({ length: RATE * 10 }, (_, i) => Math.sin((2 * Math.PI * tone * i) / RATE));
+    const curve = { times: [0, 10], freq: [200, 200] };
+    const kept = (c: typeof curve & { width?: number }) => tonePower(scrub(raw, RATE, [c], { harmonics: 1 }), tone) / tonePower(raw, tone);
+    expect(kept(curve)).toBeGreaterThan(0.5);
+    expect(kept({ ...curve, width: 8 })).toBeLessThan(0.1);
+  });
+
   it("fills the band it empties: no dark trail along the curve, even scrubbed again", async () => {
     const raw = recording();
     const curve = curveOf();

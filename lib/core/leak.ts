@@ -247,6 +247,13 @@ export function findTones(read: Reader, chunks: Chunk[], rate = ANALYSIS_RATE, o
 
 /** Seconds the end of a tone is carried on: where it fades under what the search sees, it may still be heard. */
 const EXTEND = 2;
+/**
+ * A tone this far above the noise (confidence) has skirts wider than scrub's usual band, and they
+ * stand out once the middle is gone: a plane at 408 on the synthetic corpus left two rails 2 to 4
+ * Hz either side, enough for a silent aircraft whose curve ran along them to be named. The real
+ * clips' tones stay under 40.
+ */
+const LOUD = { confidence: 100, width: 5 };
 /** Frames the slope at either end is read over. */
 const SLOPE_FRAMES = 16;
 
@@ -277,7 +284,7 @@ export function curveOf(tone: Tone, extend = EXTEND): Curve {
     times[steps + n - 1 + i] = t[n - 1] + dt;
     freq[steps + n - 1 + i] = f[n - 1] * Math.exp(tail * dt);
   }
-  return { times, freq };
+  return tone.confidence >= LOUD.confidence ? { times, freq, width: LOUD.width } : { times, freq };
 }
 
 /** First and last time a curve is known, seconds; null when never. */
@@ -339,7 +346,7 @@ export function clean(audio: Audio, curves: Curve[], options: CleanOptions = {})
     if (s1 <= s0 || w1 <= w0) return;
     const local = known
       .filter(({ span }) => span.end >= (s0 - 1) / rate && span.start <= s1 / rate)
-      .map(({ c }) => ({ times: Float64Array.from(c.times, (t) => t - s0 / rate), freq: c.freq }));
+      .map(({ c }) => ({ ...c, times: Float64Array.from(c.times, (t) => t - s0 / rate) }));
     flush(s0);
     pending.push({ at: w0, data: channels.map((ch) => scrub(ch.subarray(s0, s1), rate, local, options.scrub).slice(w0 - s0, w1 - s0)) });
   });
