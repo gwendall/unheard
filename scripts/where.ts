@@ -20,7 +20,7 @@ import { findSegments, flybys, whereWhen } from "../lib/core/wherewhen";
 import { httpFetcher, loadFlights, type Fetcher } from "../lib/history";
 import { groundOf } from "../lib/terrain";
 import { cachedTiles, fileFetcher } from "../evals/lib/history";
-import { resample } from "../evals/lib/real";
+import { resample } from "../lib/core/resample";
 
 setTimeout(() => process.exit(1), 60 * 60_000).unref();
 
