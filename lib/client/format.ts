@@ -1,17 +1,30 @@
 import type { AircraftMeta } from "../adsb";
+import { locale, type Lang } from "../i18n/lang";
 import { aircraftType } from "./types";
 
 /** Feet and miles per hour for American English, metres and km/h everywhere else. */
 export const imperial = () => typeof navigator !== "undefined" && /^en-US$/i.test(navigator.language);
 
-export const km = (m: number) => (m < 950 ? `${Math.round(m / 10) * 10} m` : `${(m / 1000).toFixed(m < 9500 ? 1 : 0)} km`);
-/** A height: "550 m" or "1,800 ft", rounded the way people say it. */
-export const height = (m: number) =>
-  imperial() ? `${(Math.round(m / 0.3048 / 50) * 50).toLocaleString("en-US")} ft` : `${(Math.round(m / (m < 1000 ? 10 : 50)) * (m < 1000 ? 10 : 50)).toLocaleString("en-US")} m`;
-/** A ground speed: "200 km/h" or "124 mph". */
-export const speed = (ms: number) => (imperial() ? `${Math.round(ms * 2.23694)} mph` : `${Math.round(ms * 3.6)} km/h`);
-export const seconds = (s: number) => `${Math.round(s)} s`;
+/** Distances, heights and times as people say them in a language: "1.2 km" or "1,2 km". */
+export function formatFor(lang: Lang) {
+  const loc = locale(lang);
+  // French keeps the number and its unit together.
+  const unit = lang === "fr" ? "\u00a0" : " ";
+  const n = (x: number, digits = 0) => x.toLocaleString(loc, { minimumFractionDigits: digits, maximumFractionDigits: digits });
+  return {
+    km: (m: number) => (m < 950 ? `${n(Math.round(m / 10) * 10)}${unit}m` : `${n(m / 1000, m < 9500 ? 1 : 0)}${unit}km`),
+    /** A height: "550 m" or "1,800 ft", rounded the way people say it. */
+    height: (m: number) => (imperial() ? `${n(Math.round(m / 0.3048 / 50) * 50)}${unit}ft` : `${n(Math.round(m / (m < 1000 ? 10 : 50)) * (m < 1000 ? 10 : 50))}${unit}m`),
+    /** A ground speed: "200 km/h" or "124 mph". */
+    speed: (ms: number) => (imperial() ? `${Math.round(ms * 2.23694)}${unit}mph` : `${Math.round(ms * 3.6)}${unit}km/h`),
+    seconds: (s: number) => `${Math.round(s)}${unit}s`,
+    clock,
+  };
+}
+export type Format = ReturnType<typeof formatFor>;
+
 export const clock = (s: number) => `${s < 0 ? "-" : ""}${Math.floor(Math.abs(s) / 60)}:${String(Math.floor(Math.abs(s) % 60)).padStart(2, "0")}`;
+export const { km, height, speed, seconds } = formatFor("en");
 
 /** What to call an aircraft: its callsign, else its registration, else its hex code. */
 export function nameOf(meta: AircraftMeta): string {

@@ -2,12 +2,14 @@
 
 import { useEffect, useRef } from "react";
 import { colorOf } from "@/lib/client/colormap";
+import { useT } from "@/lib/i18n/client";
 
 /**
  * The live spectrum, 0 to `maxHz`, scrolling left. Each frequency is drawn against its own slowly
  * moving average, so a steady hum fades out and a faint changing line shows up.
  */
 export function Waterfall({ analyser, maxHz = 800 }: { analyser: AnalyserNode; maxHz?: number }) {
+  const label = useT().plots.live;
   const canvas = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -50,7 +52,7 @@ export function Waterfall({ analyser, maxHz = 800 }: { analyser: AnalyserNode; m
 
   return (
     <div className="relative overflow-hidden rounded-2xl border border-line bg-night">
-      <canvas ref={canvas} className="block h-44 w-full sm:h-56" aria-label="Live spectrum of what the microphone hears" />
+      <canvas ref={canvas} className="block h-44 w-full sm:h-56" aria-label={label} />
       <div className="pointer-events-none absolute inset-y-2 left-3 flex flex-col justify-between font-mono text-[10px] text-faint">
         <span>{maxHz} Hz</span>
         <span>0 Hz</span>

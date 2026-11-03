@@ -2,12 +2,14 @@
 
 import { useState } from "react";
 import { drawCard, type Card } from "@/lib/client/card";
+import { useT } from "@/lib/i18n/client";
 
 const SITE = "https://unheard.gwendall.com";
 
 /** Shares the card through the phone's share sheet; on a computer, saves it and copies the text. */
 export function Share({ card, text }: { card: Card; text: string }) {
   const [state, setState] = useState<"idle" | "busy" | "saved" | "error">("idle");
+  const t = useT().share;
 
   async function share() {
     setState("busy");
@@ -36,10 +38,10 @@ export function Share({ card, text }: { card: Card; text: string }) {
   return (
     <div className="flex flex-wrap items-center gap-3">
       <button type="button" onClick={() => void share()} disabled={state === "busy"} className="rounded-full bg-amber px-6 py-3 font-medium text-night transition enabled:hover:bg-amber-soft disabled:opacity-60" data-testid="share">
-        {state === "busy" ? "Making the picture..." : "Share what your phone heard"}
+        {state === "busy" ? t.busy : t.button}
       </button>
-      {state === "saved" && <p className="text-sm text-pretty text-mute">The picture is saved and the text copied: paste them where you like.</p>}
-      {state === "error" && <p className="text-sm text-pretty text-red-300">Could not make the picture on this browser.</p>}
+      {state === "saved" && <p className="text-sm text-pretty text-mute">{t.saved}</p>}
+      {state === "error" && <p className="text-sm text-pretty text-red-300">{t.error}</p>}
     </div>
   );
 }

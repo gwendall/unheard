@@ -69,17 +69,21 @@ function Spectrogram() {
   );
 }
 
-export function OgCard() {
+/** The card, with the site's line in the page's language: two title lines, one under them. */
+export function OgCard({ lines, sub, size }: { lines: string[]; sub: string; size: number }) {
   return (
     <div style={{ width: W, height: H, display: "flex", position: "relative", backgroundColor: NIGHT, backgroundImage: "radial-gradient(120% 70% at 50% -10%, rgba(64, 88, 160, 0.28), transparent 60%)" }}>
       <Spectrogram />
       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", width: "100%", paddingTop: 52 }}>
         <div style={{ fontFamily: "GeistMono", fontSize: 40, letterSpacing: 8, color: AMBER }}>UNHEARD</div>
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginTop: 26, fontFamily: "Geist", fontWeight: 600, fontSize: 100, lineHeight: 1.04, letterSpacing: -3, color: INK }}>
-          <div style={{ whiteSpace: "nowrap" }}>There’s a plane</div>
-          <div style={{ whiteSpace: "nowrap" }}>you can’t hear.</div>
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginTop: 26, fontFamily: "Geist", fontWeight: 600, fontSize: size, lineHeight: 1.04, letterSpacing: -3, color: INK }}>
+          {lines.map((line) => (
+            <div key={line} style={{ whiteSpace: "nowrap" }}>
+              {line}
+            </div>
+          ))}
         </div>
-        <div style={{ marginTop: 26, fontFamily: "Geist", fontWeight: 500, fontSize: 42, color: MUTE, whiteSpace: "nowrap" }}>Your phone hears it. Unheard names it.</div>
+        <div style={{ marginTop: 26, fontFamily: "Geist", fontWeight: 500, fontSize: 42, color: MUTE, whiteSpace: "nowrap" }}>{sub}</div>
       </div>
     </div>
   );

@@ -40,5 +40,7 @@ describe("names", () => {
     expect(spoken(identityOf({ hex: "a", type: "C172", callsign: "FGDEM" }, null, null))).toBe("a Cessna 172 Skyhawk");
     expect(spoken(identityOf({ hex: "b", type: "EC35", callsign: "SAMU31" }, null, null))).toBe("an Airbus H135");
     expect(spoken(identityOf({ hex: "c", type: "A320", callsign: "AFR7700" }, null, route))).toBe("Air France AF7700");
+    expect(spoken(identityOf({ hex: "b", type: "EC35", callsign: "SAMU31" }, null, null), "fr")).toBe("un Airbus H135");
+    expect(spoken(identityOf({ hex: "c", type: "A320", callsign: "AFR7700" }, null, route), "fr")).toBe("Air France AF7700");
   });
 });

@@ -5,6 +5,7 @@ import { stateAt, type Track } from "@/lib/core/track";
 import type { Candidate } from "@/lib/core/match";
 import type { AircraftMeta } from "@/lib/adsb";
 import { nameOf } from "@/lib/client/format";
+import { useT } from "@/lib/i18n/client";
 
 type Path = { id: string; name: string; points: [number, number][]; mark: [number, number] | null };
 
@@ -23,6 +24,7 @@ function pathOf(c: Candidate<AircraftMeta>, from: number, to: number, mark: numb
  * the matched one in amber, with a dot where it was when the sound you heard closest left it.
  */
 export function TrackPlot({ candidates, bestId, from, to, mark }: { candidates: Candidate<AircraftMeta>[]; bestId: string | null; from: number; to: number; mark: number | null }) {
+  const t = useT().plots;
   const paths = useMemo(() => candidates.map((c) => pathOf(c, from, to, c.id === bestId ? mark : null)).filter((p) => p.points.length > 1), [candidates, bestId, from, to, mark]);
   const best = paths.find((p) => p.id === bestId) ?? null;
 
@@ -42,7 +44,7 @@ export function TrackPlot({ candidates, bestId, from, to, mark }: { candidates: 
   return (
     <figure className="m-0">
       <div className="overflow-hidden rounded-2xl border border-line bg-deep">
-        <svg viewBox={`${-reach} ${-reach} ${reach * 2} ${reach * 2}`} className="block aspect-square w-full" role="img" aria-label="Map of the flights around you during the recording">
+        <svg viewBox={`${-reach} ${-reach} ${reach * 2} ${reach * 2}`} className="block aspect-square w-full" role="img" aria-label={t.map}>
           <defs>
             <clipPath id="plot-clip">
               <rect x={-reach} y={-reach} width={reach * 2} height={reach * 2} />
@@ -75,7 +77,7 @@ export function TrackPlot({ candidates, bestId, from, to, mark }: { candidates: 
           </g>
           <circle cx={0} cy={0} r={stroke * 4.5} fill="#e9edf5" />
           <text x={stroke * 7} y={stroke * 3} fill="#e9edf5" fontSize={reach / 18}>
-            You
+            {t.you}
           </text>
         </svg>
       </div>

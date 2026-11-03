@@ -7,7 +7,8 @@ import { STRONG, type Match } from "@/lib/core/match";
 import type { AircraftMeta } from "@/lib/adsb";
 import { stateAt } from "@/lib/core/track";
 import { norm } from "@/lib/core/geo";
-import { height, km, seconds, speed } from "@/lib/client/format";
+import { useFormat, useLang, useT } from "@/lib/i18n/client";
+import type { Dict } from "@/lib/i18n";
 import { identityOf, spoken } from "@/lib/client/names";
 import { photoOf, type Photo } from "@/lib/client/photo";
 import { aircraftType, isTonal } from "@/lib/client/types";
@@ -34,6 +35,10 @@ export function Result({
   onBundle: (() => void) | null;
   onAgain: () => void;
 }) {
+  const all = useT();
+  const t = all.result;
+  const f = useFormat();
+  const lang = useLang();
   const { verdict } = analysis;
   const best = verdict.kind === "none" ? null : verdict.best;
   const [showCurve, setShowCurve] = useState(false);
@@ -69,30 +74,30 @@ export function Result({
     };
   }, [best, example]);
   const photo = shot && best && shot.hex === best.meta.hex ? shot.photo : null;
-  const name = identity ? spoken(identity) : null;
-  const detail = identity ? [identity.route ? `${identity.route.from.city} to ${identity.route.to.city}` : null, identity.detail || null].filter(Boolean).join(" · ") : "";
+  const name = identity ? spoken(identity, lang) : null;
+  const detail = identity ? [identity.route ? all.route(identity.route.from.city, identity.route.to.city) : null, identity.detail || null].filter(Boolean).join(" · ") : "";
 
   return (
     <section className="flex flex-col gap-8" aria-live="polite">
       <header className="flex flex-col gap-3">
         <div className="flex flex-wrap items-center gap-2 text-xs font-medium tracking-wide text-mute uppercase">
-          {example && <span className="rounded-full border border-amber/40 bg-amber/10 px-2.5 py-1 text-amber-soft normal-case tracking-normal">Simulated example</span>}
-          <span>{verdict.kind === "strong" ? "Found it" : verdict.kind === "possible" ? "A faint match" : "Nothing clear"}</span>
+          {example && <span className="rounded-full border border-amber/40 bg-amber/10 px-2.5 py-1 text-amber-soft normal-case tracking-normal">{all.example.chip}</span>}
+          <span>{verdict.kind === "strong" ? t.found : verdict.kind === "possible" ? t.faint : t.nothing}</span>
         </div>
         <h2 className="text-4xl font-semibold tracking-tight text-balance sm:text-5xl" data-testid="verdict">
-          {verdict.kind === "strong" && <>It was {name}.</>}
-          {verdict.kind === "possible" && <>Probably {name}.</>}
-          {verdict.kind === "none" && <>No plane matched.</>}
+          {verdict.kind === "strong" && t.strong(name ?? "")}
+          {verdict.kind === "possible" && t.possible(name ?? "")}
+          {verdict.kind === "none" && t.none}
         </h2>
         {best && detail && (
           <p className="text-lg text-pretty text-mute" data-testid="identity">
             {detail}
           </p>
         )}
-        {verdict.kind === "possible" && <p className="text-pretty text-faint">The trace is faint, so take it as a good guess.</p>}
+        {verdict.kind === "possible" && <p className="text-pretty text-faint">{t.guess}</p>}
         {verdict.kind === "none" && (
           <p className="max-w-prose text-lg text-pretty text-mute">
-            We compared your recording with {analysis.seen} {analysis.seen === 1 ? "plane" : "planes"} around you. None left a clear trace. Try again when one passes within a few kilometers, ideally a propeller plane or a helicopter: the sky screen tells you when.
+            {t.noneText(analysis.seen)}
           </p>
         )}
       </header>
@@ -106,12 +111,12 @@ export function Result({
                 src={photo.src}
                 width={photo.width}
                 height={photo.height}
-                alt={identity ? `${identity.title}, photographed` : "The aircraft"}
+                alt={identity ? t.photographed(identity.title) : t.theAircraft}
                 className="h-auto w-full rounded-2xl border border-line bg-deep object-cover opacity-0 transition-opacity duration-500 data-[loaded]:opacity-100"
                 onLoad={(e) => e.currentTarget.setAttribute("data-loaded", "")}
               />
               <figcaption className="text-xs text-faint">
-                Photo{" "}
+                {t.photo}{" "}
                 <a href={photo.link} target="_blank" rel="noreferrer" className="underline-offset-4 hover:text-mute hover:underline">
                   {photo.photographer}, planespotters.net
                 </a>
@@ -124,15 +129,15 @@ export function Result({
 
       {best && facts && identity && !example && (
         <Share
-          text={`My phone ${verdict.kind === "possible" ? "probably " : ""}heard ${spoken(identity)} I couldn't hear, ${km(facts.range)} away.`}
+          text={t.shareText(verdict.kind === "possible", spoken(identity, lang), f.km(facts.range))}
           card={{
-            lead: verdict.kind === "possible" ? "My phone probably heard" : "My phone heard",
-            name: spoken(identity),
+            lead: t.shareLead(verdict.kind === "possible"),
+            name: spoken(identity, lang),
             detail,
             facts: [
-              [km(facts.range), "from me at its closest"],
-              [height(Math.max(0, facts.height)), "above me"],
-              [seconds(facts.delay), "for its sound to reach me"],
+              [f.km(facts.range), t.shareFacts.closest],
+              [f.height(Math.max(0, facts.height)), t.shareFacts.above],
+              [f.seconds(facts.delay), t.shareFacts.delay],
             ],
             paint: (ctx, w, h) => paintSpectrum(ctx, w, h, analysis, best, true),
           }}
@@ -146,11 +151,11 @@ export function Result({
           <Spectrum analysis={analysis} match={best} showCurve={showCurve} />
           <div className="flex flex-wrap items-center justify-between gap-3">
             <p className="text-sm text-pretty text-mute">
-              {best ? (showCurve ? "The rails show the curve this flight should have left in your recording. The line between them is what your phone heard." : "Your recording, zoomed in on the band where the tone moved. See the faint bent line?") : "Your recording between 40 and 300 Hz."}
+              {best ? (showCurve ? t.curveShown : t.curveHidden) : t.band}
             </p>
             {best && (
               <button type="button" onClick={() => setShowCurve((v) => !v)} className="shrink-0 rounded-full border border-amber/50 px-4 py-2 text-sm font-medium text-amber-soft transition hover:bg-amber/10" data-testid="curve-toggle">
-                {showCurve ? "Hide the curve" : "Show the plane's curve"}
+                {showCurve ? t.hideCurve : t.showCurve}
               </button>
             )}
           </div>
@@ -161,7 +166,7 @@ export function Result({
       {verdict.ranked.length > 0 && (
         <details className="group flex flex-col gap-3" open={verdict.kind === "none"}>
           <summary className="cursor-pointer text-sm font-medium tracking-wide text-mute uppercase marker:text-faint">
-            Every plane we checked ({Math.min(8, verdict.ranked.length)})
+            {t.checked(Math.min(8, verdict.ranked.length))}
           </summary>
           <ol className="mt-3 flex flex-col divide-y divide-line overflow-hidden rounded-2xl border border-line bg-deep">
             {verdict.ranked.slice(0, 8).map((m) => {
@@ -173,7 +178,7 @@ export function Result({
                   <div className="min-w-0 flex-1">
                     <div className={`truncate font-medium ${top ? "text-amber-soft" : ""}`}>{id.title}</div>
                     <div className="truncate text-sm text-faint">
-                      {[id.detail || null, m.closest ? `${km(m.closest.range)} at closest` : null, tonal === false ? "jet" : null].filter(Boolean).join(" · ")}
+                      {[id.detail || null, m.closest ? t.atClosest(f.km(m.closest.range)) : null, tonal === false ? t.jet : null].filter(Boolean).join(" · ")}
                     </div>
                   </div>
                   <div className="flex w-28 shrink-0 items-center gap-2 sm:w-40">
@@ -186,7 +191,7 @@ export function Result({
               );
             })}
           </ol>
-          <p className="mt-3 text-sm text-pretty text-faint">The score says how far each plane&apos;s curve stands above chance in your recording. With no plane to find, no score has reached {STRONG.score} in our tests.</p>
+          <p className="mt-3 text-sm text-pretty text-faint">{t.score(STRONG.score)}</p>
         </details>
       )}
 
@@ -194,11 +199,11 @@ export function Result({
 
       <div className="flex flex-col gap-3 sm:flex-row">
         <button type="button" onClick={onAgain} className="rounded-full bg-ink px-6 py-3 font-medium text-night transition hover:bg-white">
-          {example ? "Listen to the real sky" : "Listen again"}
+          {example ? t.realSky : t.again}
         </button>
         {onBundle && (
           <button type="button" onClick={onBundle} className="rounded-full border border-line px-6 py-3 font-medium text-ink transition hover:border-mute" data-testid="bundle">
-            Download recording bundle
+            {t.bundle}
           </button>
         )}
       </div>
@@ -209,16 +214,18 @@ export function Result({
 type Facts = { emitted: number; height: number; speed: number; range: number; delay: number };
 
 /** What its hum is, by kind of aircraft. */
-function humOf(type?: string): string {
+function humOf(type: string | undefined, hum: Dict["result"]["hum"]): string {
   const kind = aircraftType(type)?.kind;
-  if (kind === "piston" || kind === "turboprop") return "the pitch of its propeller's hum";
-  if (kind === "helicopter") return "the pitch of its rotor's beat";
-  if (kind === "jet") return "the pitch of its engines' hum";
-  return "the pitch of its hum";
+  if (kind === "piston" || kind === "turboprop") return hum.prop;
+  if (kind === "helicopter") return hum.rotor;
+  if (kind === "jet") return hum.jet;
+  return hum.any;
 }
 
 /** The numbers worth telling a friend, each in a word or two. */
 function Facts({ best, facts }: { best: Match<AircraftMeta>; facts: Facts }) {
+  const { result: t, facts: label } = useT();
+  const f = useFormat();
   let lo = Infinity;
   let hi = -Infinity;
   for (const f of best.factor) {
@@ -228,13 +235,13 @@ function Facts({ best, facts }: { best: Match<AircraftMeta>; facts: Facts }) {
   }
   const fall = Number.isFinite(lo) && hi > 0 ? Math.round((1 - lo / hi) * 100) : 0;
   const items: [string, string][] = [
-    [km(facts.range), "from you at its closest"],
-    [height(Math.max(0, facts.height)), "above you"],
-    [speed(facts.speed), "its speed"],
-    [seconds(facts.delay), "for its sound to reach you"],
-    [`${Math.round(best.f0)} Hz`, humOf(best.meta.type)],
+    [f.km(facts.range), label.closest],
+    [f.height(Math.max(0, facts.height)), label.above],
+    [f.speed(facts.speed), t.speed],
+    [f.seconds(facts.delay), label.delay],
+    [`${Math.round(best.f0)}\u00a0Hz`, humOf(best.meta.type, t.hum)],
   ];
-  if (fall >= 1) items.push([`${fall} %`, "lower as it flew away: the Doppler effect"]);
+  if (fall >= 1) items.push([`${fall}\u00a0%`, t.fall]);
   return (
     <dl className="grid grid-cols-2 gap-x-6 gap-y-5 sm:grid-cols-3" data-testid="facts">
       {items.map(([value, label]) => (

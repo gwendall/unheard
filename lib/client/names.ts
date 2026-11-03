@@ -6,6 +6,7 @@
 import type { AircraftMeta } from "../adsb";
 import { aircraftType } from "./types";
 import { nameOf } from "./format";
+import type { Lang } from "../i18n/lang";
 
 const API = "https://api.adsbdb.com/v0";
 
@@ -120,7 +121,8 @@ export async function lookUp(meta: AircraftMeta, at: { lat: number; lon: number 
 }
 
 /** The identity as the end of a sentence: "a Cessna 172 Skyhawk", "an Airbus H135", "easyJet EC4586". */
-export function spoken(id: Identity): string {
+export function spoken(id: Identity, lang: Lang = "en"): string {
   if (id.kind !== "model") return id.title;
+  if (lang === "fr") return `un ${id.title}`;
   return `${/^[aeiou]/i.test(id.title) ? "an" : "a"} ${id.title}`;
 }

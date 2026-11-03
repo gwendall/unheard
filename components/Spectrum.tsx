@@ -5,6 +5,7 @@ import type { Analysis } from "@/lib/core/pipeline";
 import type { Match } from "@/lib/core/match";
 import type { AircraftMeta } from "@/lib/adsb";
 import { colorOf } from "@/lib/client/colormap";
+import { useT } from "@/lib/i18n/client";
 
 type Band = { lo: number; hi: number };
 
@@ -90,6 +91,7 @@ export function paintSpectrum(ctx: CanvasRenderingContext2D, w: number, h: numbe
 }
 
 export function Spectrum({ analysis, match, showCurve }: { analysis: Analysis; match: Match<AircraftMeta> | null; showCurve: boolean }) {
+  const label = useT().plots.spectrum;
   const canvas = useRef<HTMLCanvasElement>(null);
   const band = useMemo(() => bandOf(match), [match]);
   const { spec } = analysis;
@@ -112,7 +114,7 @@ export function Spectrum({ analysis, match, showCurve }: { analysis: Analysis; m
   return (
     <figure className="m-0">
       <div className="relative overflow-hidden rounded-2xl border border-line bg-night">
-        <canvas ref={canvas} className="block h-56 w-full sm:h-72" aria-label="Spectrum of the recording around the aircraft's tone" />
+        <canvas ref={canvas} className="block h-56 w-full sm:h-72" aria-label={label} />
         <div className="pointer-events-none absolute inset-y-2 left-3 flex flex-col justify-between font-mono text-[10px] text-mute">
           <span>{Math.round(band.hi)} Hz</span>
           <span>{Math.round(band.lo)} Hz</span>
