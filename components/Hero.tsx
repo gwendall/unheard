@@ -2,22 +2,24 @@
 
 import { useSyncExternalStore } from "react";
 import { height, km, seconds } from "@/lib/client/format";
+import { useT } from "@/lib/i18n/client";
 
 const noop = () => () => {};
 /** False on the server and while hydrating, true after: units follow the visitor's language only once on the client. */
 const useHydrated = () => useSyncExternalStore(noop, () => true, () => false);
 
 export function Hero({ onListen, onExample, error, qr }: { onListen: () => void; onExample: () => void; error: string | null; qr: string }) {
+  const t = useT().hero;
   return (
     <div className="flex flex-col gap-8">
       <div className="flex flex-col gap-4">
         <p className="font-mono text-sm tracking-[0.2em] text-amber uppercase">Unheard</p>
-        <h1 className="text-5xl leading-[1.02] font-semibold tracking-tight text-balance sm:text-6xl">There&apos;s a plane you can&apos;t hear.</h1>
+        <h1 className="text-5xl leading-[1.02] font-semibold tracking-tight text-balance sm:text-6xl">{t.title}</h1>
       </div>
       <div className="grid gap-10 lg:grid-cols-2 lg:items-start lg:gap-14">
         <div className="flex flex-col gap-6">
           <p className="text-lg text-pretty text-mute sm:text-xl">
-            Your phone can. Unheard shows you the planes passing nearby, listens while one flies over, and finds its faint hum in the noise to tell you which plane it was.
+            {t.lead}
           </p>
           {error && (
             <p role="alert" className="rounded-2xl border border-amber/40 bg-amber/10 px-4 py-3 text-pretty text-amber-soft">
@@ -25,13 +27,13 @@ export function Hero({ onListen, onExample, error, qr }: { onListen: () => void;
             </p>
           )}
           <button type="button" onClick={onListen} className="w-full rounded-full bg-amber px-7 py-3.5 text-lg font-medium text-night transition hover:bg-amber-soft sm:w-fit" data-testid="listen">
-            Listen to the sky
+            {t.listen}
           </button>
           <ul className="flex flex-col gap-2 text-mute">
-            {["A phone, outdoors, and a minute or two", "Best with propeller planes and helicopters", "Your recording stays on your phone unless you choose to give it"].map((t) => (
-              <li key={t} className="flex items-baseline gap-3">
+            {t.needs.map((need) => (
+              <li key={need} className="flex items-baseline gap-3">
                 <span aria-hidden className="size-1.5 shrink-0 translate-y-[-0.15em] rounded-full bg-amber/70" />
-                {t}
+                {need}
               </li>
             ))}
           </ul>
@@ -39,8 +41,8 @@ export function Hero({ onListen, onExample, error, qr }: { onListen: () => void;
           <div className="hidden w-fit items-center gap-4 rounded-2xl border border-line bg-deep/70 p-4 pointer-fine:flex" data-testid="qr">
             <div className="size-24 shrink-0 overflow-hidden rounded-lg bg-ink p-1.5 [&>svg]:size-full" aria-hidden dangerouslySetInnerHTML={{ __html: qr }} />
             <p className="text-sm text-pretty text-mute">
-              <span className="block font-medium text-ink">Better on a phone, outdoors.</span>
-              Point your phone&apos;s camera here to open Unheard on it.
+              <span className="block font-medium text-ink">{t.qrTitle}</span>
+              {t.qrBody}
             </p>
           </div>
         </div>
@@ -57,24 +59,25 @@ export function Hero({ onListen, onExample, error, qr }: { onListen: () => void;
  */
 function ExampleCard({ onOpen }: { onOpen: () => void }) {
   const hydrated = useHydrated();
+  const { example: t, facts: f } = useT();
   const facts: [string, string][] = [
-    [km(690), "from you at its closest"],
-    [hydrated ? height(550) : "550 m", "above you"],
-    [seconds(2), "for its sound to reach you"],
+    [km(690), f.closest],
+    [hydrated ? height(550) : "550 m", f.above],
+    [seconds(2), f.delay],
   ];
   return (
     <button
       type="button"
       onClick={onOpen}
       className="group flex w-full flex-col gap-5 rounded-3xl border border-line bg-deep/80 p-5 text-left transition hover:border-mute sm:p-6"
-      aria-label="See an example result: a Cessna 172 Skyhawk found in a simulated recording"
+      aria-label={t.label}
       data-testid="example"
     >
       <span className="flex flex-wrap items-center gap-2 text-xs font-medium tracking-wide text-mute uppercase">
-        <span className="rounded-full border border-amber/40 bg-amber/10 px-2.5 py-1 tracking-normal text-amber-soft normal-case">Simulated example</span>
-        Found it
+        <span className="rounded-full border border-amber/40 bg-amber/10 px-2.5 py-1 tracking-normal text-amber-soft normal-case">{t.chip}</span>
+        {t.found}
       </span>
-      <span className="text-3xl font-semibold tracking-tight text-balance">It was a Cessna 172 Skyhawk.</span>
+      <span className="text-3xl font-semibold tracking-tight text-balance">{t.verdict}</span>
       <ExampleSpectrum />
       <span className="grid grid-cols-3 gap-4">
         {facts.map(([value, label]) => (
@@ -85,7 +88,7 @@ function ExampleCard({ onOpen }: { onOpen: () => void }) {
         ))}
       </span>
       <span className="font-medium text-amber-soft">
-        See this example in full{" "}
+        {t.open}{" "}
         <span aria-hidden className="inline-block transition group-hover:translate-x-1">
           →
         </span>
