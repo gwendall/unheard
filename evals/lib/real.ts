@@ -78,18 +78,25 @@ export function aerosonicScenarios(): Scenario[] {
   return out;
 }
 
-const BUNDLES = new URL("../fixtures/real/", import.meta.url);
+/** Capture bundles saved by the page in capture mode (committed), and donations pulled by
+ * scripts/fetch-donations.ts (evals/.cache/donations/, private until reviewed). */
+const BUNDLES = [
+  { dir: new URL("../fixtures/real/", import.meta.url), prefix: "cap" },
+  { dir: new URL("../.cache/donations/", import.meta.url), prefix: "don" },
+];
 
-/** Recordings made with the page in capture mode, once a human has written down the truth. */
+/** Real recordings made through the page, once a human has said what was heard. */
 export function bundleScenarios(): Scenario[] {
-  if (!existsSync(BUNDLES)) return [];
   const out: Scenario[] = [];
-  for (const name of readdirSync(BUNDLES).filter((f) => f.endsWith(".json")).sort()) {
-    const bundle = JSON.parse(readFileSync(new URL(name, BUNDLES), "utf8")) as Bundle;
-    if (!bundle.truth) continue;
-    const recording = recordingOf(bundle);
-    const heard = bundle.truth.heard;
-    out.push({ id: `cap-${name.replace(/\.json$/, "")}`, kind: heard ? "heard" : "noise", recording, truth: { heard }, tags: { app: bundle.app, device: bundle.device?.userAgent.slice(0, 40) ?? "" } });
+  for (const { dir, prefix } of BUNDLES) {
+    if (!existsSync(dir)) continue;
+    for (const name of readdirSync(dir).filter((f) => f.endsWith(".json")).sort()) {
+      const bundle = JSON.parse(readFileSync(new URL(name, dir), "utf8")) as Bundle;
+      if (!bundle.truth) continue;
+      const recording = recordingOf(bundle);
+      const heard = bundle.truth.heard;
+      out.push({ id: `${prefix}-${name.replace(/\.json$/, "")}`, kind: heard ? "heard" : "noise", recording, truth: { heard }, tags: { app: bundle.app, device: bundle.device?.userAgent.slice(0, 40) ?? "" } });
+    }
   }
   return out;
 }

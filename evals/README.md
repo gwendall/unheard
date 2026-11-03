@@ -34,3 +34,9 @@ default corpus (what CI runs) minus one scenario of margin; raise it when a chan
     `"truth": { "heard": "<hex or null>", "note": "how we know" }` and drop it in
     `evals/fixtures/real/`. These are the production-condition recordings: real phone, real
     browser, real polls.
+  - Donations: the result page's "Give this recording" form anonymises a recording on the phone
+    (`lib/anonymize.ts`: listener at 0° 0°, scene turned at random, clock at 2000-01-01, no
+    aircraft ids) and uploads it to a private Vercel Blob store. `pnpm fetch-donations` (needs
+    `vercel env pull .env.local`) pulls them into `evals/.cache/donations/`, checks each with
+    `lib/donation.ts`, and the real-audio eval replays those with a truth. They stay private
+    until a review cuts out voices.

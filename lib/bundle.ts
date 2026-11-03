@@ -10,6 +10,8 @@ import type { Recording } from "./core/pipeline";
 
 export type Bundle = {
   version: 1;
+  /** Set by lib/anonymize.ts: listener at 0° 0°, scene turned, clock at 2000-01-01, no aircraft ids. */
+  anonymous?: true;
   /** ISO time the bundle was made. */
   capturedAt: string;
   /** Build that made it (commit SHA when known). */
