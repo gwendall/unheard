@@ -31,7 +31,8 @@ jobs:
   eval:
     # The synthetic and real-track evals are the ratchet of the matcher (evals/baseline.json);
     # somewhere-else reads back the curves the "Somewhere else" page plants.
-    # ghost holds how rarely the result page tells a line the flight data does not have by mistake.
+    # ghost holds how rarely the result page tells a line the flight data does not have by mistake:
+    # it runs when the analysis or the eval changed.
     # The real-audio eval needs licensed data that never enters git: it runs on demand.
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -50,9 +51,17 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile --prefer-offline
-      - run: pnpm eval evals/synthetic evals/real-tracks evals/somewhere-else evals/ghost
+      - run: pnpm eval evals/synthetic evals/real-tracks evals/somewhere-else
       - name: Eval delta
         if: ${{ !cancelled() }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: node scripts/eval-delta.ts synthetic real-tracks
+      - name: Ghost eval, when the analysis or the eval changed
+        # About 200 recordings, 13 minutes: page and docs changes cannot move it.
+        run: |
+          if git diff --name-only HEAD^ HEAD | grep -qE '^(lib/core/|lib/adsb\.ts|evals/ghost|evals/lib/|evals/baseline\.json)'; then
+            pnpm eval evals/ghost
+          else
+            echo "Nothing the ghost eval reads changed."
+          fi

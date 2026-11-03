@@ -64,7 +64,8 @@ request, CI posts this run's counts next to the base branch's (`scripts/eval-del
   sound a human labelled free of aircraft): how often something is told. With the heard plane in
   the data: how often anything is told, and its own line. With that plane left out: how often the
   line told is its line. Also how well a told flyby reads the real pass. Its ratchet is `ghost` in
-  `evals/baseline.json` (made-up sound, in CI) and `ghost-real` (real sound, when the cache has it).
+  `evals/baseline.json` (made-up sound, in CI when `lib/core`, `lib/adsb.ts` or the eval changed)
+  and `ghost-real` (real sound, when the cache has it).
   `ONLY=synthetic,tracks,voice,ambient,real`, `SEEDS=n`, `VOICES=n`, `TAG=name`, `RESUME=1`.
   `ONLY=ambient60` cuts the street sound into 60 s recordings instead of 120 s.
 
