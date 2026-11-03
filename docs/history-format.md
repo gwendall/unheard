@@ -116,18 +116,20 @@ in about 6 bytes.
 
 ## Hosting
 
-Our copy is at **https://unheard-history.fly.storage.tigris.dev/** (the `<base>` above), a public
-Tigris bucket (`unheard-history`): no key, any origin (CORS: GET and HEAD). `days.json` at the top
-lists the days built; everything else follows the layout above and never changes once written
-(`Cache-Control: public, max-age=31536000, immutable`; `days.json`: 5 minutes). The bucket cannot be
-listed: read `days.json`, then each day's manifest. The licence is the one above: ODbL 1.0,
-"© adsb.lol contributors".
+Our copy is at **https://unheard-history.t3.tigrisbucket.io/** (the `<base>` above; the same files
+at `.t3.tigrisfiles.io` and `.t3.tigrisblob.io`), a public Tigris bucket (`unheard-history`): no key,
+any origin (CORS: GET and HEAD). `days.json` at the top lists the days built; everything else
+follows the layout above and never changes once written (`Cache-Control: public, max-age=31536000,
+immutable`; `days.json`: 5 minutes). The bucket cannot be listed: read `days.json`, then each day's
+manifest. The licence is the one above: ODbL 1.0, "© adsb.lol contributors".
 
 `scripts/history-job.ts` fills it, from a scheduled Fly Machine of the app `unheard-history`
-(`--schedule daily`, stops when done): yesterday's day if adsb.lol has published it, then older
-missing days going backwards to 2026-01-01, within a time budget. Tiles go first and the manifest
-last, so a day with a manifest is complete; a failed day leaves none and is tried again next run.
-To change the job, build the image and point the Machine at it:
+(`--schedule daily`, shared-cpu-4x, 4 GB, stops when done): yesterday's day if adsb.lol has published
+it, then older missing days going backwards to 2026-01-01, within a time budget (8 minutes on this
+Machine, about 4 days a run: every day uploaded costs about 0.02 USD, so the budget is what keeps
+the backfill under 5 USD a month). Tiles go first and the manifest last, so a day with a manifest is
+complete; a failed day leaves none and is tried again next run. To change the job, build the image
+and point the Machine at it:
 
 ```
 fly deploy --build-only --push --config scripts/history-job.fly.toml -a unheard-history \

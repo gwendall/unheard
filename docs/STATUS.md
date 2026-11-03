@@ -124,17 +124,12 @@ machine with Node 22), reader `lib/history.ts` (takes a fetcher: the base URL is
   (none passed 5 MB, so none was split). The Bay Area is 6.7 MB a day.
 - Deterministic: the same day built twice gave byte-identical manifests (all 2,551 tile hashes).
 
-What the web version needs (nothing created yet, no paid resource):
+Online since 2026-11-03 at https://unheard-history.t3.tigrisbucket.io/ (public Tigris bucket, daily job on a scheduled Fly Machine, "Hosting" in `docs/history-format.md`): 2026 is backfilling at a pace that stays under 5 USD a month, done about late January 2027; at this rate storage alone brings the bill to 5 USD a month around December 2027.
 
-- A daily job: `pnpm history:build <yesterday>` once adsb.lol publishes the day (its release
-  lands the next morning, UTC), then an upload of the day's folder. On a GitHub runner of this
-  public repository (4 cores, 16 GB, free minutes) that is about 5 to 8 minutes.
-- Storage: 8.7 GB a month for the world (4.8 GB without jets), 105 GB a year. At Cloudflare R2's
-  list price (0.015 $ per GB-month, no egress fee, checked 2025) that is 0.13 $ after a month and
-  about 1.6 $ a month after a year; the free 10 GB covers the first month. The US alone: 5.7 GB
-  a month.
+What the page still needs:
+
 - Reads: a search of one day over a 100 km square fetches 4 tiles, about 7 MB (the Bay Area).
-- In the page, one setting (say `NEXT_PUBLIC_HISTORY_URL`: the bucket, a folder served in
+- In the page, one setting (say `NEXT_PUBLIC_HISTORY_URL`: the bucket above, a folder served in
   development, or anyone's mirror) handed to `httpFetcher`.
 
 ## Where and when: the search (2026-11-03)
