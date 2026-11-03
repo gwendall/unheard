@@ -1,3 +1,5 @@
+import type { Route } from "next";
+
 // The site's languages. English lives at /, every other one under its code: /fr, /fr/privacy.
 // Safe for the browser: the messages themselves load in lib/i18n.ts. Adding a language is its
 // messages/<code>.json and a line in LOCALES and LANGUAGES; next.config.ts reads the list.
@@ -18,7 +20,7 @@ export const LANG_COOKIE = "unheard-lang";
 export const isLocale = (value: string | undefined | null): value is Locale => (LOCALES as readonly string[]).includes(value ?? "");
 
 /** A page in a language: pathFor("fr", "/privacy") is /fr/privacy, pathFor("en") is /. */
-export const pathFor = (locale: Locale, page = "") => (locale === DEFAULT_LOCALE ? page || "/" : `/${locale}${page}`);
+export const pathFor = (locale: Locale, page = ""): Route => (locale === DEFAULT_LOCALE ? page || "/" : `/${locale}${page}`) as Route;
 
 /** The page a path shows, without its language: "/fr/privacy" and "/privacy" are "/privacy", "/fr" is "". */
 export function pageOf(pathname: string): string {
