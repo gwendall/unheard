@@ -68,6 +68,8 @@ export type LocateOptions = {
   /** Spots returned. */
   spots?: number;
   traces?: TraceOptions;
+  /** The traces already found in this stack (wherewhen searches many spots with the same ones). */
+  found?: Trace[];
   /** A stack already built for this recording (analyze() builds one), to skip building it again. */
   stack?: Stack;
 };
@@ -294,7 +296,7 @@ export async function locate(rec: Recording, area: Area = serverArea(rec.listene
   const o = { ...DEFAULTS, ...Object.fromEntries(Object.entries(options).filter(([, v]) => v !== undefined)) } as typeof DEFAULTS & LocateOptions;
   const centre: Listener = { lat: area.lat, lon: area.lon, elevation: rec.listener.elevation };
   const stack = o.stack ?? buildStack(rec.samples, rec.sampleRate);
-  const traces = findTraces(stack, o.traces).traces;
+  const traces = o.found ?? findTraces(stack, o.traces).traces;
   const times = stack.base.times;
   const hop = times.length > 1 ? times[1] - times[0] : 0.25;
   const half = area.side / 2;

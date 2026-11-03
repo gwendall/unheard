@@ -126,6 +126,69 @@ What the web version needs (nothing created yet, no paid resource):
 - In the page, one setting (say `NEXT_PUBLIC_HISTORY_URL`: the bucket, a folder served in
   development, or anyone's mirror) handed to `httpFetcher`.
 
+## Where and when: the search (2026-11-03)
+
+`lib/core/flyby.ts` (#39: each tone read as a straight pass), `lib/core/guess.ts` (#40: one spot
+and start checked against the flights), `lib/core/wherewhen.ts` (the search), all without DOM;
+`pnpm where <audio> --day <day> --near lat,lon [--radius km]` (`scripts/where.ts`, builds a
+missing day first); eval `evals/wherewhen.eval.ts`. Given a recording, a UTC day and a square, it
+returns ranked spots with a start time, the aircraft that explain each tone, the mirror spot, and a
+flag raised only when two flyovers by two aircraft, heard apart, agree on one spot and one start,
+one aircraft ahead of every other answer.
+
+Measured (Livermore: the 40 phone recordings, day only, squares centred on Oakland; Node on the
+founder's Mac while other sessions loaded it to a load average of 100 to 600, so times are CPU
+time; wall time ran 2 to 20 times longer):
+
+- One recording, one aircraft, 100 km square (29 of the 40; the rest did not finish on the loaded
+  Mac): median error 29 km, p90 66 km; one within 1 km (R05: 512 m, start 7 s off), none within
+  500 m; all flagged unsure. 300 km (8 of them): none within 1 km, all unsure. One flyover is not
+  enough over a whole day: on R01 about 4,900 other aircraft, spots and starts fit its one pass
+  better than the truth.
+- Two recordings made at one site under 30 minutes apart (two flyovers), 100 km, 18 pairs: 2
+  found (28 m and 1 s; 129 m and 0.7 s), a third with the truth as its second answer (164 m,
+  5 s), the rest 9 to 79 km off; all flagged unsure. 300 km (3 pairs run): none within 1 km.
+- colsto's hour (Oyster Bay, 2026-09-08, 100 km square, 65 tones): best answer 64 km off, flagged
+  unsure, 372 s. At the truth the reading is right: a Cessna 208 at 8.4 km, a Piper PA-30 at 8.2 km
+  and the Beech 350 at 3.6 km explain their tones (misfit 0.07 to 0.12), no aircraft passed close
+  unheard, evidence 2.31, above every spot found (best 1.63). But no candidate lands within 500 m
+  and 30 s of it. The Pilatus PC-12 his video names never comes within 70 km of the spot in the
+  index (part of its flight is above the index's 10,000 ft ceiling).
+- The flag: raised 0 times in 59 runs, so never wrong, but it stayed down on the 3 answers
+  within 1 km too (their lead over the next spot was under one aircraft).
+- Time and memory: a 2-minute clip at 100 km (R01 from the command line, 1,615 flights, 143,000
+  candidates) takes 22 s of CPU and 0.4 GB, decoding and traces included; the eval's recordings
+  take about 20 s of CPU each. colsto's hour: under 4 minutes of CPU in all (its 65 traces found
+  chunk by chunk, 3 M candidate reads), 2 GB. A phone runs this JavaScript perhaps 2 to 3 times
+  slower (not measured yet): about a minute for a clip, too long for an hour.
+
+Why it does not find more yet (measured):
+
+- The lead is rough on real passes and the search only looks where it points. The straight-pass
+  fit misses the ADS-B ground speed by more than 4 m/s in 8 of 35 Livermore recordings (the
+  Doppler sees airspeed: wind; turns), the closest moment by up to 10 s (p90; 12 s on colsto's
+  Beech), and colsto's Piper, 8 km away and turning, reads as a pass at 45 to 665 m. Widening the
+  clock to 12 s and letting the open tones raise candidates (tried on colsto: 4.6 M candidates)
+  still put none near the truth, and let a wrong spot reach 2.37.
+- When the truth is among the candidates, it does not stand out: on R23 + R22 the truth is the
+  best spot before the fine search (evidence 1.77, 164 m, 5 s) and a spot 40 km away reaches
+  1.78 after it. Busy Bay Area or Long Island traffic over 24 hours offers a near-equal
+  explanation almost anywhere.
+- Next, in order: a window of an hour (a file's date, or the user's "this afternoon") cuts the
+  rivals by 24; candidates from the real tracks instead of the straight-pass lead (every aircraft
+  within 10 km, on a coarse grid of spots and starts); measure what a ceiling of 15,000 ft adds to
+  the index for turboprops.
+
+What the web version needs:
+
+- The history (above): a daily job and a bucket, about 0.13 $ after a month.
+- The search in a Web Worker (`lib/core` runs as is, `onProgress` reports the stage): about 7 MB
+  of history tiles and about 1 MB of terrain tiles for a 100 km square (Terrarium PNGs from the
+  open AWS bucket, zoom 10; check their CORS or mirror them beside the history).
+- A day (from the file's date when it has one, narrowed to the hour when possible), a square on a
+  map, the answers with their aircraft and mirror, and "not sure" unless the flag is up, which
+  today is always.
+
 ## Next
 
 1. Founder: record real flybys with `?capture=1` on a phone (a light-aircraft field, a heliport,
@@ -165,6 +228,9 @@ What the web version needs (nothing created yet, no paid resource):
    answer scoring 12 or more was within 1 km every time. Medium-loud synthetic flybys (oracle 6
    to 10) still give a right trace 2 times in 10: a slower, longer-integrating search did not
    find more without false traces in noise.
+9. Where and when (core and command line, no UI yet): two flyovers at one spot are found 2 times
+   in 18 at 100 km, one alone never; next a window of an hour and candidates from the real
+   tracks (section "Where and when: the search").
 
 ## Needs the founder
 
