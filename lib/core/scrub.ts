@@ -176,10 +176,11 @@ function fill(out: Float64Array, rate: number, curves: Curve[], o: Required<Scru
       const away = 3 * o.width * h;
       const taken = Uint8Array.from({ length: blocks }, (_, j) => {
         const mine = h * coarse[j];
-        return earlier.some((other) => {
+        const near = earlier.some((other) => {
           const k = Math.min(o.harmonics, Math.max(1, Math.round(mine / other[j])));
           return Math.abs(mine - k * other[j]) < o.width * Math.max(h, k);
         });
+        return near ? 1 : 0;
       });
       // At 0 Hz: what is beside, on both sides when it can (independent noise adds its powers).
       for (let i = 0; i < n; i++) {
