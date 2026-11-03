@@ -71,6 +71,9 @@ export type Traces = {
   null: { mid: number; spread: number };
 };
 
+/** Where to look in a real recording: up to 3.4 kHz, a jet's fan tones sit above 2 kHz while it comes in (evals/trace). */
+export const REAL_RANGE: TraceOptions = { fMin: 40, fMax: 3400 };
+
 const DEFAULTS: Required<TraceOptions> = {
   fMin: 40,
   fMax: 400,

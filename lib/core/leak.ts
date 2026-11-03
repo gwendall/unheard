@@ -9,7 +9,7 @@ import { ANALYSIS_RATE } from "./pipeline";
 import { RESAMPLE_REACH, resampleAt } from "./resample";
 import { scrub, type Curve, type ScrubOptions } from "./scrub";
 import { buildStack, type StackOptions } from "./spectrogram";
-import { findTraces, type Trace, type TraceOptions } from "./trace";
+import { findTraces, REAL_RANGE, type Trace, type TraceOptions } from "./trace";
 
 /** A recording as the check holds it: every channel at the file's own rate. */
 export type Audio = { channels: Float32Array[]; sampleRate: number };
@@ -180,16 +180,27 @@ export type FindOptions = {
 };
 
 /**
+ * What the check asks of findTraces: the range Locate me reads (REAL_RANGE, 40 Hz to 3.4 kHz),
+ * each ridge whole. The check must see what an attacker's search sees: on AeroSonicDB's 7C3A50
+ * (14:01), an engine heard at 3, 4, 5 and 7 times 59 Hz, its 7th at 412 Hz kept the plane named
+ * once the three below 400 Hz were out. Whole: locating cuts a loud ridge back to its loud
+ * stretch, where the curve is surest; taking a tone out needs all of it, and a cut stretch that
+ * barely moves is dropped (there, the loudest tone).
+ */
+export const CHECK_TRACE: TraceOptions = { ...REAL_RANGE, trimShare: 0 };
+
+/**
  * The aircraft tones in `chunks` of a recording, joined across chunks, strongest first. Each chunk
- * gets the evidence stack analyze() builds and findTraces' own defaults: what the page finds is
- * what evals/trace and evals/leak measure.
+ * gets the evidence stack analyze() builds and findTraces with CHECK_TRACE: what the page finds is
+ * what evals/leak measures.
  */
 export function findTones(read: Reader, chunks: Chunk[], rate = ANALYSIS_RATE, options: FindOptions = {}): Tone[] {
   const found: Tone[] = [];
+  const trace = { ...CHECK_TRACE, ...options.trace };
   chunks.forEach((c, i) => {
     options.onChunk?.(i, chunks.length);
     const stack = buildStack(read(c.start, c.end - c.start), rate, options.stack);
-    for (const trace of findTraces(stack, options.trace).traces) found.push(toneOf(trace, stack.base.times, c.start / rate));
+    for (const t of findTraces(stack, trace).traces) found.push(toneOf(t, stack.base.times, c.start / rate));
   });
   options.onChunk?.(chunks.length, chunks.length);
   return mergeTones(found);
@@ -298,7 +309,7 @@ export function clean(audio: Audio, curves: Curve[], options: CleanOptions = {})
 }
 
 /** Rounds of take out and look again: on real recordings, taking the loud tones out brings fainter ones to light. */
-export const ROUNDS = 3;
+export const ROUNDS = 6;
 
 export type CleanOutOptions = CleanOptions & {
   find?: FindOptions;

@@ -50,6 +50,8 @@ request, CI posts this run's counts next to the base branch's (`scripts/eval-del
   curves on the sound at its own rate, searched again. Then `analyze()` with the flight data,
   before and after: a recording whose tones were found and taken out must name nobody, strong or
   possible. Also counts what "no aircraft tone found" misses (named from the flight data, no tone).
+  One test and one report per corpus (`evals/reports/leak-synthetic.md`, `leak-aerosonic.md`,
+  `leak-livermore.md`): `pnpm eval evals/leak -t livermore` runs one.
 
 ## Corpora
 
