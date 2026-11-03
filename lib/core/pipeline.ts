@@ -4,8 +4,10 @@
 import { collect, type AircraftMeta, type Poll } from "../adsb";
 import type { Air } from "./doppler";
 import type { Listener } from "./geo";
-import { matchAll, type Candidate, type MatchOptions, type Verdict } from "./match";
+import { explainLines, linesOf, type ExplainOptions, type Line } from "./explain";
+import { matchAll, verdictOf, type Candidate, type MatchOptions, type Verdict } from "./match";
 import { buildStack, type Spectrogram, type Stack, type StackOptions } from "./spectrogram";
+import type { Trace } from "./trace";
 import { buildTrack } from "./track";
 
 /** The sample rate the page resamples to before analysis: tones up to 4 kHz, light to process. */
@@ -26,6 +28,7 @@ export type Recording = {
 export type AnalysisOptions = {
   spectrogram?: StackOptions;
   match?: MatchOptions;
+  explain?: ExplainOptions;
 };
 
 export type Analysis = {
@@ -36,6 +39,11 @@ export type Analysis = {
   verdict: Verdict<AircraftMeta>;
   /** Aircraft in the polls, and how many could be scored. */
   seen: number;
+  /** The aircraft lines heard in the sound alone (blind traces), each with the free flyby that
+   * follows it and the aircraft of the data that explains it, if one does. */
+  lines: Line[];
+  /** Lines no aircraft of the data explains: a plane we hear that the flight data does not have. */
+  unexplained: Trace[];
 };
 
 export function candidatesOf(polls: Poll[], listener: Listener): Candidate<AircraftMeta>[] {
@@ -50,6 +58,9 @@ export function candidatesOf(polls: Poll[], listener: Listener): Candidate<Aircr
 export async function analyze(rec: Recording, options: AnalysisOptions = {}, onProgress?: (done: number, total: number, id: string) => void): Promise<Analysis> {
   const stack = buildStack(rec.samples, rec.sampleRate, options.spectrogram);
   const candidates = candidatesOf(rec.polls, rec.listener);
-  const verdict = await matchAll(stack, rec.start, candidates, rec.air, options.match, onProgress);
-  return { spec: stack.base, evidence: stack.evidence, stack, verdict, seen: candidates.length };
+  const first = await matchAll(stack, rec.start, candidates, rec.air, options.match, onProgress);
+  // A loud line from an aircraft missing from the data lends itself to the curves that cross it:
+  // an aircraft that only borrows a line is scored again without it (lib/core/explain.ts).
+  const { ranked, lines, unexplained } = await explainLines(stack, rec.start, candidates, rec.air, first.ranked, linesOf(stack), options.explain, options.match);
+  return { spec: stack.base, evidence: stack.evidence, stack, verdict: verdictOf(ranked), seen: candidates.length, lines, unexplained };
 }

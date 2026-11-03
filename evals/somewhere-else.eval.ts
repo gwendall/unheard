@@ -98,8 +98,8 @@ it("somewhere else", async () => {
   writeFileSync(new URL("somewhere-else.json", dir), JSON.stringify({ summary, rows }, null, 2));
   console.log(JSON.stringify(summary));
   // The page's own proof never names strongly a plane it did not plant. The rest is a ratchet:
-  // with the true tracks, a plane of that sky that was not planted can borrow a planted line
-  // (docs/STATUS.md, Next), which still points to that place and that minute.
+  // with the true tracks, a plane of that sky that was not planted can still run along a planted
+  // line for most of it (docs/STATUS.md, Next), which still points to that place and that minute.
   expect(summary.ours.wrongStrong).toBe(0);
   const b = (JSON.parse(readFileSync(new URL("./baseline.json", import.meta.url), "utf8")) as Record<string, Record<string, number>>)["somewhere-else"];
   if (process.env.SEEDS === undefined && b) {

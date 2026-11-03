@@ -3,5 +3,5 @@
   "real-tracks": { "strongHitMin": 0.44, "anyHitMin": 0.55, "wrongStrongMax": 0, "falseStrongMax": 0 },
   "real-audio": { "strongHitMin": 0.2, "anyHitMin": 0.6, "wrongStrongMax": 0, "falseStrongMax": 0 },
   "real-audio-livermore": { "strongHitMin": 0.85, "anyHitMin": 0.87, "wrongStrongMax": 0, "falseStrongMax": 0 },
-  "somewhere-else": { "strongMin": 0.86, "trueTracksStrongMin": 0.66, "trueTracksWrongStrongMax": 0.07, "asideStrongMax": 0.04, "homeStrongMax": 0.4 }
+  "somewhere-else": { "strongMin": 0.86, "trueTracksStrongMin": 0.8, "trueTracksWrongStrongMax": 0.04, "asideStrongMax": 0.04, "homeStrongMax": 0.14 }
 }
