@@ -16,7 +16,7 @@ import { syntheticScenario } from "./lib/synthetic";
 const N = Number(process.env.SEEDS ?? 30);
 
 type Named = { kind: "strong" | "possible" | "none"; id: string | null; score: number };
-type Outcome = { id: string; real: boolean; heard: boolean; tones: number; confidences: number[]; cleaned: number; before: Named; after: Named | null; left: number | null; leftConfidences: number[]; ms: number };
+type Outcome = { id: string; kind: string; real: boolean; heard: boolean; tones: number; confidences: number[]; cleaned: number; before: Named; after: Named | null; left: number | null; leftConfidences: number[]; ms: number };
 
 async function named(s: Scenario, samples: Float32Array): Promise<Named> {
   const { verdict } = await analyze({ ...s.recording, samples });
@@ -48,17 +48,13 @@ async function run(s: Scenario): Promise<Outcome> {
   }
   const ms = Math.round(performance.now() - t0);
   const round = (xs: { confidence: number }[]) => xs.map((t) => Math.round(t.confidence * 10) / 10);
-  return { id: s.id, real, heard: real || !!s.oracle, tones: tones.length, confidences: round(tones), cleaned, before, after, left: left?.length ?? null, leftConfidences: left ?? [], ms };
+  return { id: s.id, kind: s.kind, real, heard: real || !!s.oracle, tones: tones.length, confidences: round(tones), cleaned, before, after, left: left?.length ?? null, leftConfidences: left ?? [], ms };
 }
 
 const show = (n: Named | null) => (n === null ? "" : n.kind === "none" ? `none (${n.score.toFixed(1)})` : `${n.kind} ${n.id} (${n.score.toFixed(1)})`);
 
-it("leak check: found tones taken out", async () => {
-  const plan: [Scenario["kind"], number, number][] = [["heard", 0, N], ["noise", 1000, N], ["missing", 2000, Math.ceil(N / 2)], ["two", 3000, Math.ceil(N / 5)]];
-  const scenarios = [...plan.flatMap(([kind, base, n]) => Array.from({ length: n }, (_, i) => syntheticScenario(base + i, kind))), ...aerosonicScenarios().filter((x) => !x.id.startsWith("asdb-missing")), ...livermoreScenarios().filter((x) => !x.id.startsWith("lvk-missing"))];
-  const outcomes: Outcome[] = [];
-  for (const s of scenarios) outcomes.push(await run(s));
-
+/** The corpus's report (evals/reports/leak-<name>.md and .json), and its summary. */
+function report(name: string, title: string, outcomes: Outcome[]) {
   const count = (xs: Outcome[], f: (o: Outcome) => boolean) => xs.filter(f).length;
   const isNamed = (n: Named | null) => !!n && n.kind !== "none";
   const traced = outcomes.filter((o) => o.tones > 0);
@@ -73,26 +69,22 @@ it("leak check: found tones taken out", async () => {
     namedUntraced: count(outcomes, (o) => o.tones === 0 && isNamed(o.before)),
     untraced: outcomes.length - traced.length,
   };
-  const group = (name: string, xs: Outcome[]) => {
+  const group = (label: string, xs: Outcome[]) => {
     const t = xs.filter((o) => o.tones > 0);
-    return `| ${name} | ${xs.length} | ${t.length} | ${count(t, (o) => isNamed(o.before))} | ${count(t, (o) => isNamed(o.after))} | ${count(t, (o) => (o.left ?? 0) > 0)} | ${count(xs, (o) => o.tones === 0 && isNamed(o.before))} |`;
+    return `| ${label} | ${xs.length} | ${t.length} | ${count(t, (o) => isNamed(o.before))} | ${count(t, (o) => isNamed(o.after))} | ${count(t, (o) => (o.left ?? 0) > 0)} | ${count(xs, (o) => o.tones === 0 && isNamed(o.before))} |`;
   };
+  const kinds = [...new Set(outcomes.map((o) => o.kind))];
   const lines = [
-    "# Eval leak",
+    `# Eval leak, ${title}`,
     "",
-    `${new Date().toISOString()}, ${outcomes.length} recordings (synthetic SEEDS=${N}, AeroSonicDB and Livermore clips when cached), median ${[...outcomes.map((o) => o.ms)].sort((a, b) => a - b)[outcomes.length >> 1]} ms per check (find, clean, check again).`,
+    `${new Date().toISOString()}, ${outcomes.length} recordings, median ${[...outcomes.map((o) => o.ms)].sort((a, b) => a - b)[outcomes.length >> 1]} ms per check (find, take out, look again).`,
     `- The check page's path with no flight data: tones found chunk by chunk (lib/core/leak.ts, findTraces' defaults: 40 to 400 Hz), each taken out along its curve (scrub) on the sound at its own rate, the changed chunks searched again and what they show taken out too, up to ${ROUNDS} rounds. Tones left: the whole file searched once more.`,
     "- Named: analyze() with the flight data says strong or possible (any aircraft). Must be 0 after cleaning.",
     "- Named without a tone: the flight data names an aircraft, but the check found no tone to take out: what \"no aircraft tone found\" can miss.",
     "",
     "| | recordings | tones found | named before | named after | tones left | named without a tone |",
     "|---|---|---|---|---|---|---|",
-    group("synthetic heard", outcomes.filter((o) => !o.real && o.id.includes("heard"))),
-    group("synthetic missing", outcomes.filter((o) => !o.real && o.id.includes("missing"))),
-    group("synthetic two", outcomes.filter((o) => !o.real && o.id.includes("two"))),
-    group("synthetic noise", outcomes.filter((o) => !o.real && o.id.includes("noise"))),
-    group("real, AeroSonicDB (Adelaide, 60 s)", outcomes.filter((o) => o.id.startsWith("asdb"))),
-    group("real, phones at Livermore", outcomes.filter((o) => o.id.startsWith("lvk"))),
+    ...kinds.map((k) => group(k, outcomes.filter((o) => o.kind === k))),
     "",
     `Named after cleaning, of recordings with a tone: ${rate(summary.namedAfter, summary.traced)}.`,
     "",
@@ -102,9 +94,34 @@ it("leak check: found tones taken out", async () => {
   ];
   const dir = new URL("./reports/", import.meta.url);
   mkdirSync(dir, { recursive: true });
-  writeFileSync(new URL("leak.md", dir), lines.join("\n") + "\n");
-  writeFileSync(new URL("leak.json", dir), JSON.stringify({ summary, outcomes }, null, 2));
-  console.log(JSON.stringify(summary));
+  writeFileSync(new URL(`leak-${name}.md`, dir), lines.join("\n") + "\n");
+  writeFileSync(new URL(`leak-${name}.json`, dir), JSON.stringify({ summary, outcomes }, null, 2));
+  console.log(name, JSON.stringify(summary));
+  return summary;
+}
+
+async function check(name: string, title: string, scenarios: Scenario[]) {
+  if (!scenarios.length) {
+    console.warn(`leak ${name}: no recordings (see evals/DATASETS.md)`);
+    return;
+  }
+  const outcomes: Outcome[] = [];
+  for (const s of scenarios) outcomes.push(await run(s));
   // Once its tones are out, a recording the check found them in is named by nobody.
-  expect(summary.namedAfter).toBe(0);
+  expect(report(name, title, outcomes).namedAfter).toBe(0);
+}
+
+// One test per corpus, each with its own report: `pnpm eval evals/leak -t livermore` runs one.
+it("synthetic", async () => {
+  const plan: [Scenario["kind"], number, number][] = [["heard", 0, N], ["noise", 1000, N], ["missing", 2000, Math.ceil(N / 2)], ["two", 3000, Math.ceil(N / 5)]];
+  await check("synthetic", `synthetic (SEEDS=${N})`, plan.flatMap(([kind, base, n]) => Array.from({ length: n }, (_, i) => syntheticScenario(base + i, kind))));
+});
+
+it("aerosonic", async () => {
+  await check("aerosonic", "AeroSonicDB (Adelaide, 60 s clips at 22 kHz)", aerosonicScenarios().filter((x) => !x.id.startsWith("asdb-missing")));
+});
+
+// 40 phone recordings at 48 kHz, cleaned at that rate: the longest corpus.
+it("livermore", { timeout: 7_200_000 }, async () => {
+  await check("livermore", "phones at Livermore (48 kHz, 41 to 182 s)", livermoreScenarios().filter((x) => !x.id.startsWith("lvk-missing")));
 });
