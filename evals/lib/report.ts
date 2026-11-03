@@ -54,7 +54,8 @@ export async function run(s: Scenario, options?: AnalysisOptions): Promise<Outco
 
 const round = (x: number) => Math.round(x * 100) / 100;
 
-function oracleZ(stack: Stack, s: Scenario): number {
+/** How findable the heard sound was: its true curve's evidence over wrong tones on that curve. */
+export function oracleZ(stack: Stack, s: Scenario): number {
   const o = s.oracle!;
   const factor = Array.from(stack.base.times, (t) => heardAt(o.truth, o.start + t, o.air)?.factor ?? NaN);
   const weights = o.harmonics.map((h) => h / Math.max(...o.harmonics));

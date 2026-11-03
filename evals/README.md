@@ -21,6 +21,12 @@ request, CI posts this run's counts next to the base branch's (`scripts/eval-del
 - **calibration**: best score and lead over the second, by outcome. `STRONG` and `POSSIBLE` in
   `lib/core/match.ts` come from these lines.
 
+## Locate me
+
+- `trace` (`evals/trace.eval.ts`): blind traces (`lib/core/trace.ts`), the aircraft tones found
+  in the sound alone, on the synthetic corpus and the real clips: how often the heard aircraft's
+  tone is traced, by findability, and how often a recording with no aircraft yields a trace.
+
 ## Corpora
 
 - `synthetic` (`evals/lib/synthetic.ts`): made-up flybys, exact truth, clock error, wind and
