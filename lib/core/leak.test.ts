@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { heardAt, STANDARD_AIR } from "./doppler";
 import type { Listener } from "./geo";
-import { chunksOf, clean, curveOf, findTones, mergeTones, readerOf, toneOf, type Tone } from "./leak";
+import { chunksOf, clean, curveOf, findTones, mergeTones, readerOf, ridgesOf, toneOf, type Tone } from "./leak";
 import { resample } from "./resample";
 import { scrub } from "./scrub";
 import { buildStack } from "./spectrogram";
@@ -140,6 +140,36 @@ describe("findTones", () => {
     // The same search on the whole file at once finds it too.
     const whole = findTraces(buildStack(samples, RATE)).traces;
     expect(whole.length).toBeGreaterThanOrEqual(1);
+  });
+});
+
+describe("findTones, lines taken along", () => {
+  // A plane heard at 110 Hz and at 13.5 times that, 1485 Hz: out of the 40 to 400 Hz search even
+  // as a second or third harmonic, and no harmonic of 110. One aircraft, one Doppler factor.
+  const duration = 60;
+  const f: Flyby = { closestAt: START + 30, offset: 500, heading: 70, speed: 60, altitude: 640 };
+  const track = trackOf(f, duration);
+  const samples = synthesize({ start: START, duration, sampleRate: RATE, air: STANDARD_AIR, sources: [{ track, f0: 110, level: 0.25 }, { track, f0: 1485, level: 0.25, harmonics: [1] }], noise: 1, rumble: 1, seed: 11 });
+  const { read, length } = readerOf({ channels: [samples], sampleRate: RATE });
+  const near = (t: Tone, ratio: number) =>
+    ridgesOf(t).some((r) => {
+      const k = Math.round((r.times[0] - t.times[0]) / 0.25);
+      const i = Math.max(0, -k);
+      return Math.abs(r.freq[i] / t.freq[i + k] - ratio) < 0.05 * ratio;
+    });
+
+  it("takes a line far above 400 Hz with the tone it runs parallel to, without reporting it", () => {
+    const tones = findTones(read, chunksOf(length));
+    // Reported: what lies below 400 Hz, the 110 Hz tone (132 Hz as the plane comes in) first.
+    expect(tones.every((t) => Math.max(...t.freq) < 400)).toBe(true);
+    expect(tones[0].freq[0]).toBeGreaterThan(120);
+    expect(tones[0].freq[0]).toBeLessThan(140);
+    expect(near(tones[0], 13.5)).toBe(true);
+  });
+
+  it("leaves it out when asked not to look along", () => {
+    const tones = findTones(read, chunksOf(length), RATE, { along: null });
+    expect(tones.some((t) => near(t, 13.5))).toBe(false);
   });
 });
 

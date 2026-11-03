@@ -31,7 +31,10 @@ export type ScrubOptions = {
   fill?: boolean;
 };
 
-const DEFAULTS: Required<ScrubOptions> = { harmonics: 6, width: 3, passes: 3, fill: true };
+/** Harmonics taken out by default, the fundamental included. */
+export const HARMONICS = 6;
+
+const DEFAULTS: Required<ScrubOptions> = { harmonics: HARMONICS, width: 3, passes: 3, fill: true };
 
 /** The curve's frequency at every sample (NaN where unknown), linearly between its points. */
 function perSample(curve: Curve, n: number, rate: number): Float64Array {

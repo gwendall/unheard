@@ -7,7 +7,7 @@
 
 import { ANALYSIS_RATE } from "./pipeline";
 import { RESAMPLE_REACH, resampleAt } from "./resample";
-import { scrub, type Curve, type ScrubOptions } from "./scrub";
+import { HARMONICS, scrub, type Curve, type ScrubOptions } from "./scrub";
 import { buildStack, type StackOptions } from "./spectrogram";
 import { findTraces, REAL_RANGE, type Trace, type TraceOptions } from "./trace";
 
@@ -129,20 +129,28 @@ function join(a: Tone, b: Tone): Tone {
 const KIN = [1 / 3, 1 / 2, 2 / 3, 3 / 2, 2, 3];
 const NEAR = 0.05;
 
-/** `b` runs beside `a`: over most of its frames, at one ratio to it (a near pitch or a harmonic), parallel. */
-function runsBeside(a: Tone, b: Tone): boolean {
+/**
+ * Where `b` runs parallel to `a` over most of its own frames (their ratio steady within 0.5 %, the
+ * same Doppler factor, so the same aircraft): the log of that ratio. Otherwise null.
+ */
+function parallel(a: Tone, b: Tone): number | null {
   const ka = frameOf(a.times[0]);
   const kb = frameOf(b.times[0]);
   const lo = Math.max(ka, kb);
   const hi = Math.min(ka + a.times.length, kb + b.times.length) - 1;
-  if (hi - lo + 1 < Math.max(SHARED, 0.5 * b.times.length)) return false;
+  if (hi - lo + 1 < Math.max(SHARED, 0.5 * b.times.length)) return null;
   const r: number[] = [];
   for (let k = lo; k <= hi; k++) r.push(Math.log(b.freq[k - kb] / a.freq[k - ka]));
   r.sort((x, y) => x - y);
   const mid = r[r.length >> 1];
   const spread = r.map((x) => Math.abs(x - mid)).sort((x, y) => x - y)[r.length >> 1];
-  if (spread > AGREE / 2) return false;
-  return Math.abs(mid) < NEAR || KIN.some((ratio) => Math.abs(mid - Math.log(ratio)) < AGREE);
+  return spread > AGREE / 2 ? null : mid;
+}
+
+/** `b` runs beside `a`: parallel, at a near pitch or a harmonic. */
+function runsBeside(a: Tone, b: Tone): boolean {
+  const mid = parallel(a, b);
+  return mid !== null && (Math.abs(mid) < NEAR || KIN.some((ratio) => Math.abs(mid - Math.log(ratio)) < AGREE));
 }
 
 /**
@@ -174,36 +182,65 @@ export const ridgesOf = (tone: Tone): Tone[] => [tone, ...(tone.beside ?? [])];
 
 export type FindOptions = {
   trace?: TraceOptions;
+  /** The search for lines a tone brings along (ALONG); null: none. */
+  along?: TraceOptions | null;
   stack?: StackOptions;
   /** Called before each chunk, and once at the end with done = total. */
   onChunk?: (done: number, total: number) => void;
 };
 
 /**
- * What the check asks of findTraces: the range Locate me reads (REAL_RANGE, 40 Hz to 3.4 kHz),
- * each ridge whole. The check must see what an attacker's search sees: on AeroSonicDB's 7C3A50
- * (14:01), an engine heard at 3, 4, 5 and 7 times 59 Hz, its 7th at 412 Hz kept the plane named
- * once the three below 400 Hz were out. Whole: locating cuts a loud ridge back to its loud
- * stretch, where the curve is surest; taking a tone out needs all of it, and a cut stretch that
- * barely moves is dropped (there, the loudest tone).
+ * What the check reports: findTraces' defaults (40 to 400 Hz, propeller planes and helicopters),
+ * each ridge whole. Locating cuts a loud ridge back to its loud stretch, where the curve is
+ * surest; taking a tone out needs all of it, and a cut stretch that barely moves is dropped: on
+ * AeroSonicDB's 7C3A50 (14:01) that dropped the loudest tone, 238 to 226 Hz.
  */
-export const CHECK_TRACE: TraceOptions = { ...REAL_RANGE, trimShare: 0 };
+export const CHECK_TRACE: TraceOptions = { trimShare: 0 };
+
+/**
+ * Where the check also looks, for what a tone brings along: up to 3.4 kHz (REAL_RANGE, what
+ * Locate me reads). A line found there is taken out with a tone found below 400 Hz when it runs
+ * parallel to it (the same aircraft), never reported on its own: alone, this range finds a line
+ * in 3 of 6 two-minute white-noise files. On 7C3A50 (14:01), a Bell 412 heard at 3, 4, 5 and 7
+ * times 59 Hz, the 7th at 412 Hz kept the helicopter named once the three below 400 Hz were out.
+ */
+export const ALONG: TraceOptions = { ...REAL_RANGE, trimShare: 0, maxTraces: 8 };
 
 /**
  * The aircraft tones in `chunks` of a recording, joined across chunks, strongest first. Each chunk
- * gets the evidence stack analyze() builds and findTraces with CHECK_TRACE: what the page finds is
- * what evals/leak measures.
+ * gets the evidence stack analyze() builds, findTraces with CHECK_TRACE, and with ALONG for the
+ * lines that run parallel to a tone found (in its `beside`): what the page finds is what
+ * evals/leak measures.
  */
 export function findTones(read: Reader, chunks: Chunk[], rate = ANALYSIS_RATE, options: FindOptions = {}): Tone[] {
   const found: Tone[] = [];
+  const wide: Tone[] = [];
   const trace = { ...CHECK_TRACE, ...options.trace };
+  const along = options.along === undefined ? ALONG : options.along;
   chunks.forEach((c, i) => {
     options.onChunk?.(i, chunks.length);
     const stack = buildStack(read(c.start, c.end - c.start), rate, options.stack);
-    for (const t of findTraces(stack, trace).traces) found.push(toneOf(t, stack.base.times, c.start / rate));
+    const here = findTraces(stack, trace).traces;
+    for (const t of here) found.push(toneOf(t, stack.base.times, c.start / rate));
+    if (along && here.length) for (const t of findTraces(stack, along).traces) wide.push(toneOf(t, stack.base.times, c.start / rate));
   });
   options.onChunk?.(chunks.length, chunks.length);
-  return mergeTones(found);
+  const tones = mergeTones(found);
+  // A line that runs parallel to a tone is taken out with it, unless scrub already takes it: a
+  // line already found, or one of the first harmonics of one.
+  const taken = (w: Tone) =>
+    tones.flatMap(ridgesOf).some((r) => {
+      const mid = parallel(r, w);
+      if (mid === null) return false;
+      const h = Math.round(Math.exp(mid));
+      return h >= 1 && h <= HARMONICS && Math.abs(mid - Math.log(h)) < AGREE;
+    });
+  for (const w of mergeTones(wide).flatMap(ridgesOf)) {
+    if (taken(w)) continue;
+    const lead = tones.find((t) => parallel(t, w) !== null);
+    if (lead) lead.beside = [...(lead.beside ?? []), w];
+  }
+  return tones;
 }
 
 /** Seconds the end of a tone is carried on: where it fades under what the search sees, it may still be heard. */
