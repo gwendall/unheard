@@ -10,7 +10,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { decodeWav } from "../../lib/bundle";
 import { ANALYSIS_RATE, type Recording } from "../../lib/core/pipeline";
-import { resample } from "./real";
+import { resample } from "../../lib/core/resample";
 
 const DIR = new URL("../.cache/aerosonic-env/", import.meta.url);
 const INTERVAL = 5;
