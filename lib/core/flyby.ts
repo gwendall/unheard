@@ -156,6 +156,13 @@ export function shapeOf(t: Float64Array, y: Float64Array, c: number): Shape {
   return { times: t, logs: y, at, loss, best, cell, logF0, accept: best + Math.max(0.15, 6 / n) };
 }
 
+/** The best fit's speed (m/s) and closest distance (m). */
+export function bestOf(sh: Shape): { speed: number; distance: number } {
+  const W = WIDTHS.length;
+  const speed = SPEEDS[Math.floor(sh.cell / W)];
+  return { speed, distance: speed * WIDTHS[sh.cell % W] };
+}
+
 export function flybyOf(sh: Shape): Flyby {
   const W = WIDTHS.length;
   const ok: number[] = [];

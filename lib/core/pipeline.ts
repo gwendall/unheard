@@ -4,7 +4,7 @@
 import { collect, type AircraftMeta, type Poll } from "../adsb";
 import type { Air } from "./doppler";
 import type { Listener } from "./geo";
-import { explainLines, linesOf, type ExplainOptions, type Line } from "./explain";
+import { explainLines, ghostsOf, linesOf, type ExplainOptions, type Ghost, type Line } from "./explain";
 import { matchAll, verdictOf, type Candidate, type MatchOptions, type Verdict } from "./match";
 import { buildStack, type Spectrogram, type Stack, type StackOptions } from "./spectrogram";
 import type { Trace } from "./trace";
@@ -44,6 +44,8 @@ export type Analysis = {
   lines: Line[];
   /** Lines no aircraft of the data explains: a plane we hear that the flight data does not have. */
   unexplained: Trace[];
+  /** The unexplained lines that pass the bar of evals/ghost.eval.ts: what the page tells a visitor. */
+  ghosts: Ghost[];
 };
 
 export function candidatesOf(polls: Poll[], listener: Listener): Candidate<AircraftMeta>[] {
@@ -62,5 +64,5 @@ export async function analyze(rec: Recording, options: AnalysisOptions = {}, onP
   // A loud line from an aircraft missing from the data lends itself to the curves that cross it:
   // an aircraft that only borrows a line is scored again without it (lib/core/explain.ts).
   const { ranked, lines, unexplained } = await explainLines(stack, rec.start, candidates, rec.air, first.ranked, linesOf(stack), options.explain, options.match);
-  return { spec: stack.base, evidence: stack.evidence, stack, verdict: verdictOf(ranked), seen: candidates.length, lines, unexplained };
+  return { spec: stack.base, evidence: stack.evidence, stack, verdict: verdictOf(ranked), seen: candidates.length, lines, unexplained, ghosts: ghostsOf(lines, stack.base.times, rec.air) };
 }

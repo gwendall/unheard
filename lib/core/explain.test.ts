@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { heardAt, pathSpeed, STANDARD_AIR } from "./doppler";
-import { explainLines, FAMILY, flybyFit, flybyLogs, follow, judge, linesOf, maskOf, onLines } from "./explain";
+import { explainLines, FAMILY, flybyFit, flybyLogs, follow, ghostsOf, GHOST, judge, linesOf, maskOf, onLines, sameCurve, type Line } from "./explain";
 import type { Listener } from "./geo";
 import { matchAll, STRONG, verdictOf, type Candidate } from "./match";
 import { buildStack } from "./spectrogram";
@@ -184,4 +184,52 @@ describe("explainLines", () => {
     const lead = (r: typeof ranked) => r[0].score - r[1].score;
     expect(lead(ranked)).toBeGreaterThan(lead(first.ranked));
   }, 120_000);
+});
+
+describe("ghosts", () => {
+  const factor = factorOf(passing);
+  const tol = 0.02;
+  const lineFrom = (trace: Trace): Line => ({ trace, flyby: flybyFit(trace, times, tol), by: [], borrowed: [], shape: 0 });
+  const trace = { ...lineOf(factor.map((x) => 110 * x), 40, 320), confidence: GHOST.confidence + 1 };
+  const line = lineFrom(trace);
+
+  it("follows a line at any tone, even at no simple ratio of the matcher's", () => {
+    expect(sameCurve(trace, factor, tol)).toBe(1);
+    expect(sameCurve(trace, factor.map((x) => x * 1.37), tol)).toBe(1);
+    expect(sameCurve(trace, factor.map(() => 1), tol)).toBeLessThan(1);
+    expect(sameCurve(trace, factor.map(() => NaN), tol)).toBe(0);
+  });
+
+  it("tells the straight pass of a line that passes the bar, in order of magnitude", () => {
+    const [ghost] = ghostsOf([line], times, STANDARD_AIR);
+    expect(ghost.speed).toBeGreaterThan(passing.speed / 1.5);
+    expect(ghost.speed).toBeLessThan(passing.speed * 1.5);
+    const slant = Math.hypot(passing.offset, passing.altitude - listener.elevation);
+    expect(ghost.distance).toBeGreaterThan(slant / 2);
+    expect(ghost.distance).toBeLessThan(slant * 2);
+    expect(ghost.from).toBe(times[40]);
+    expect(ghost.hzFrom).toBeGreaterThan(ghost.hzTo);
+    expect(Number.isNaN(ghost.curve[39])).toBe(true);
+    expect(Number.isFinite(ghost.curve[40])).toBe(true);
+    expect(Number.isNaN(ghost.curve[321])).toBe(true);
+  });
+
+  it("tells one sound once, whichever tones it is heard at", () => {
+    const beside = { ...trace, freq: trace.freq.map((x) => x * 1.03) };
+    expect(ghostsOf([line, lineFrom(beside)], times, STANDARD_AIR)).toHaveLength(1);
+    const other = factorOf({ ...passing, closestAt: START + 55, offset: 1500, heading: 200, speed: 90 });
+    const apart = { ...lineOf(other.map((x) => 190 * x), 60, 330), confidence: GHOST.confidence + 1 };
+    expect(ghostsOf([line, lineFrom(apart)], times, STANDARD_AIR)).toHaveLength(2);
+  });
+
+  it("keeps quiet about a line under the bar, or one a plane of the data explains or could", () => {
+    expect(ghostsOf([{ ...line, by: ["abc123"] }], times, STANDARD_AIR)).toEqual([]);
+    expect(ghostsOf([{ ...line, shape: GHOST.shape }], times, STANDARD_AIR)).toEqual([]);
+    expect(ghostsOf([{ ...line, trace: { ...trace, confidence: GHOST.confidence - 1 } }], times, STANDARD_AIR)).toEqual([]);
+    expect(ghostsOf([{ ...line, flyby: { ...line.flyby, share: GHOST.share - 0.01 } }], times, STANDARD_AIR)).toEqual([]);
+    // A tone falling as fast as a car passing beside the microphone reads closer than the bar.
+    const near = factorOf({ ...passing, offset: 40, altitude: listener.elevation + 20, speed: 25, turnRate: 0 });
+    const car = { ...lineOf(near.map((x) => 110 * x), 120, 240), confidence: GHOST.confidence + 1 };
+    expect(ghostsOf([lineFrom(car)], times, STANDARD_AIR)).toEqual([]);
+  });
 });
