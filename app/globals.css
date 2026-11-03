@@ -10,6 +10,7 @@
   --color-faint: #5b6478;
   --color-amber: #ffb547;
   --color-amber-soft: #ffd58f;
+  --color-ghost: #8fd0ff;
   --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, monospace;
 }

@@ -42,6 +42,11 @@ What a visitor goes through, and where it lives:
   brought out of it: sped up and band-passed, `lib/client/reveal.ts`), a share card
   (`lib/client/card.ts`, the phone's share sheet), a link to follow it live (globe.adsb.lol),
   the spectrum and the map, every plane checked, and the donation form.
+- **Not in the flight data** (`Ghosts` in `components/Result.tsx`): when `analyze().ghosts` holds a
+  line, one quiet block after the verdict says when it is heard, the pitch it falls through, the
+  speed and closest distance a straight pass implies as an order of magnitude, and that it may be a
+  plane with no transponder or another moving sound. The spectrum draws it as dashed rails. It
+  never changes the verdict and stays out of the share card.
 - **Your planes** (`lib/client/logbook.ts`, `components/Logbook.tsx`): every real find kept in
   this browser's storage only, listed on the home, clearable.
 - **Languages**, the way every site of the family has them (Koe, Wham, Kiku, istheinternetok):

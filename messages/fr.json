@@ -182,7 +182,18 @@
     "score": "Le score dit à quel point la courbe de chaque avion se détache du hasard dans votre enregistrement. Sans avion à trouver, aucun score n'a atteint {strong} dans nos tests.",
     "realSky": "Écouter le vrai ciel",
     "again": "Écouter à nouveau",
-    "bundle": "Télécharger l'enregistrement complet"
+    "bundle": "Télécharger l'enregistrement complet",
+    "ghost": {
+      "label": "Absent des données de vol",
+      "text": "Nous entendons passer quelque chose que les données de vol n'ont pas. C'est peut-être un avion sans transpondeur, ou un autre son en mouvement.",
+      "heard": "quand on l'entend",
+      "pitch": "la hauteur du son, qui descend",
+      "speed": "sa vitesse, lue comme un passage en ligne droite",
+      "closest": "sa distance au plus près, lue de la même façon",
+      "about": "environ {value}",
+      "range": "{from} à {to}",
+      "curve": "Les rails en pointillés suivent le son que les données de vol n'ont pas."
+    }
   },
   "donate": {
     "thanks": "Merci, c'est reçu.",

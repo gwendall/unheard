@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef } from "react";
+import type { Ghost } from "@/lib/core/explain";
 import type { Analysis } from "@/lib/core/pipeline";
 import type { Match } from "@/lib/core/match";
 import type { AircraftMeta } from "@/lib/adsb";
@@ -9,16 +10,17 @@ import { useI18n } from "@/components/I18n";
 
 type Band = { lo: number; hi: number };
 
-/** The frequency band around the curve heard from `match`, or a wide default without one. */
-function bandOf(match: Match<AircraftMeta> | null): Band {
-  if (!match) return { lo: 40, hi: 300 };
+/** The frequency band around the curve heard from `match` and the ghosts' curves, or a wide default without any. */
+function bandOf(match: Match<AircraftMeta> | null, ghosts: Ghost[] = []): Band {
   let lo = Infinity;
   let hi = -Infinity;
-  for (const f of match.factor) {
-    if (!Number.isFinite(f)) continue;
-    lo = Math.min(lo, f * match.f0);
-    hi = Math.max(hi, f * match.f0);
-  }
+  const take = (f: number) => {
+    if (!Number.isFinite(f)) return;
+    lo = Math.min(lo, f);
+    hi = Math.max(hi, f);
+  };
+  if (match) for (const f of match.factor) take(f * match.f0);
+  for (const g of ghosts) for (const f of g.curve) take(f);
   if (!Number.isFinite(lo)) return { lo: 40, hi: 300 };
   const pad = Math.max(6, (hi - lo) * 0.35);
   return { lo: Math.max(20, lo - pad), hi: hi + pad };
@@ -31,11 +33,12 @@ function bandOf(match: Match<AircraftMeta> | null): Band {
  */
 /**
  * Paints the evidence map, zoomed on `band`, into a w x h area of a 2D context (already scaled),
- * with the predicted curve as two rails when `showCurve`. Also used by the share card.
+ * with the predicted curve as two rails when `showCurve` and each ghost's flyby as two dashed
+ * rails of its own. Also used by the share card, without ghosts.
  */
-export function paintSpectrum(ctx: CanvasRenderingContext2D, w: number, h: number, analysis: Analysis, match: Match<AircraftMeta> | null, showCurve: boolean) {
+export function paintSpectrum(ctx: CanvasRenderingContext2D, w: number, h: number, analysis: Analysis, match: Match<AircraftMeta> | null, showCurve: boolean, ghosts: Ghost[] = []) {
   const { spec, evidence } = analysis;
-  const band = bandOf(match);
+  const band = bandOf(match, ghosts);
   const b0 = Math.max(0, Math.floor((band.lo - spec.minHz) / spec.binHz));
   const b1 = Math.min(spec.bins - 1, Math.ceil((band.hi - spec.minHz) / spec.binHz));
   const rows = Math.max(1, b1 - b0 + 1);
@@ -59,41 +62,45 @@ export function paintSpectrum(ctx: CanvasRenderingContext2D, w: number, h: numbe
   ctx.imageSmoothingQuality = "high";
   ctx.drawImage(off, 0, 0, w, h);
 
-  if (showCurve && match) {
-    const lo = spec.minHz + b0 * spec.binHz;
-    const hi = spec.minHz + b1 * spec.binHz;
-    const y = (f: number) => h - ((f - lo) / (hi - lo)) * h;
-    const x = (k: number) => ((k + 0.5) / spec.frames) * w;
-    const gap = Math.max(4, h * 0.035);
-    ctx.strokeStyle = "rgba(255, 181, 71, 0.95)";
+  const lo = spec.minHz + b0 * spec.binHz;
+  const hi = spec.minHz + b1 * spec.binHz;
+  const y = (f: number) => h - ((f - lo) / (hi - lo)) * h;
+  const x = (k: number) => ((k + 0.5) / spec.frames) * w;
+  const gap = Math.max(4, h * 0.035);
+  const rails = (hz: (k: number) => number, color: string, glow: string, dash: number[]) => {
+    ctx.strokeStyle = color;
     ctx.lineWidth = Math.max(1.5, h / 190);
-    ctx.shadowColor = "rgba(255, 181, 71, 0.6)";
+    ctx.shadowColor = glow;
     ctx.shadowBlur = 6;
+    ctx.setLineDash(dash);
     for (const side of [-1, 1]) {
       ctx.beginPath();
       let open = false;
       for (let k = 0; k < spec.frames; k++) {
-        const f = match.factor[k];
+        const f = hz(k);
         if (!Number.isFinite(f)) {
           open = false;
           continue;
         }
         const px = x(k);
-        const py = y(f * match.f0) + side * gap;
+        const py = y(f) + side * gap;
         if (open) ctx.lineTo(px, py);
         else ctx.moveTo(px, py);
         open = true;
       }
       ctx.stroke();
     }
+    ctx.setLineDash([]);
     ctx.shadowBlur = 0;
-  }
+  };
+  if (showCurve && match) rails((k) => match.factor[k] * match.f0, "rgba(255, 181, 71, 0.95)", "rgba(255, 181, 71, 0.6)", []);
+  for (const g of ghosts) rails((k) => g.curve[k], "rgba(143, 208, 255, 0.95)", "rgba(143, 208, 255, 0.5)", [6, 5]);
 }
 
-export function Spectrum({ analysis, match, showCurve }: { analysis: Analysis; match: Match<AircraftMeta> | null; showCurve: boolean }) {
+export function Spectrum({ analysis, match, showCurve, ghosts }: { analysis: Analysis; match: Match<AircraftMeta> | null; showCurve: boolean; ghosts?: Ghost[] }) {
   const label = useI18n().m.plots.spectrum;
   const canvas = useRef<HTMLCanvasElement>(null);
-  const band = useMemo(() => bandOf(match), [match]);
+  const band = useMemo(() => bandOf(match, ghosts), [match, ghosts]);
   const { spec } = analysis;
   const duration = spec.times[spec.frames - 1] ?? 0;
 
@@ -108,8 +115,8 @@ export function Spectrum({ analysis, match, showCurve }: { analysis: Analysis; m
     el.width = Math.round(w * dpr);
     el.height = Math.round(h * dpr);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    paintSpectrum(ctx, w, h, analysis, match, showCurve);
-  }, [analysis, match, showCurve]);
+    paintSpectrum(ctx, w, h, analysis, match, showCurve, ghosts);
+  }, [analysis, match, showCurve, ghosts]);
 
   return (
     <figure className="m-0">
