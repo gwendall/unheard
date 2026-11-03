@@ -190,6 +190,9 @@ What the web version needs:
 - A day (from the file's date when it has one, narrowed to the hour when possible), a square on a
   map, the answers with their aircraft and mirror, and "not sure" unless the flag is up, which
   today is always.
+- The file's date: `lib/client/metadata.ts` (no UI yet) reads when, where and on what device from
+  an MP4, MOV, M4A, WAV or MP3 without loading it; not GPS in timed tracks (GoPro, drones), so an
+  empty answer does not mean the file says nothing.
 
 ## Next
 
