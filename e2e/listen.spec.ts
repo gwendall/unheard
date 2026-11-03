@@ -83,6 +83,8 @@ test("finds the plane in a recording made through the real page", async ({ page 
     return route.fulfill({ headers: cors, json: { url: `https://teststore.private.blob.vercel-storage.com/${pathname}`, downloadUrl: "", pathname, contentType: "application/json", contentDisposition: "inline" } });
   });
   await expect(page.getByTestId("donate-heard")).toHaveValue(fixture().target);
+  // Named as on the verdict, not by its radio callsign.
+  await expect(page.getByTestId("donate-heard").locator("option").first()).toHaveText(/^Cessna 172 Skyhawk, /);
   // SHOTS=<dir>: the real result with its donation form, at desktop and phone widths.
   if (process.env.SHOTS) {
     await page.locator("figure img[data-loaded]").waitFor({ timeout: 15_000 });

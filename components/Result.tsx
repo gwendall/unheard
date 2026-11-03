@@ -1,14 +1,14 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Analysis, Recording } from "@/lib/core/pipeline";
 import { candidatesOf } from "@/lib/core/pipeline";
 import { STRONG, type Match } from "@/lib/core/match";
 import type { AircraftMeta } from "@/lib/adsb";
 import { stateAt } from "@/lib/core/track";
 import { norm } from "@/lib/core/geo";
-import { describe, height, km, nameOf, seconds, speed } from "@/lib/client/format";
-import { identityOf, lookUp, spoken, type Identity } from "@/lib/client/names";
+import { height, km, seconds, speed } from "@/lib/client/format";
+import { identityOf, spoken } from "@/lib/client/names";
 import { photoOf, type Photo } from "@/lib/client/photo";
 import { aircraftType, isTonal } from "@/lib/client/types";
 import type { Bundle } from "@/lib/bundle";
@@ -16,6 +16,7 @@ import { Donate } from "./Donate";
 import { HearIt } from "./HearIt";
 import { paintSpectrum, Spectrum } from "./Spectrum";
 import { Share } from "./Share";
+import { useIdentities } from "./SkyList";
 import { TrackPlot } from "./TrackPlot";
 
 export function Result({
@@ -50,22 +51,24 @@ export function Result({
     return { emitted, height: s.p[2], speed: norm([s.v[0], s.v[1], 0]), range: best.closest.range, delay: best.closest.delay };
   }, [best, candidates, rec]);
 
-  // The name people use, then its photo: looked up from the phone, never for the simulated
-  // example (its made-up codes belong to real aircraft).
-  const [found, setFound] = useState<{ hex: string; id: Identity | null; photo: Photo | null } | null>(null);
+  // The names people use, looked up from the phone for every plane checked, and the found one's
+  // photo: never for the simulated example (its made-up codes belong to real aircraft), which keeps
+  // the names its type codes give.
+  const checked = useMemo(() => (example ? [] : verdict.ranked.slice(0, 8)), [example, verdict]);
+  const ids = useIdentities(checked, rec.listener);
+  const known = useCallback((meta: AircraftMeta) => ids.get(meta.hex) ?? identityOf(meta, null, null), [ids]);
+  const identity = best ? known(best.meta) : null;
+  const [shot, setShot] = useState<{ hex: string; photo: Photo | null } | null>(null);
   useEffect(() => {
     if (!best || example) return;
     let live = true;
     const hex = best.meta.hex;
-    void lookUp(best.meta, rec.listener).then((id) => live && setFound((f) => ({ hex, id, photo: f?.hex === hex ? f.photo : null })));
-    void photoOf(hex).then((photo) => live && setFound((f) => ({ hex, id: f?.hex === hex ? f.id : null, photo })));
+    void photoOf(hex).then((photo) => live && setShot({ hex, photo }));
     return () => {
       live = false;
     };
-  }, [best, example, rec.listener]);
-  const looked = found && best && found.hex === best.meta.hex ? found : null;
-  const identity = best ? (looked?.id ?? identityOf(best.meta, null, null)) : null;
-  const photo = looked?.photo ?? null;
+  }, [best, example]);
+  const photo = shot && best && shot.hex === best.meta.hex ? shot.photo : null;
   const name = identity ? spoken(identity) : null;
   const detail = identity ? [identity.route ? `${identity.route.from.city} to ${identity.route.to.city}` : null, identity.detail || null].filter(Boolean).join(" · ") : "";
 
@@ -164,12 +167,13 @@ export function Result({
             {verdict.ranked.slice(0, 8).map((m) => {
               const tonal = isTonal(m.meta.type, m.meta.category);
               const top = m.id === best?.id;
+              const id = known(m.meta);
               return (
                 <li key={m.id} className="flex items-center gap-4 px-4 py-3">
                   <div className="min-w-0 flex-1">
-                    <div className={`truncate font-medium ${top ? "text-amber-soft" : ""}`}>{nameOf(m.meta)}</div>
+                    <div className={`truncate font-medium ${top ? "text-amber-soft" : ""}`}>{id.title}</div>
                     <div className="truncate text-sm text-faint">
-                      {[describe(m.meta) || null, m.closest ? `${km(m.closest.range)} at closest` : null, tonal === false ? "jet" : null].filter(Boolean).join(" · ")}
+                      {[id.detail || null, m.closest ? `${km(m.closest.range)} at closest` : null, tonal === false ? "jet" : null].filter(Boolean).join(" · ")}
                     </div>
                   </div>
                   <div className="flex w-28 shrink-0 items-center gap-2 sm:w-40">
@@ -186,7 +190,7 @@ export function Result({
         </details>
       )}
 
-      {!example && <Donate rec={rec} analysis={analysis} device={device} />}
+      {!example && <Donate rec={rec} analysis={analysis} device={device} title={(meta) => known(meta).title} />}
 
       <div className="flex flex-col gap-3 sm:flex-row">
         <button type="button" onClick={onAgain} className="rounded-full bg-ink px-6 py-3 font-medium text-night transition hover:bg-white">
