@@ -303,7 +303,7 @@ export function curveOf(tone: Tone, extend = EXTEND): Curve {
 }
 
 /** First and last time a curve is known, seconds; null when never. */
-function spanOf(c: Curve): { start: number; end: number } | null {
+export function spanOf(c: Curve): { start: number; end: number } | null {
   let start = Infinity;
   let end = -Infinity;
   for (let j = 0; j < c.times.length; j++) {
@@ -399,21 +399,27 @@ export type CleanOutOptions = CleanOptions & {
 /** A round's share taking out, the rest looking again: measured on the real clips. */
 const CLEAN_SHARE = 0.8;
 
+/** What the rounds of take out and look again work on: a sound read at the analysis rate, changed in place. */
+export type Sound = { read: Reader; length: number; clean: (curves: Curve[], options: CleanOptions) => void };
+
+/** What a round takes out for its tones. */
+export const curvesOf = (tones: Tone[]): Curve[] => tones.flatMap(ridgesOf).map((t) => curveOf(t));
+
 /**
- * Takes `tones` out of `audio` (in place), looks again where the sound changed, and takes out
- * what that finds, up to `rounds` times. Elsewhere nothing changed, so nothing new can be found.
- * Returns every tone taken out, and the ones still found after the last round.
+ * Takes `tones` out of a sound (in place), looks again where it changed, and takes out what that
+ * finds, up to `rounds` times. Elsewhere nothing changed, so nothing new can be found. Returns
+ * every tone taken out, and the ones still found after the last round.
  */
-export function cleanOut(audio: Audio, tones: Tone[], options: CleanOutOptions = {}): { cleaned: Tone[]; left: Tone[] } {
+export function cleanOut(sound: Audio | Sound, tones: Tone[], options: CleanOutOptions = {}): { cleaned: Tone[]; left: Tone[] } {
   const { rounds = ROUNDS } = options;
-  const { read, length } = readerOf(audio);
+  const { read, length, clean: takeOut }: Sound = "channels" in sound ? { ...readerOf(sound), clean: (curves, o) => clean(sound, curves, o) } : sound;
   const chunks = chunksOf(length);
   const cleaned: Tone[] = [];
   let current = tones;
   for (let round = 0; round < rounds && current.length; round++) {
     options.onRound?.(round, current);
     const inRound = (share: number) => options.onProgress?.((round + share) / (round + 2));
-    clean(audio, current.flatMap(ridgesOf).map((t) => curveOf(t)), {
+    takeOut(curvesOf(current), {
       ...options,
       onShare: (s) => {
         options.onShare?.(s);

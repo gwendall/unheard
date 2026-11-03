@@ -5,11 +5,12 @@
 
 const SLICE = 1 << 18;
 
-export function wavBlob(channels: Float32Array[], sampleRate: number): Blob {
-  const nc = Math.max(1, channels.length);
-  const n = channels[0]?.length ?? 0;
-  const data = n * nc * 2;
-  const header = new DataView(new ArrayBuffer(44));
+export const WAV_HEADER = 44;
+
+/** The header of a 16-bit WAV of `frames` frames, written last when they are not known yet. */
+export function wavHeader(nc: number, sampleRate: number, frames: number): ArrayBuffer {
+  const data = frames * nc * 2;
+  const header = new DataView(new ArrayBuffer(WAV_HEADER));
   const text = (o: number, s: string) => [...s].forEach((ch, i) => header.setUint8(o + i, ch.charCodeAt(0)));
   text(0, "RIFF");
   header.setUint32(4, 36 + data, true);
@@ -24,17 +25,25 @@ export function wavBlob(channels: Float32Array[], sampleRate: number): Blob {
   header.setUint16(34, 16, true);
   text(36, "data");
   header.setUint32(40, data, true);
-  const parts: BlobPart[] = [header.buffer];
-  for (let i = 0; i < n; i += SLICE) {
-    const m = Math.min(SLICE, n - i);
-    const slice = new DataView(new ArrayBuffer(m * nc * 2));
-    for (let j = 0; j < m; j++) {
-      for (let c = 0; c < nc; c++) {
-        const v = Math.max(-1, Math.min(1, channels[c]?.[i + j] ?? 0));
-        slice.setInt16((j * nc + c) * 2, Math.round(v * 32767), true);
-      }
+  return header.buffer;
+}
+
+/** A stretch of every channel as the WAV's samples: interleaved, 16 bits, clipped at full scale. */
+export function pcm16(channels: Float32Array[], from = 0, count = channels[0]?.length ?? 0): ArrayBuffer {
+  const nc = Math.max(1, channels.length);
+  const slice = new DataView(new ArrayBuffer(count * nc * 2));
+  for (let j = 0; j < count; j++) {
+    for (let c = 0; c < nc; c++) {
+      const v = Math.max(-1, Math.min(1, channels[c]?.[from + j] ?? 0));
+      slice.setInt16((j * nc + c) * 2, Math.round(v * 32767), true);
     }
-    parts.push(slice.buffer);
   }
+  return slice.buffer;
+}
+
+export function wavBlob(channels: Float32Array[], sampleRate: number): Blob {
+  const n = channels[0]?.length ?? 0;
+  const parts: BlobPart[] = [wavHeader(Math.max(1, channels.length), sampleRate, n)];
+  for (let i = 0; i < n; i += SLICE) parts.push(pcm16(channels, i, Math.min(SLICE, n - i)));
   return new Blob(parts, { type: "audio/wav" });
 }

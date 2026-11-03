@@ -341,11 +341,11 @@
   },
   "check": {
     "steps": {
-      "open": "Ouverture du fichier...",
+      "open": "Ouverture du fichier, {n} %",
       "find": "Recherche de sons d'avion, {n} %",
       "clean": "Retrait des sons, {n} %",
       "again": "Nouvelle vérification, {n} %",
-      "write": "Écriture du son nettoyé...",
+      "write": "Écriture du son nettoyé, {n} %",
       "held": "En attente de la fin de la recherche."
     },
     "found": { "one": "Un son d'avion qui pourrait situer ce fichier.", "other": "{n} sons d'avion qui pourraient situer ce fichier." },
@@ -369,7 +369,7 @@
     "picture": "Spectre de l'enregistrement autour du son",
     "errors": {
       "open": "Ce fichier n'a pas de son que nous puissions lire : il n'a peut-être pas de piste son, ou une piste que ce navigateur ne sait pas ouvrir. Essayez un autre navigateur, ou le son seul en M4A, MP3 ou WAV.",
-      "tooBig": "Ce fichier est trop lourd pour être ouvert en entier par un navigateur : la limite est de 2 Go. Essayez-en une partie plus courte, ou le son seul en M4A, MP3 ou WAV.",
+      "tooBig": "Ce fichier est trop lourd pour être ouvert en entier par un navigateur, et celui-ci n'a pas su le lire morceau par morceau. Essayez-en une partie plus courte, ou le son seul en M4A, MP3 ou WAV.",
       "failed": "Un problème est survenu pendant la vérification de ce fichier : {message}"
     },
     "scope": {
@@ -381,7 +381,7 @@
   "where": {
     "title": "Où a-t-on filmé ça ?",
     "lead": "Les avions au fond d'une vidéo ou d'un fichier son laissent un son dont la hauteur baisse quand ils passent. Rapprochés d'une archive de vols, ces sons peuvent parfois dire où et quand il a été enregistré.",
-    "private": "Votre fichier reste dans ce navigateur : il est ouvert, analysé et nettoyé ici, rien n'en est envoyé, et rien n'est conservé.",
+    "private": "Votre fichier reste dans ce navigateur : il est ouvert, analysé et nettoyé ici, rien n'en est envoyé, et rien n'est gardé une fois que vous passez à autre chose.",
     "privateShort": "Votre fichier reste dans ce navigateur.",
     "offline": "L'archive de vols n'est pas encore connectée : la recherche n'est pas proposée.",
     "find": "Trouver où",
