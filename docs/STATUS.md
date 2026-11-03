@@ -27,9 +27,12 @@ Updated 2026-11-03.
 
 What a visitor goes through, and where it lives:
 
-- **Home** (`components/Hero.tsx`, `app/[lang]/page.tsx`): the headline, one action (Listen to
-  the sky), the example result as a card that opens it, what you need, the QR code for a
-  computer, how it works in three steps as the visitor lives them, and "Does it work?" read from
+- **Home** (`components/Hero.tsx`, `app/[lang]/page.tsx`): the hero is the file. "Where was this
+  filmed?" with the drop zone right there and the whole page taking a drop; a file goes on to the
+  one flow at `/where`, in memory (`lib/client/held.ts`), and the heading and the card stay where
+  they are (`components/DoorHeader.tsx`, checked by rect). "Listen to the sky" is the clear second
+  door: on a computer it opens the QR code first, on a phone it starts at once. Below: the example
+  result as a card that opens it, how it works in three steps, and "Does it work?" read from
   `evals/results.json` at build time. Once you have found planes, "Your planes" lists them.
 - **The sky first** (`components/Listener.tsx`, `SkyList.tsx`, `lib/client/chance.ts`): before
   the microphone, the page shows the aircraft around you by their names (adsbdb), which one will
@@ -65,31 +68,40 @@ What a visitor goes through, and where it lives:
   voice. Three polls, 3 s apart. Then Unheard's own analysis reads the downloaded WAV back at
   that spot and says how strongly it names the plane. Linked by one line under the home's
   example and one under the result's buttons. The recording never leaves the phone.
-- **Check a video** (`/check`, `components/Check.tsx`, `lib/client/check.worker.ts`,
+- **One flow for a file** (`/where`, `/check` redirects there; `components/Where.tsx`,
+  `components/Drop.tsx`): the file state takes the drop zone's place, the header stays put, and the
+  whole page takes a drop. In order, each as soon as it is known: what the file says about itself
+  (`lib/client/metadata.ts`: GPS first and big, then date, time, device), its aircraft tones with a
+  one-line verdict, then two actions side by side, "Find where" and "Take them out", and the link
+  to Somewhere else. A clear state for each failure: no sound (`check.errors.open`), a file past 2
+  GB (`lib/client/decode.ts`), no tone (no action offered, and never "safe"), a day not in the
+  archive, no flight fitting. The verdict and actions keep their places as results arrive, checked
+  by rect in `e2e/where.spec.ts`.
+- **Take them out** (`components/Check.tsx`, `lib/client/check.worker.ts`,
   `lib/core/leak.ts`): the defence colsto's viewers asked for ("what's the counter strat?"). A
   video or sound file is decoded in the page (Web Audio), searched for aircraft tones with no
   flight data in a worker (findTraces over overlapping 3-minute chunks, so a long stream stays in
   bounded memory; it reports 40 to 400 Hz, and takes out with those tones what it finds up to
   3.4 kHz in the same chunk), and the tones are taken out along their curves (scrub, 20 s windows,
-  the emptied band filled with noise at its neighbours' level) on the sound at its own rate. The cleaned sound is searched again, shown before and after, and
-  downloaded as a WAV. Nothing leaves the device. Linked from the home and the footer. Measured
+  the emptied band filled with noise at its neighbours' level) on the sound at its own rate. The cleaned sound is searched again, 
+  downloaded as a WAV. Nothing leaves the device. Measured
   by `evals/leak.eval.ts`: on AeroSonicDB, tones found in 9 of 9 clips, 6 named before, none after.
 
-- **Where was this recorded?** (`/where`, `components/Where.tsx`, `components/SpotPlot.tsx`,
-  `lib/client/where.ts`, `lib/client/where.worker.ts`): a video or sound file in, a spot and a start
-  time out, in the browser. It reads the file's own tags first (`lib/client/metadata.ts`): a GPS
-  position is said first and big, a date fills in the day and hour with where it came from. It asks
-  only what is missing: the day, the hour if known (better answers than a whole day, the page says so), and
-  roughly where (a name through Open-Meteo's geocoder, or coordinates: a 100 km square). The sound
+- **Find where** (`components/FindWhere.tsx`, `components/SpotPlot.tsx`,
+  `lib/client/where.ts`, `lib/client/where.worker.ts`): a spot and a start
+  time out, in the browser. It asks only what is missing: the day and hour come filled in from the
+  file (the page says from which tag), and roughly where is a name through Open-Meteo's geocoder,
+  coordinates, or "Use my location" (a 100 km square); with nothing missing it goes straight to the
+  search. The sound
   is decoded at the analysis rate, then a worker finds the tones, fetches that day's tiles for the
-  area, and runs `whereWhen`. "Probably here" only under the confidence flag, else "Best guess" and
+  area, and runs `whereWhen`, with an estimate of the time left and a way to cancel; the tones and
+  "Take them out" stay usable meanwhile. "Probably here" only under the confidence flag, else "Best guess" and
   up to two more answers; the plot, the start in UTC and local time, each plane with its registration
   (the history keeps no callsign), type, distance and passing time, its spectrum with the curve.
   Local time comes from the place's zone (geocoder) or, for typed coordinates, the longitude.
   - **The flight archive is one setting**, `NEXT_PUBLIC_HISTORY_URL` (`lib/archive.ts`, read at
-    build time): without it the page says the archive is not connected, shows only what a file says
-    about itself, is `noindex`, and is linked from nowhere. With it, the home and `/check` link to
-    the page. On production it is `https://unheard-history.t3.tigrisbucket.io` (no trailing slash;
+    build time): without it the page says the archive is not connected and offers no search; what
+    a file says, its tones and taking them out still work. On production it is `https://unheard-history.t3.tigrisbucket.io` (no trailing slash;
     see "Hosting" in `docs/history-format.md`). The day is picked among those in the archive's
     `days.json`, and the page says it is still filling: each day's flights arrive the next day,
     older days a few at a time, back to `OLDEST_DAY` (`lib/client/where.ts`, the job's `OLDEST`).

@@ -4,8 +4,8 @@ import { LANG_COOKIE } from "../lib/locales";
 // The languages the way every site of the family has them (next.config.ts): English at /, French
 // at /fr, a first visit sent to the browser's first language, the menu's choice kept after that.
 
-const EN = "There's a plane you can't hear.";
-const FR = "Il y a un avion que vous n'entendez pas.";
+const EN = "Where was this filmed?";
+const FR = "Où a-t-on filmé ça ?";
 
 test("a first visit gets the browser's first language, at its own address", async ({ browser }) => {
   for (const [locale, title, lang, path] of [

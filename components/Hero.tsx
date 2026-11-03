@@ -1,11 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { useSyncExternalStore } from "react";
-import { ARCHIVE_SET } from "@/lib/archive";
+import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
+import { holdFile } from "@/lib/client/held";
 import { pathFor } from "@/lib/locales";
+import { DoorHeader } from "./DoorHeader";
+import { CARD, DropZone, PageDrop } from "./Drop";
 import { useI18n } from "./I18n";
 import { Logbook } from "./Logbook";
+
+const SECOND = "w-full rounded-full border border-line px-7 py-3 text-lg font-medium text-ink transition hover:border-mute sm:w-fit";
 
 const noop = () => () => {};
 /** False on the server and while hydrating, true after: units follow the visitor's language only once on the client. */
@@ -14,62 +19,78 @@ const useHydrated = () => useSyncExternalStore(noop, () => true, () => false);
 export function Hero({ onListen, onExample, error, qr }: { onListen: () => void; onExample: () => void; error: string | null; qr: string }) {
   const { m, locale } = useI18n();
   const t = m.hero;
+  const router = useRouter();
+  const where = pathFor(locale, "/where");
+  const [opening, setOpening] = useState(false);
+  const [door, setDoor] = useState(false);
+
+  useEffect(() => router.prefetch(where), [router, where]);
+
+  // The file goes on to the one flow for a file, in memory: the page around it does not move.
+  const onFile = useCallback(
+    (file: File) => {
+      holdFile(file);
+      setOpening(true);
+      router.push(where);
+    },
+    [router, where],
+  );
+
+  // On a computer the way to a phone comes first; a phone is already what listens outdoors.
+  const listen = () => {
+    if (window.matchMedia("(pointer: fine)").matches) setDoor(true);
+    else onListen();
+  };
+
   return (
     <div className="flex flex-col gap-8">
-      <h1 className="text-5xl leading-[1.02] font-semibold tracking-tight text-balance sm:text-6xl">{t.title}</h1>
-      <div className="grid gap-10 lg:grid-cols-2 lg:items-start lg:gap-14">
-        <div className="flex flex-col gap-6">
-          <p className="text-lg text-pretty text-mute sm:text-xl">
-            {t.lead}
+      <DoorHeader title={m.where.title} lead={m.where.lead} note={m.where.private} />
+      <PageDrop onFile={onFile} />
+      <section className={CARD} data-testid="door">
+        {opening ? (
+          <p className="flex grow items-center justify-center font-mono text-sm text-mute" role="status">
+            {m.check.steps.open}
           </p>
+        ) : (
+          <DropZone onFile={onFile} />
+        )}
+      </section>
+
+      <div className="grid gap-6 lg:grid-cols-2">
+        <div className="flex flex-col gap-4 rounded-3xl border border-line bg-deep/80 p-5 sm:p-6" data-testid="second-door">
+          <h2 className="text-3xl font-semibold tracking-tight text-balance">{t.doorTitle}</h2>
+          <p className="text-pretty text-mute">{t.doorText}</p>
           {error && (
             <p role="alert" className="rounded-2xl border border-amber/40 bg-amber/10 px-4 py-3 text-pretty text-amber-soft">
               {error}
             </p>
           )}
-          <button type="button" onClick={onListen} className="w-full rounded-full bg-amber px-7 py-3.5 text-lg font-medium text-night transition hover:bg-amber-soft sm:w-fit" data-testid="listen">
-            {t.listen}
-          </button>
-          <ul className="flex flex-col gap-2 text-mute">
-            {t.needs.map((need) => (
-              <li key={need} className="flex items-baseline gap-3">
-                <span aria-hidden className="size-1.5 shrink-0 translate-y-[-0.15em] rounded-full bg-amber/70" />
-                {need}
-              </li>
-            ))}
-          </ul>
-          {/* On a computer (a mouse, no touch screen): the way to the phone, which is what listens outdoors. */}
-          <div className="hidden w-fit items-center gap-4 rounded-2xl border border-line bg-deep/70 p-4 pointer-fine:flex" data-testid="qr">
-            <div className="size-24 shrink-0 overflow-hidden rounded-lg bg-ink p-1.5 [&>svg]:size-full" aria-hidden dangerouslySetInnerHTML={{ __html: qr }} />
-            <p className="text-sm text-pretty text-mute">
-              <span className="block font-medium text-ink">{t.qrTitle}</span>
-              {t.qrBody}
-            </p>
-          </div>
-        </div>
-        <div className="flex flex-col gap-4">
-          <ExampleCard onOpen={onExample} />
-          <Link href={pathFor(locale, "/check")} className="group w-fit text-pretty text-mute transition hover:text-ink" data-testid="check-link">
-            {m.check.link}{" "}
-            <span aria-hidden className="inline-block text-amber-soft transition group-hover:translate-x-1">
-              →
-            </span>
-          </Link>
-          {ARCHIVE_SET && (
-            <Link href={pathFor(locale, "/where")} className="group w-fit text-pretty text-mute transition hover:text-ink" data-testid="where-link">
-              {m.where.link}{" "}
-              <span aria-hidden className="inline-block text-amber-soft transition group-hover:translate-x-1">
-                →
-              </span>
-            </Link>
+          {door ? (
+            <>
+              <button type="button" onClick={onListen} className={SECOND} data-testid="listen-here">
+                {t.listenHere}
+              </button>
+              <div className="flex w-fit items-center gap-4 rounded-2xl border border-line bg-deep/70 p-4" data-testid="qr">
+                <div className="size-24 shrink-0 overflow-hidden rounded-lg bg-ink p-1.5 [&>svg]:size-full" aria-hidden dangerouslySetInnerHTML={{ __html: qr }} />
+                <p className="text-sm text-pretty text-mute">
+                  <span className="block font-medium text-ink">{t.qrTitle}</span>
+                  {t.qrBody}
+                </p>
+              </div>
+            </>
+          ) : (
+            <button type="button" onClick={listen} className={SECOND} data-testid="listen">
+              {t.listen}
+            </button>
           )}
-          <Link href={pathFor(locale, "/somewhere-else")} className="group w-fit text-pretty text-mute transition hover:text-ink" data-testid="elsewhere-link">
+          <Link href={pathFor(locale, "/somewhere-else")} className="group mt-auto w-fit pt-4 text-pretty text-mute transition hover:text-ink" data-testid="elsewhere-link">
             {m.elsewhere.link}{" "}
             <span aria-hidden className="inline-block text-amber-soft transition group-hover:translate-x-1">
               →
             </span>
           </Link>
         </div>
+        <ExampleCard onOpen={onExample} />
       </div>
       <Logbook />
     </div>

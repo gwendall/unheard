@@ -49,6 +49,7 @@ test("finds the plane in a recording made through the real page", async ({ page 
   await page.goto("/");
   // First the sky: before the microphone opens the replay has no plane yet, so the page says so.
   await page.getByTestId("listen").click();
+  await page.getByTestId("listen-here").click();
   await expect(page.getByTestId("sky-title")).toHaveText("No plane within 30 km", { timeout: 30_000 });
   await page.getByTestId("start").click();
   await expect(page.getByTestId("timer")).toBeVisible({ timeout: 30_000 });
@@ -137,6 +138,7 @@ test("the sky says which plane to wait for, before the microphone", async ({ pag
   });
   await page.goto("/");
   await page.getByTestId("listen").click();
+  await page.getByTestId("listen-here").click();
   await expect(page.getByTestId("sky-title")).toHaveText(/^Cessna 172 Skyhawk passes \d+ m from you in 0:[2-5]\d\.$/, { timeout: 30_000 });
   await expect(page.getByTestId("start")).toHaveText("Start listening");
   await expect(page.getByTestId("sky-list").locator("li").first()).toContainText("closest in");

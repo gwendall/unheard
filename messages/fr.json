@@ -2,23 +2,21 @@
   "meta": {
     "title": "Unheard : l'avion que vous n'entendez pas",
     "shareTitle": "Unheard : votre téléphone nomme l'avion qui passe au-dessus de vous",
-    "description": "Levez votre téléphone vers le ciel quelques minutes. Unheard repère le faible bourdonnement d'un avion dans le bruit et vous dit lequel c'était, d'après les données de vol en direct.",
+    "description": "Déposez une vidéo ou un fichier son : les avions dans son son peuvent parfois dire où et quand il a été enregistré, et vous pouvez les retirer. Ou levez votre téléphone et nommez l'avion qui vous survole.",
     "ogAlt": "Il y a un avion que vous n'entendez pas. Votre téléphone l'entend. Unheard le nomme. Une note ambrée lumineuse s'infléchit sur un spectrogramme bleu nuit, comme la hauteur du son d'un avion qui passe.",
     "privacyTitle": "Ce qui est envoyé · Unheard",
-    "checkTitle": "Vérifier une vidéo · Unheard",
-    "checkDescription": "Le faible bourdonnement d'un avion au fond d'une vidéo peut la situer grâce aux données de vol. Cherchez ces sons dans une vidéo ou un fichier audio et retirez-les, dans votre navigateur : le fichier ne quitte pas votre appareil.",
-    "whereTitle": "Où a-t-on enregistré ça ? · Unheard",
-    "whereDescription": "Le bourdonnement des avions dans une vidéo ou un fichier son, rapproché d'une archive de vols, peut dire où et quand il a été enregistré. Cherchez dans votre fichier, depuis votre navigateur : il ne quitte pas votre appareil.",
+    "whereTitle": "Où a-t-on filmé ça ? · Unheard",
+    "whereDescription": "Le bourdonnement des avions dans une vidéo ou un fichier son, rapproché d'une archive de vols, peut parfois dire où et quand il a été enregistré. Vérifiez-le, ou retirez ces sons, dans votre navigateur : votre fichier ne quitte pas votre appareil.",
     "elsewhereTitle": "Ailleurs · Unheard",
     "elsewhereDescription": "Faites croire que votre enregistrement a été fait dans une autre ville : Unheard glisse sous votre voix les vrais avions qui la survolent en ce moment, avec les courbes Doppler qu'un enquêteur comparerait aux données de vol."
   },
   "og": { "lines": ["Il y a un avion", "que vous n’entendez pas."], "sub": "Votre téléphone l’entend. Unheard le nomme.", "size": 84 },
   "nav": { "home": "Unheard, accueil", "language": "Langue" },
   "hero": {
-    "title": "Il y a un avion que vous n'entendez pas.",
-    "lead": "Votre téléphone, lui, l'entend. Unheard vous montre les avions qui passent près de vous, écoute pendant que l'un d'eux vous survole, et retrouve son faible bourdonnement dans le bruit pour vous dire quel avion c'était.",
+    "doorTitle": "Ou écoutez le ciel",
+    "doorText": "Votre téléphone entend un avion que vous n'entendez pas : il montre les avions qui passent, écoute pendant que l'un d'eux vous survole, et le nomme. Votre enregistrement reste sur votre téléphone.",
     "listen": "Écouter le ciel",
-    "needs": ["Un téléphone, dehors, et une minute ou deux", "Idéal avec les avions à hélice et les hélicoptères", "Votre enregistrement reste sur votre téléphone, sauf si vous choisissez de le donner"],
+    "listenHere": "Écouter sur cet ordinateur",
     "qrTitle": "Mieux sur un téléphone, dehors.",
     "qrBody": "Visez ce code avec l'appareil photo de votre téléphone pour y ouvrir Unheard."
   },
@@ -38,16 +36,16 @@
     "title": "Comment ça marche",
     "steps": [
       {
-        "title": "Attendez un avion",
-        "body": "La page vous montre les avions autour de vous d'après les données de vol en direct : lequel passera le plus près, et quand. Les avions à hélice et les hélicoptères ont le bourdonnement le plus régulier, ce sont les plus faciles à trouver."
+        "title": "Un avion laisse un son",
+        "body": "Les hélices et les hélicoptères bourdonnent, trop bas et trop faiblement pour qu'on le remarque sous une voix. Les micros le captent quand même, et sa hauteur baisse quand l'avion passe : c'est l'effet Doppler."
       },
       {
-        "title": "Levez votre téléphone",
-        "body": "Lancez l'écoute quand la page vous le dit et pointez votre téléphone vers le ciel. Il enregistre une minute ou deux et s'arrête tout seul une fois l'avion passé."
+        "title": "La courbe désigne un lieu et un moment",
+        "body": "Chaque vol des données laisse sa propre courbe à chaque endroit et à chaque moment. Unheard cherche l'endroit et l'heure de départ où des vols correspondent aux sons de votre fichier, et la recherche se fait dans votre navigateur."
       },
       {
-        "title": "Découvrez son nom",
-        "body": "Son bourdonnement est un peu plus aigu quand il approche, un peu plus grave quand il s'éloigne : c'est l'effet Doppler. Votre téléphone calcule la courbe que chaque avion aurait dû laisser là où vous êtes, retrouve la bonne dans votre enregistrement, et nomme l'avion."
+        "title": "Ça marche parfois",
+        "body": "Il faut un avion assez proche pour laisser une trace, idéalement deux passages, et ce vol dans l'archive. Quand rien ne correspond, la page le dit, et vous pouvez retirer ces sons de votre fichier."
       }
     ]
   },
@@ -60,8 +58,8 @@
     },
     "realValue": "{hit} sur {n}",
     "real": "vrais passages enregistrés près d'Adélaïde et à Livermore, en Californie, bien identifiés : {strong} avec certitude, les autres en « sans doute ».",
-    "yoursValue": "Le vôtre",
-    "yours": "Les enregistrements faits sur cette page sont le prochain test. Après un résultat, vous pouvez donner le vôtre, sans lieu ni heure.",
+    "whereValue": "8 sur 20",
+    "where": "de nos enregistrements de test situés au bon endroit quand l'heure est connue, moins avec le jour seul.",
     "measured": "Dernière mesure le {date}.",
     "scoreboard": "Tous les chiffres et leur mesure (en anglais)"
   },
@@ -229,7 +227,7 @@
   "elsewhere": {
     "title": "Faites croire que votre enregistrement a été fait ailleurs.",
     "lead": "Une vidéo a récemment localisé une caméra de surveillance grâce aux faibles courbes que les avions qui passent laissent dans son son, comparées aux données de vol. Unheard lit ces courbes. Ici, il les écrit : les vrais avions qui survolent une autre ville en ce moment, tels qu'on les entend depuis un point de cette ville, sous votre voix.",
-    "link": "Nouveau : faites croire qu'un enregistrement a été fait ailleurs",
+    "link": "Ou faites croire qu'un enregistrement a été fait ailleurs",
     "fromResult": "Faire croire qu'un enregistrement a été fait ailleurs",
     "place": { "title": "Choisissez un lieu", "random": "N'importe où, au hasard", "coords": "Coordonnées", "coordsLabel": "Latitude et longitude", "coordsPlaceholder": "37.98, 23.73" },
     "places": { "athens": "Athènes", "london": "Londres", "newYork": "New York", "paris": "Paris", "tokyo": "Tokyo", "saoPaulo": "São Paulo", "losAngeles": "Los Angeles", "mexicoCity": "Mexico", "lisbon": "Lisbonne", "sydney": "Sydney", "berlin": "Berlin", "rome": "Rome" },
@@ -295,8 +293,7 @@
   "footer": {
     "github": "Code ouvert sur GitHub",
     "privacy": "Confidentialité",
-    "madeBy": "Made by Gwendall",
-    "check": "Vérifier une vidéo"
+    "madeBy": "Made by Gwendall"
   },
   "privacy": {
     "title": "Ce qui est envoyé",
@@ -308,7 +305,7 @@
           "Les avions que vous avez trouvés sont gardés dans le stockage de ce navigateur pour afficher votre liste sur l'accueil. Rien n'en est envoyé, et « Effacer » la supprime.",
           "La langue choisie dans le menu est gardée un an dans un cookie, pour que le site s'ouvre dans cette langue la fois suivante.",
           "Sur Ailleurs, la page demande à notre serveur les avions au-dessus du lieu que vous choisissez, jamais avec votre propre position, et votre enregistrement reste sur la page.",
-        "Sur Où a-t-on enregistré ça ?, votre fichier reste sur la page et n'est jamais envoyé. Pour chercher, la page demande les tuiles de vols du jour et de la zone cherchés, et des tuiles de hauteur du sol pour cette zone aux données ouvertes d'Amazon. Un nom de lieu saisi part chez Open-Meteo pour le trouver sur la carte, et seulement ce nom."
+        "Un fichier ouvert ici reste sur la page et n'est jamais envoyé. Si vous utilisez votre position pour chercher, elle reste sur la page aussi. Pour chercher, la page demande les tuiles de vols du jour et de la zone cherchés, et des tuiles de hauteur du sol pour cette zone aux données ouvertes d'Amazon. Un nom de lieu saisi part chez Open-Meteo pour le trouver sur la carte, et seulement ce nom."
         ]
       },
       {
@@ -328,12 +325,6 @@
     ]
   },
   "check": {
-    "title": "Votre vidéo dit où vous êtes ?",
-    "lead": "Le faible bourdonnement d'un avion au loin peut situer une vidéo : sa hauteur baisse quand l'avion passe, et cette courbe, rapprochée des données de vol, dit où et quand elle a été filmée. Unheard cherche ces sons dans votre fichier et les retire.",
-    "private": "Votre fichier ne quitte pas cet appareil : il est ouvert, vérifié et nettoyé dans ce navigateur, et rien n'en est envoyé.",
-    "choose": "Choisir un fichier",
-    "drop": "ou le déposer ici",
-    "formats": "La plupart des vidéos et des fichiers audio : MP4, MOV, WebM, M4A, MP3, WAV.",
     "steps": {
       "open": "Ouverture du fichier...",
       "find": "Recherche de sons d'avion, {n} %",
@@ -341,25 +332,18 @@
       "again": "Nouvelle vérification, {n} %",
       "write": "Écriture du son nettoyé..."
     },
-    "found": {
-      "one": "Cet enregistrement contient un son d'avion qui pourrait le situer.",
-      "other": "Cet enregistrement contient {n} sons d'avion qui pourraient le situer."
-    },
-    "foundText": {
-      "one": "Il baisse de hauteur comme celui d'un avion ou d'un hélicoptère qui passe. Rapproché des données de vol, il peut dire où et quand cet enregistrement a été fait.",
-      "other": "Chacun baisse de hauteur comme celui d'un avion ou d'un hélicoptère qui passe. Rapproché des données de vol, il peut dire où et quand cet enregistrement a été fait."
-    },
+    "found": { "one": "Un son d'avion qui pourrait situer ce fichier.", "other": "{n} sons d'avion qui pourraient situer ce fichier." },
     "clean": { "one": "Le retirer", "other": "Les retirer" },
+    "fold": { "one": "Voir le son de ce fichier", "other": "Voir les {n} sons de ce fichier" },
     "elsewhere": "Ou faire croire que vous êtes ailleurs",
     "none": "Aucun son d'avion trouvé.",
-    "noneText": "Nous avons cherché le bourdonnement des avions et des hélicoptères, et aucun ne ressort. Cela ne rend pas le fichier sûr : voyez plus bas ce que nous ne vérifions pas.",
+    "noneText": "Nous avons cherché le bourdonnement des avions et des hélicoptères, aucun ne ressort : il n'y a rien à chercher ni à retirer. Le fichier n'est pas sûr pour autant : voici ce que nous ne vérifions pas.",
     "gone": { "one": "Le son a disparu.", "other": "Les sons ont disparu." },
     "goneText": "Nous avons cherché de nouveau dans le son nettoyé : nous n'y trouvons plus de son d'avion.",
     "left": { "one": "Il reste un son.", "other": "Il reste {n} sons." },
     "leftText": "Retirer un son peut en faire apparaître un plus faible. Vous pouvez les retirer encore.",
     "download": "Télécharger le son nettoyé",
     "remux": "Un fichier WAV. Pour le remettre dans votre vidéo : dans votre logiciel de montage, coupez le son d'origine et placez ce WAV tout au début. Il a la même durée, il tombe donc juste.",
-    "another": "Vérifier un autre fichier",
     "suffix": "nettoye",
     "tone": "De {start} à {end} dans le fichier, de {from} à {to} Hz, {sure}",
     "sure": { "clear": "ressort nettement", "likely": "ressort", "faint": "faible, mais présent" },
@@ -367,32 +351,37 @@
     "after": "Après",
     "picture": "Spectre de l'enregistrement autour du son",
     "errors": {
-      "open": "Ce navigateur n'a pas pu ouvrir le son de ce fichier. Essayez un autre navigateur, ou le son seul en M4A, MP3 ou WAV.",
+      "open": "Ce fichier n'a pas de son que nous puissions lire : il n'a peut-être pas de piste son, ou une piste que ce navigateur ne sait pas ouvrir. Essayez un autre navigateur, ou le son seul en M4A, MP3 ou WAV.",
+      "tooBig": "Ce fichier est trop lourd pour être ouvert en entier par un navigateur : la limite est de 2 Go. Essayez-en une partie plus courte, ou le son seul en M4A, MP3 ou WAV.",
       "failed": "Un problème est survenu pendant la vérification de ce fichier : {message}"
     },
     "scope": {
       "title": "Ce que nous vérifions",
       "yes": "Nous cherchons le bourdonnement des avions et des hélicoptères dont la hauteur baisse à leur passage, entre 40 et 400 Hz : le son qui peut situer un enregistrement grâce aux données de vol. Quand nous en trouvons un, le retirer retire aussi ce que nous entendons plus haut, jusqu'à 3,4 kHz. Les avions à réaction sont plus difficiles, leur son est plus aigu : sur quatre vrais enregistrements de réacteurs dans nos tests, nous avons trouvé un son dans trois et manqué le quatrième. Les données de vol en situaient deux, et aucun une fois nettoyé.",
       "no": "Nous ne cherchons pas un son au-dessus de 400 Hz à lui seul, ni le ronflement du réseau électrique (ENF), qui peut dater un enregistrement, ni rien de ce qu'une vidéo montre ou dit d'autre."
-    },
-    "link": "Nouveau : vérifiez si votre vidéo dit où vous êtes"
+    }
   },
   "where": {
-    "title": "Où a-t-on enregistré ça ?",
-    "link": "Nouveau : trouvez où une vidéo a été enregistrée",
-    "fromCheck": "Curieux de ce qu'un fichier révèle ? Trouvez où il a été enregistré.",
-    "lead": "Les avions au fond d'une vidéo ou d'un fichier son laissent un son dont la hauteur baisse quand ils passent. Rapprochés d'une archive de vols, ces sons peuvent dire où et quand il a été enregistré.",
-    "private": "Votre fichier reste dans ce navigateur : il est ouvert et analysé ici, rien n'en est envoyé, et rien n'est conservé.",
-    "offline": "L'archive de vols n'est pas encore branchée, la recherche n'est donc pas proposée. Vous pouvez quand même voir ce qu'un fichier dit de lui-même.",
+    "title": "Où a-t-on filmé ça ?",
+    "lead": "Les avions au fond d'une vidéo ou d'un fichier son laissent un son dont la hauteur baisse quand ils passent. Rapprochés d'une archive de vols, ces sons peuvent parfois dire où et quand il a été enregistré.",
+    "private": "Votre fichier reste dans ce navigateur : il est ouvert, analysé et nettoyé ici, rien n'en est envoyé, et rien n'est conservé.",
+    "offline": "L'archive de vols n'est pas encore connectée : la recherche n'est pas proposée.",
+    "find": "Trouver où",
+    "facts": { "made": "Créé", "device": "Appareil", "nothing": "Ce fichier ne dit rien de l'endroit ni du moment où il a été fait." },
+    "locate": "Utiliser ma position",
+    "locating": "Localisation...",
+    "locateFailed": "Nous n'avons pas pu obtenir votre position. Tapez plutôt une ville ou des coordonnées.",
+    "cancel": "Annuler",
+    "elapsed": "{time} écoulées",
+    "leftSeconds": "encore {n} s environ",
+    "leftMinutes": "encore {n} min environ",
     "choose": "Choisir un fichier",
     "drop": "ou le déposer ici",
     "formats": "La plupart des vidéos et fichiers son : MP4, MOV, WebM, M4A, MP3, WAV.",
     "another": "Choisir un autre fichier",
     "gps": {
       "title": "Ce fichier dit déjà où il a été filmé : {place}",
-      "still": "C'est ce que disent ses propres balises, et n'importe qui peut les modifier. Vous pouvez quand même le vérifier avec les avions de sa bande son.",
-      "made": "Il donne une date : {when} ({source}).",
-      "nothing": "Ce fichier ne dit rien de l'endroit où il a été filmé."
+      "still": "C'est ce que disent ses propres balises, et n'importe qui peut les modifier."
     },
     "fromFile": {
       "zoned": "Jour et heure repris de la date de création du fichier, qui donne son fuseau ({source}).",
@@ -460,12 +449,9 @@
       "plane": "{type}, à {distance}, passé à {time} UTC",
       "noType": "type inconnu",
       "again": "Changer la recherche",
-      "check": "C'est votre vidéo ? Retirez-en les sons.",
-      "credit": "Données de vol © contributeurs adsb.lol (ODbL). Rien n'est conservé.",
-      "stored": "Rien n'est conservé."
+      "credit": "Données de vol © contributeurs adsb.lol (ODbL). Rien n'est conservé."
     },
     "errors": {
-      "open": "Ce navigateur n'a pas pu ouvrir le son de ce fichier. Essayez un autre navigateur, ou le son seul en M4A, MP3 ou WAV.",
       "failed": "Un problème est survenu pendant la recherche : {message}"
     }
   }

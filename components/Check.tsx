@@ -2,25 +2,22 @@
 
 import Link from "next/link";
 import type { Route } from "next";
-import { useEffect, useRef, useState, type DragEvent } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useI18n } from "@/components/I18n";
 import { TonePicture } from "@/components/TonePicture";
-import { decode } from "@/lib/client/decode";
+import { decode, troubleOf } from "@/lib/client/decode";
 import { clock } from "@/lib/client/format";
 import type { CheckEvent, CheckRequest, Found, Step } from "@/lib/client/check.worker";
 import type { Picture } from "@/lib/core/leak";
 
-// The check, in the place of the drop zone: a file in, its aircraft tones, then the same file with
-// them taken out. The sound is decoded here (Web Audio takes the audio of most video containers)
-// and handed to a worker that does the rest; nothing of it is ever sent.
+// A file's aircraft tones, and taking them out: its sound is decoded here (Web Audio takes the
+// audio of most video containers) and handed to a worker that does the rest; nothing of it is ever
+// sent. The verdict, the actions and the tones keep their places as each arrives. `find` is the
+// other thing to do with the tones (components/Where.tsx), `children` what it opens.
 
 type Busy = { step: Step | "open"; done: number; total: number };
 type Cleaned = { cleaned: (Found & { after: Picture })[]; left: Found[]; url: string };
-type State =
-  | { kind: "idle"; error?: string }
-  | { kind: "open"; busy: Busy }
-  | { kind: "found"; found: Found[]; busy?: Busy }
-  | ({ kind: "cleaned"; busy?: Busy } & Cleaned);
+type State = { kind: "failed"; error: string } | { kind: "open"; busy: Busy } | { kind: "found"; found: Found[]; busy?: Busy } | ({ kind: "cleaned"; busy?: Busy } & Cleaned);
 
 /** Decoding happens at the rate of video sound; a file at another rate is resampled to it. */
 const RATE = 48_000;
@@ -28,63 +25,65 @@ const RATE = 48_000;
 /** m:ss, or h:mm:ss past an hour. */
 const at = (s: number) => (s < 3600 ? clock(s) : `${Math.floor(s / 3600)}:${clock(s % 3600).padStart(5, "0")}`);
 
-export function Check({ elsewhere }: { elsewhere?: Route }) {
+/** The verdict's place, at the height of its longest wording, so nothing under it moves. */
+const VERDICT = "flex min-h-16 items-center sm:min-h-13";
+/** At one width whether it says "it" or "them", so the link beside it stays. */
+const OUTLINE = "w-full rounded-full border border-line px-7 py-3 text-lg font-medium text-ink transition enabled:hover:border-mute disabled:cursor-not-allowed disabled:opacity-40 sm:w-fit sm:min-w-52";
+const PRIMARY = "w-full rounded-full bg-amber px-7 py-3 text-center text-lg font-medium text-night transition hover:bg-amber-soft sm:w-fit";
+const QUIET = "text-mute underline-offset-4 transition hover:text-ink hover:underline";
+
+export function Check({ file, elsewhere, note, find, fold, children }: { file: File; elsewhere?: Route; note?: string | null; find?: (ready: boolean) => ReactNode; fold?: boolean; children?: ReactNode }) {
   const { m, fill, plural } = useI18n();
   const t = m.check;
-  const [state, setState] = useState<State>({ kind: "idle" });
-  const [over, setOver] = useState(false);
-  const [name, setName] = useState("recording");
+  const [state, setState] = useState<State>({ kind: "open", busy: { step: "open", done: 0, total: 1 } });
+  const name = file.name.replace(/\.[^.]+$/, "") || "recording";
   const worker = useRef<Worker | null>(null);
   const url = state.kind === "cleaned" ? state.url : null;
 
-  useEffect(() => () => worker.current?.terminate(), []);
   useEffect(() => () => void (url && URL.revokeObjectURL(url)), [url]);
 
-  const reset = () => {
-    worker.current?.terminate();
-    worker.current = null;
-    setState({ kind: "idle" });
-  };
-
   const onEvent = (e: CheckEvent) => {
-    if (e.type === "progress") setState((s) => (s.kind === "idle" ? s : { ...s, busy: { step: e.step, done: e.done, total: e.total } }));
+    if (e.type === "progress") setState((s) => (s.kind === "failed" ? s : { ...s, busy: { step: e.step, done: e.done, total: e.total } }));
     else if (e.type === "found") setState({ kind: "found", found: e.found });
     else if (e.type === "cleaned") setState({ kind: "cleaned", cleaned: e.cleaned, left: e.left, url: URL.createObjectURL(e.wav) });
-    else setState({ kind: "idle", error: fill(t.errors.failed, { message: e.message }) });
+    else setState({ kind: "failed", error: fill(t.errors.failed, { message: e.message }) });
   };
 
-  const open = async (file: File | undefined) => {
-    if (!file) return;
-    reset();
-    setName(file.name.replace(/\.[^.]+$/, "") || "recording");
-    setState({ kind: "open", busy: { step: "open", done: 0, total: 1 } });
-    let audio: Awaited<ReturnType<typeof decode>>;
-    try {
-      audio = await decode(file, RATE);
-    } catch {
-      setState({ kind: "idle", error: t.errors.open });
-      return;
-    }
-    const w = new Worker(new URL("../lib/client/check.worker.ts", import.meta.url), { type: "module" });
-    w.onmessage = (e: MessageEvent<CheckEvent>) => onEvent(e.data);
-    w.onerror = (e) => setState({ kind: "idle", error: fill(t.errors.failed, { message: e.message || "worker" }) });
-    worker.current = w;
-    setState({ kind: "open", busy: { step: "find", done: 0, total: 1 } });
-    const request: CheckRequest = { type: "find", ...audio };
-    w.postMessage(request, audio.channels.map((c) => c.buffer as ArrayBuffer));
-  };
+  // After the first paint, so what the file says shows before decoding starts; once per file.
+  useEffect(() => {
+    let live = true;
+    const start = setTimeout(async () => {
+      let audio: Awaited<ReturnType<typeof decode>>;
+      try {
+        audio = await decode(file, RATE);
+      } catch (err) {
+        if (live) setState({ kind: "failed", error: t.errors[troubleOf(err)] });
+        return;
+      }
+      if (!live) return;
+      const w = new Worker(new URL("../lib/client/check.worker.ts", import.meta.url), { type: "module" });
+      w.onmessage = (e: MessageEvent<CheckEvent>) => onEvent(e.data);
+      w.onerror = (e) => setState({ kind: "failed", error: fill(t.errors.failed, { message: e.message || "worker" }) });
+      worker.current = w;
+      setState({ kind: "open", busy: { step: "find", done: 0, total: 1 } });
+      const request: CheckRequest = { type: "find", ...audio };
+      w.postMessage(request, audio.channels.map((c) => c.buffer as ArrayBuffer));
+    }, 30);
+    return () => {
+      live = false;
+      clearTimeout(start);
+      worker.current?.terminate();
+      worker.current = null;
+    };
+    // The file alone starts this; the rest is read when it runs.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [file]);
 
   const cleanUp = () => {
     if (!worker.current) return;
-    setState((s) => (s.kind === "idle" || s.kind === "open" ? s : { ...s, busy: { step: "clean", done: 0, total: 1 } }));
+    setState((s) => (s.kind === "failed" || s.kind === "open" ? s : { ...s, busy: { step: "clean", done: 0, total: 1 } }));
     const request: CheckRequest = { type: "clean" };
     worker.current.postMessage(request);
-  };
-
-  const onDrop = (e: DragEvent) => {
-    e.preventDefault();
-    setOver(false);
-    void open(e.dataTransfer.files[0]);
   };
 
   const progress = (busy: Busy) => {
@@ -124,105 +123,91 @@ export function Check({ elsewhere }: { elsewhere?: Route }) {
     </ul>
   );
 
-  const button = "w-full rounded-full bg-amber px-7 py-3 text-lg font-medium text-night transition hover:bg-amber-soft sm:w-fit";
-  const quiet = "text-mute underline-offset-4 transition hover:text-ink hover:underline";
+  const heard = state.kind === "found" ? state.found : null;
+  const none = heard?.length === 0;
+  const list = state.kind === "cleaned" ? [...state.left, ...state.cleaned] : (heard ?? []);
+  const busy = state.kind === "failed" ? undefined : state.busy;
 
   return (
-    <section className="flex min-h-72 flex-col rounded-3xl border border-line bg-deep/70 p-5 sm:p-8" aria-live="polite" data-testid="check">
-      {state.kind === "idle" && (
-        <label
-          className={`flex grow cursor-pointer flex-col items-center justify-center gap-3 rounded-2xl border border-dashed px-5 py-10 text-center transition has-[input:focus-visible]:border-amber ${over ? "border-amber bg-amber/5" : "border-line hover:border-mute"}`}
-          onDragOver={(e) => {
-            e.preventDefault();
-            setOver(true);
-          }}
-          onDragLeave={() => setOver(false)}
-          onDrop={onDrop}
-          data-testid="check-drop"
-        >
-          <input type="file" accept="audio/*,video/*" className="sr-only" onChange={(e) => void open(e.target.files?.[0])} data-testid="check-file" />
-          <span className={button}>{t.choose}</span>
-          <span className="text-mute">{t.drop}</span>
-          <span className="text-sm text-faint">{t.formats}</span>
-          {state.error && (
-            <span role="alert" className="mt-2 rounded-2xl border border-amber/40 bg-amber/10 px-4 py-3 text-pretty text-amber-soft">
+    <div className="flex flex-col gap-6" data-testid="check">
+      <div className="flex flex-col gap-4">
+        <div className={VERDICT} data-testid="check-slot">
+          {state.kind === "open" && progress(state.busy)}
+          {state.kind === "failed" && (
+            <p role="alert" className="text-xl font-medium text-pretty text-amber-soft" data-testid="check-trouble">
               {state.error}
-            </span>
+            </p>
           )}
-        </label>
-      )}
-
-      {state.kind === "open" && <div className="flex grow flex-col justify-center gap-2">{progress(state.busy)}</div>}
-
-      {state.kind === "found" && state.found.length > 0 && (
-        <div className="flex flex-col gap-8">
-          <header className="flex flex-col gap-4">
-            <h2 className="text-3xl font-semibold tracking-tight text-balance sm:text-4xl" data-testid="check-verdict">
-              {plural(state.found.length, t.found)}
+          {state.kind !== "open" && state.kind !== "failed" && (
+            <h2 className="text-2xl font-semibold tracking-tight text-balance" role="status" data-testid="check-verdict">
+              {none ? t.none : state.kind === "found" ? plural(state.found.length, t.found) : state.left.length ? plural(state.left.length, t.left) : plural(state.cleaned.length, t.gone)}
             </h2>
-            <p className="max-w-prose text-lg text-pretty text-mute">{plural(state.found.length, t.foundText)}</p>
-            {/* While it works, the progress line takes the button's place, at its height. */}
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-6">
-              {state.busy ? (
-                progress(state.busy)
+          )}
+        </div>
+
+        {none && <p className="max-w-prose text-lg text-pretty text-mute">{t.noneText}</p>}
+
+        {state.kind !== "failed" && !none && (
+          // While it works, the progress line takes the button's place, at its height.
+          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-4">
+            {find?.(state.kind !== "open")}
+            {state.kind === "open" && (
+              <button type="button" disabled className={OUTLINE}>
+                {t.clean.other}
+              </button>
+            )}
+            {state.kind === "found" &&
+              (busy ? (
+                progress(busy)
               ) : (
-                <button type="button" onClick={cleanUp} className={button} data-testid="check-clean">
+                <button type="button" onClick={cleanUp} className={OUTLINE} data-testid="check-clean">
                   {plural(state.found.length, t.clean)}
                 </button>
-              )}
-              {elsewhere && (
-                <Link href={elsewhere} className={quiet}>
-                  {t.elsewhere} <span aria-hidden>→</span>
-                </Link>
-              )}
-            </div>
-          </header>
-          {tones(state.found)}
-        </div>
-      )}
-
-      {state.kind === "found" && state.found.length === 0 && (
-        <header className="flex flex-col gap-4">
-          <h2 className="text-3xl font-semibold tracking-tight text-balance sm:text-4xl" data-testid="check-verdict">
-            {t.none}
-          </h2>
-          <p className="max-w-prose text-lg text-pretty text-mute">{t.noneText}</p>
-          <button type="button" onClick={reset} className={`${quiet} w-fit`} data-testid="check-another">
-            {t.another}
-          </button>
-        </header>
-      )}
-
-      {state.kind === "cleaned" && (
-        <div className="flex flex-col gap-8">
-          <header className="flex flex-col gap-4">
-            <h2 className="text-3xl font-semibold tracking-tight text-balance sm:text-4xl" data-testid="check-verdict">
-              {state.left.length ? plural(state.left.length, t.left) : plural(state.cleaned.length, t.gone)}
-            </h2>
-            <p className="max-w-prose text-lg text-pretty text-mute">{state.left.length ? t.leftText : t.goneText}</p>
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-6">
-              {state.busy ? (
-                progress(state.busy)
+              ))}
+            {state.kind === "cleaned" &&
+              (busy ? (
+                progress(busy)
               ) : (
-                <a href={state.url} download={`${name}-${t.suffix}.wav`} className={`${button} text-center`} data-testid="check-download">
-                  {t.download}
-                </a>
-              )}
-              {state.left.length > 0 && (
-                <button type="button" onClick={cleanUp} disabled={!!state.busy} className={`${quiet} w-fit disabled:opacity-50`} data-testid="check-clean">
-                  {plural(state.left.length, t.clean)}
-                </button>
-              )}
-            </div>
-            <p className="max-w-prose text-sm text-pretty text-faint">{t.remux}</p>
-          </header>
-          {tones([...state.left, ...state.cleaned])}
-          <button type="button" onClick={reset} className={`${quiet} w-fit`} data-testid="check-another">
-            {t.another}
-          </button>
-        </div>
-      )}
-    </section>
+                <>
+                  <a href={state.url} download={`${name}-${t.suffix}.wav`} className={PRIMARY} data-testid="check-download">
+                    {t.download}
+                  </a>
+                  {state.left.length > 0 && (
+                    <button type="button" onClick={cleanUp} className={OUTLINE} data-testid="check-clean">
+                      {plural(state.left.length, t.clean)}
+                    </button>
+                  )}
+                </>
+              ))}
+            {elsewhere && (
+              <Link href={elsewhere} className={`${QUIET} sm:ml-2`} data-testid="check-elsewhere">
+                {t.elsewhere} <span aria-hidden>→</span>
+              </Link>
+            )}
+          </div>
+        )}
+
+        {note && (
+          <p className="text-pretty text-amber-soft" data-testid="where-offline">
+            {note}
+          </p>
+        )}
+        {state.kind === "cleaned" && <p className="max-w-prose text-sm text-pretty text-faint">{state.left.length ? `${t.leftText} ` : ""}{t.remux}</p>}
+      </div>
+
+      {children}
+
+      {/* The search's own answer shows the tones it explains: here they step aside, a tap away, so its answer stays together. */}
+      {list.length > 0 &&
+        (fold && state.kind === "found" ? (
+          <details className="group" data-testid="check-fold">
+            <summary className={`${QUIET} w-fit cursor-pointer`}>{plural(list.length, t.fold)}</summary>
+            <div className="mt-4">{tones(list)}</div>
+          </details>
+        ) : (
+          tones(list)
+        ))}
+    </div>
   );
 }
 
