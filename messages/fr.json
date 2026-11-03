@@ -6,7 +6,7 @@
     "ogAlt": "Il y a un avion que vous n'entendez pas. Votre téléphone l'entend. Unheard le nomme. Une note ambrée lumineuse s'infléchit sur un spectrogramme bleu nuit, comme la hauteur du son d'un avion qui passe.",
     "privacyTitle": "Ce qui est envoyé · Unheard",
     "checkTitle": "Vérifier une vidéo · Unheard",
-    "checkDescription": "Le faible bourdonnement d'un avion à hélice au fond d'une vidéo peut la situer grâce aux données de vol. Cherchez ces sons dans une vidéo ou un fichier audio et retirez-les, dans votre navigateur : le fichier ne quitte pas votre appareil.",
+    "checkDescription": "Le faible bourdonnement d'un avion au fond d'une vidéo peut la situer grâce aux données de vol. Cherchez ces sons dans une vidéo ou un fichier audio et retirez-les, dans votre navigateur : le fichier ne quitte pas votre appareil.",
     "elsewhereTitle": "Ailleurs · Unheard",
     "elsewhereDescription": "Faites croire que votre enregistrement a été fait dans une autre ville : Unheard glisse sous votre voix les vrais avions qui la survolent en ce moment, avec les courbes Doppler qu'un enquêteur comparerait aux données de vol."
   },
@@ -332,13 +332,13 @@
       "other": "Cet enregistrement contient {n} sons d'avion qui pourraient le situer."
     },
     "foundText": {
-      "one": "Il baisse de hauteur comme celui d'un avion à hélice ou d'un hélicoptère qui passe. Rapproché des données de vol, il peut dire où et quand cet enregistrement a été fait.",
-      "other": "Chacun baisse de hauteur comme celui d'un avion à hélice ou d'un hélicoptère qui passe. Rapproché des données de vol, il peut dire où et quand cet enregistrement a été fait."
+      "one": "Il baisse de hauteur comme celui d'un avion ou d'un hélicoptère qui passe. Rapproché des données de vol, il peut dire où et quand cet enregistrement a été fait.",
+      "other": "Chacun baisse de hauteur comme celui d'un avion ou d'un hélicoptère qui passe. Rapproché des données de vol, il peut dire où et quand cet enregistrement a été fait."
     },
     "clean": { "one": "Le retirer", "other": "Les retirer" },
     "elsewhere": "Ou faire croire que vous êtes ailleurs",
     "none": "Aucun son d'avion trouvé.",
-    "noneText": "Nous avons cherché le bourdonnement des avions à hélice et des hélicoptères, et aucun ne ressort. Cela ne rend pas le fichier sûr : voyez plus bas ce que nous ne vérifions pas.",
+    "noneText": "Nous avons cherché le bourdonnement des avions et des hélicoptères, et aucun ne ressort. Cela ne rend pas le fichier sûr : voyez plus bas ce que nous ne vérifions pas.",
     "gone": { "one": "Le son a disparu.", "other": "Les sons ont disparu." },
     "goneText": "Nous avons cherché de nouveau dans le son nettoyé : il n'y reste aucun son d'avion.",
     "left": { "one": "Il reste un son.", "other": "Il reste {n} sons." },
@@ -358,7 +358,7 @@
     },
     "scope": {
       "title": "Ce que nous vérifions",
-      "yes": "Nous cherchons le bourdonnement des avions à hélice et des hélicoptères, de 40 à 400 Hz, dont la hauteur baisse à leur passage : le son qui peut situer un enregistrement grâce aux données de vol.",
+      "yes": "Nous cherchons le bourdonnement des avions et des hélicoptères, de 40 Hz à 3,4 kHz, dont la hauteur baisse à leur passage : le son qui peut situer un enregistrement grâce aux données de vol.",
       "no": "Nous ne cherchons pas encore les avions à réaction (dans nos tests sur de vrais enregistrements, nous les avons manqués tous les quatre), ni le ronflement du réseau électrique (ENF), qui peut dater un enregistrement, ni rien de ce qu'une vidéo montre ou dit d'autre."
     },
     "link": "Nouveau : vérifiez si votre vidéo dit où vous êtes"

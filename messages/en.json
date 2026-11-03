@@ -6,7 +6,7 @@
     "ogAlt": "There's a plane you can't hear. Your phone hears it. Unheard names it. A glowing amber tone bends down across a night-blue spectrogram, as the pitch of a passing plane does.",
     "privacyTitle": "What is sent · Unheard",
     "checkTitle": "Check a video · Unheard",
-    "checkDescription": "The faint hum of a propeller plane in the background of a video can place it on flight data. Look for those tones in a video or a sound file and take them out, in your browser: the file never leaves your device.",
+    "checkDescription": "The faint hum of a plane in the background of a video can place it on flight data. Look for those tones in a video or a sound file and take them out, in your browser: the file never leaves your device.",
     "elsewhereTitle": "Somewhere else · Unheard",
     "elsewhereDescription": "Make your recording sound like it was made in another city: Unheard puts under your voice the real planes flying over it right now, with the Doppler curves an investigator would match to flight data."
   },
@@ -329,13 +329,13 @@
     },
     "found": { "one": "This recording holds an aircraft tone that could place it.", "other": "This recording holds {n} aircraft tones that could place it." },
     "foundText": {
-      "one": "It falls in pitch the way a propeller plane or a helicopter does as it passes. Matched to flight data, it can tell where and when this was recorded.",
-      "other": "Each one falls in pitch the way a propeller plane or a helicopter does as it passes. Matched to flight data, it can tell where and when this was recorded."
+      "one": "It falls in pitch the way a plane or a helicopter does as it passes. Matched to flight data, it can tell where and when this was recorded.",
+      "other": "Each one falls in pitch the way a plane or a helicopter does as it passes. Matched to flight data, it can tell where and when this was recorded."
     },
     "clean": { "one": "Take it out", "other": "Take them out" },
     "elsewhere": "Or make it sound like you are somewhere else",
     "none": "No aircraft tone found.",
-    "noneText": "We looked for the hum of propeller planes and helicopters and found none that stands out. That does not make the file safe: below is what we do not check.",
+    "noneText": "We looked for the hum of planes and helicopters and found none that stands out. That does not make the file safe: below is what we do not check.",
     "gone": { "one": "The tone is gone.", "other": "The tones are gone." },
     "goneText": "We searched the cleaned sound again and found no aircraft tone left in it.",
     "left": { "one": "One tone is still there.", "other": "{n} tones are still there." },
@@ -355,7 +355,7 @@
     },
     "scope": {
       "title": "What we check",
-      "yes": "We look for the hum of propeller planes and helicopters, 40 to 400 Hz, whose pitch falls as they pass: the tone that can place a recording on flight data.",
+      "yes": "We look for the hum of planes and helicopters, 40 Hz to 3.4 kHz, whose pitch falls as they pass: the tone that can place a recording on flight data.",
       "no": "We do not look for jets yet (in our tests on real recordings we missed all four), for the hum of the power grid (ENF), which can date a recording, or for anything else a video shows or says."
     },
     "link": "New: check whether your video gives away where you are"

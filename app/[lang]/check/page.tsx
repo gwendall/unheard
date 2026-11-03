@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Check } from "@/components/Check";
 import { alternates, LANGUAGES, messages, pathFor, type Locale } from "@/lib/i18n";
 
-// Does a video give away where it was made? The faint tone of a propeller plane in its sound,
+// Does a video give away where it was made? The faint tone of a plane in its sound,
 // matched to flight data, can place it. This page finds those tones in a file and takes them out,
 // all in the browser (components/Check.tsx, lib/core/leak.ts).
 
