@@ -4,5 +4,7 @@
   "real-audio": { "strongHitMin": 0.2, "anyHitMin": 0.6, "wrongStrongMax": 0, "falseStrongMax": 0 },
   "real-audio-livermore": { "strongHitMin": 0.85, "anyHitMin": 0.87, "wrongStrongMax": 0, "falseStrongMax": 0 },
   "somewhere-else": { "strongMin": 0.86, "trueTracksStrongMin": 0.8, "trueTracksWrongStrongMax": 0.04, "asideStrongMax": 0.04, "homeStrongMax": 0.14 },
-  "wherewhen": { "pairs-day-1km": 6, "pairs-hour-1km": 8, "colsto-hour-metres": 250 }
+  "wherewhen": { "pairs-day-1km": 6, "pairs-hour-1km": 8, "colsto-hour-metres": 250 },
+  "ghost": { "emptyMax": 0.013, "heardMax": 0.015, "leftMin": 0.08 },
+  "ghost-real": { "emptyMax": 0.02, "heardMax": 0.021, "leftMin": 0.57 }
 }

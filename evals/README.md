@@ -55,6 +55,19 @@ request, CI posts this run's counts next to the base branch's (`scripts/eval-del
   One test and one report per corpus (`evals/reports/leak-synthetic.md`, `leak-aerosonic.md`,
   `leak-livermore.md`): `pnpm eval evals/leak -t livermore` runs one.
 
+## Ghost planes
+
+- `ghost` (`evals/ghost.eval.ts`): how far `analyze().ghosts` can be believed, the lines no aircraft
+  of the data explains that pass the bar (`GHOST` in `lib/core/explain.ts`), which the result page
+  tells a visitor. On recordings with nothing to find (made-up scenes, real tracks over a scene
+  with no aircraft, voice notes of `somewhere-else` with no plane planted, stretches of real street
+  sound a human labelled free of aircraft): how often something is told. With the heard plane in
+  the data: how often anything is told, and its own line. With that plane left out: how often the
+  line told is its line. Also how well a told flyby reads the real pass. Its ratchet is `ghost` in
+  `evals/baseline.json` (made-up sound, in CI) and `ghost-real` (real sound, when the cache has it).
+  `ONLY=synthetic,tracks,voice,ambient,real`, `SEEDS=n`, `VOICES=n`, `TAG=name`, `RESUME=1`.
+  `ONLY=ambient60` cuts the street sound into 60 s recordings instead of 120 s.
+
 ## Corpora
 
 - `synthetic` (`evals/lib/synthetic.ts`): made-up flybys, exact truth, clock error, wind and
@@ -74,6 +87,11 @@ request, CI posts this run's counts next to the base branch's (`scripts/eval-del
     `evals/.cache/livermore/` (not committed). Every other passage's aircraft in the air nearby
     is in a recording's data, and each runs again without its own aircraft. The microphone
     position and the start time are recovered from the published data (`evals/lib/livermore.ts`).
+  - AeroSonicDB environmental recordings (CC BY-NC 4.0, evaluation only): six hours of real street
+    sound in Adelaide, a human's label every 5 s. `node scripts/fetch-aerosonic.ts --env` fills
+    `evals/.cache/aerosonic-env/` (not committed). `evals/lib/ambient.ts` cuts the stretches with
+    no aircraft (nothing to find) and the ones around an aircraft (a plane with no flight data
+    at all). Only the `ghost` eval reads them.
   - Capture bundles: open the page with `?capture=1`, record, download the bundle, add
     `"truth": { "heard": "<hex or null>", "note": "how we know" }` and drop it in
     `evals/fixtures/real/`. These are the production-condition recordings: real phone, real

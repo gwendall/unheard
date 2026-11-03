@@ -208,6 +208,15 @@ export async function elsewhereCase(sky: Sky, seed: number): Promise<ElsewhereCa
   };
 }
 
+/** The voice note of a seed's scene with no plane planted, at home with home's own sky: nothing to find. */
+export function voiceAlone(seed: number): Recording {
+  const r = rng(seed * 31 + 3);
+  const duration = r.pick([30, 45, 60]);
+  const samples = voiceLike(r, duration, ANALYSIS_RATE, r.uniform(30, 55));
+  const start = 1_800_000_000 + seed * 1000;
+  return { samples, sampleRate: ANALYSIS_RATE, start, air: { groundTempC: r.uniform(5, 30) }, listener: HOME, polls: homePolls(r, start, duration) };
+}
+
 /**
  * Whether two hexes in these polls are one aircraft: adsb.lol lists some twice, once from the
  * aircraft and once as a TIS-B copy (`~hex`), on the same path. Within 500 m of each other in
