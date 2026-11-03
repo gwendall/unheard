@@ -26,6 +26,11 @@ request, CI posts this run's counts next to the base branch's (`scripts/eval-del
 - `trace` (`evals/trace.eval.ts`): blind traces (`lib/core/trace.ts`), the aircraft tones found
   in the sound alone, on the synthetic corpus and the real clips: how often the heard aircraft's
   tone is traced, by findability, and how often a recording with no aircraft yields a trace.
+- `locate` (`evals/locate.eval.ts`): where the phone was (`lib/core/locate.ts`), searched over
+  the 20 km square around the 0.1° cell the server sees, on synthetic flybys (one aircraft, the
+  same with the phone's clock exact, two aircraft) and the 10 real flybys: distance from the
+  best spot to the truth (median, p90, within 100 m, 250 m, 1 km), how often the truth is the
+  mirror spot, by findability and by score, and the run time.
 
 ## Corpora
 

@@ -144,13 +144,15 @@ function score(stack: Stack, m: Model, f0: number, harmonics: number[]): number 
   return den > 0 ? num / Math.sqrt(den) : 0;
 }
 
-/** Evidence along any curve given per base frame (NaN = not heard), every frame weighted alike. */
-export function curveScore(stack: Stack, factor: ArrayLike<number>, f0: number, harmonics = DEFAULTS.harmonics): number {
+/** Evidence along any curve given per base frame (NaN = not heard), every frame weighted alike
+ * unless `weight` says otherwise (as the matcher does: near frames count fully). */
+export function curveScore(stack: Stack, factor: ArrayLike<number>, f0: number, harmonics = DEFAULTS.harmonics, weight?: ArrayLike<number>): number {
   const n = stack.base.frames;
   const frames: number[] = [];
-  for (let k = 0; k < n; k++) if (Number.isFinite(factor[k])) frames.push(k);
+  for (let k = 0; k < n; k++) if (Number.isFinite(factor[k]) && (!weight || weight[k] > 0)) frames.push(k);
   const f = Float32Array.from(factor);
-  const m: Model = { factor: f, range: new Float32Array(n), weight: new Float32Array(n).fill(1), slope: slopes(stack.base, f), frames: Int32Array.from(frames), emitted: new Float64Array(n) };
+  const w = weight ? Float32Array.from(weight) : new Float32Array(n).fill(1);
+  const m: Model = { factor: f, range: new Float32Array(n), weight: w, slope: slopes(stack.base, f), frames: Int32Array.from(frames), emitted: new Float64Array(n) };
   return score(stack, m, f0, harmonics);
 }
 
