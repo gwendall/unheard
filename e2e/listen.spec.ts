@@ -30,6 +30,8 @@ test("finds the plane in a recording made through the real page", async ({ page 
     };
   });
   await page.route("**/api/weather*", (route) => route.fulfill({ json: { elevation: 160, temperatureC: 15 } }));
+  // The names service answers nothing: the page must still name planes from the flight data alone.
+  await page.route("https://api.adsbdb.com/**", (route) => route.fulfill({ status: 404, json: { response: "unknown" } }));
   await page.route("**/api/aircraft*", async (route) => {
     const micAt = await page.evaluate(() => (window as unknown as { __micAt?: number }).__micAt);
     if (!micAt) return route.fulfill({ json: { now: Date.now(), aircraft: [] } });
@@ -40,11 +42,21 @@ test("finds the plane in a recording made through the real page", async ({ page 
   });
 
   await page.goto("/");
+  // First the sky: before the microphone opens the replay has no plane yet, so the page says so.
   await page.getByTestId("listen").click();
+  await expect(page.getByTestId("sky-title")).toHaveText("No plane within 30 km", { timeout: 30_000 });
+  await page.getByTestId("start").click();
   await expect(page.getByTestId("timer")).toBeVisible({ timeout: 30_000 });
-  await page.waitForTimeout(62_000);
-  await page.getByTestId("stop").click();
-  await expect(page.getByTestId("verdict")).toHaveText(`It was ${callsign}.`, { timeout: 90_000 });
+  // Once the plane shows up the page waits for it by name, then stops on its own after it passed.
+  await expect(page.getByTestId("sky-title")).toHaveText(/^Cessna 172 Skyhawk is (coming|passing)$/, { timeout: 30_000 });
+  await expect(page.getByTestId("sky-list")).toContainText("Cessna 172 Skyhawk");
+  if (process.env.SHOTS) {
+    await page.screenshot({ path: `${process.env.SHOTS}/recording-desktop.jpg`, quality: 70, scale: "css", fullPage: true });
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.screenshot({ path: `${process.env.SHOTS}/recording-phone.jpg`, quality: 70, scale: "css", fullPage: true });
+    await page.setViewportSize({ width: 1440, height: 900 });
+  }
+  await expect(page.getByTestId("verdict")).toHaveText(`It was ${callsign}.`, { timeout: 150_000 });
 
   // Give it to the dataset. The Blob store is mocked: what matters is what leaves the page.
   let sent = "";
@@ -78,6 +90,31 @@ test("finds the plane in a recording made through the real page", async ({ page 
   expect(flightData).not.toContain(fixture().target);
   expect(flightData).not.toContain(callsign);
   expect(flightData).not.toContain("48.77");
+});
+
+test("the sky says which plane to wait for, before the microphone", async ({ page }) => {
+  const { polls } = fixture();
+  await page.route("**/api/weather*", (route) => route.fulfill({ json: { elevation: 160, temperatureC: 15 } }));
+  await page.route("https://api.adsbdb.com/**", (route) => route.fulfill({ status: 404, json: { response: "unknown" } }));
+  // The replay starts when the page first asks: the Cessna is 48 s from its closest point, 690 m away.
+  let first = 0;
+  await page.route("**/api/aircraft*", (route) => {
+    first ||= Date.now();
+    const elapsed = (Date.now() - first) / 1000;
+    let latest = polls[0];
+    for (const p of polls) if (p.t <= elapsed) latest = p;
+    return route.fulfill({ json: { now: Math.round(first + latest.t * 1000), aircraft: latest.poll.aircraft } });
+  });
+  await page.goto("/");
+  await page.getByTestId("listen").click();
+  await expect(page.getByTestId("sky-title")).toHaveText(/^Cessna 172 Skyhawk passes \d+ m from you in 0:[2-5]\d\.$/, { timeout: 30_000 });
+  await expect(page.getByTestId("start")).toHaveText("Start listening");
+  await expect(page.getByTestId("sky-list").locator("li").first()).toContainText("closest in");
+  if (process.env.SHOTS) {
+    await page.screenshot({ path: `${process.env.SHOTS}/sky-desktop.jpg`, quality: 70, scale: "css", fullPage: true });
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.screenshot({ path: `${process.env.SHOTS}/sky-phone.jpg`, quality: 70, scale: "css", fullPage: true });
+  }
 });
 
 test("the example ends on a strong match", async ({ page }) => {

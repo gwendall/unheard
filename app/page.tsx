@@ -1,4 +1,8 @@
+import { renderSVG } from "uqr";
 import { Listener } from "@/components/Listener";
+
+// The way from a computer to a phone: a QR code of the site, drawn once on the server.
+const QR = renderSVG("https://unheard.gwendall.com", { border: 0, whiteColor: "#e8ecf4", blackColor: "#05070d" });
 
 const STEPS = [
   {
@@ -18,7 +22,7 @@ const STEPS = [
 export default function Home() {
   return (
     <main className="flex min-h-dvh flex-col">
-      <Listener />
+      <Listener qr={QR} />
       <section className="mx-auto w-full max-w-6xl px-5 pb-16 sm:px-8" aria-labelledby="how">
         <h2 id="how" className="mb-6 text-sm font-medium tracking-wide text-mute uppercase">
           How it works

@@ -6,7 +6,7 @@ import { candidatesOf } from "@/lib/core/pipeline";
 import { STRONG } from "@/lib/core/match";
 import { stateAt } from "@/lib/core/track";
 import { norm } from "@/lib/core/geo";
-import { describe, feet, km, knots, nameOf, seconds } from "@/lib/client/format";
+import { describe, height, km, nameOf, seconds, speed } from "@/lib/client/format";
 import { isTonal } from "@/lib/client/types";
 import type { Bundle } from "@/lib/bundle";
 import { Donate } from "./Donate";
@@ -63,7 +63,7 @@ export function Result({
         {best && facts && (
           <p className="max-w-prose text-lg text-pretty text-mute">
             {kindText ? `${kindText}, ` : ""}
-            {feet(Math.max(0, facts.height))} above you and {km(facts.range)} away at its closest, flying at {knots(facts.speed)}. The sound you heard then had left it {seconds(facts.delay)} earlier.
+            {height(Math.max(0, facts.height))} above you and {km(facts.range)} away at its closest, flying at {speed(facts.speed)}. The sound you heard then had left it {seconds(facts.delay)} earlier.
             {verdict.kind === "possible" && " The trace is faint, so take it as a good guess."}
           </p>
         )}
