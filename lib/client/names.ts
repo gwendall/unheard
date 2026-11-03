@@ -6,7 +6,7 @@
 import type { AircraftMeta } from "../adsb";
 import { aircraftType } from "./types";
 import { nameOf } from "./format";
-import type { Lang } from "../i18n/lang";
+import { fill } from "../locales";
 
 const API = "https://api.adsbdb.com/v0";
 
@@ -120,9 +120,12 @@ export async function lookUp(meta: AircraftMeta, at: { lat: number; lon: number 
   return identityOf(meta, frame, route && (!at || routeFits(route, at)) ? route : null);
 }
 
+/** How a language puts a model in a sentence (messages/<code>.json, "article"). */
+export type Article = { vowel: string; consonant: string };
+const ENGLISH: Article = { vowel: "an {name}", consonant: "a {name}" };
+
 /** The identity as the end of a sentence: "a Cessna 172 Skyhawk", "an Airbus H135", "easyJet EC4586". */
-export function spoken(id: Identity, lang: Lang = "en"): string {
+export function spoken(id: Identity, article: Article = ENGLISH): string {
   if (id.kind !== "model") return id.title;
-  if (lang === "fr") return `un ${id.title}`;
-  return `${/^[aeiou]/i.test(id.title) ? "an" : "a"} ${id.title}`;
+  return fill(/^[aeiou]/i.test(id.title) ? article.vowel : article.consonant, { name: id.title });
 }

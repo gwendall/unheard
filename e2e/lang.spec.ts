@@ -1,13 +1,17 @@
 import { expect, test } from "@playwright/test";
+import { LANG_COOKIE } from "../lib/locales";
 
-// The site in French: its own address, the bare address for a French browser, and the example
-// through to its verdict.
+// The languages the way every site of the family has them (next.config.ts): English at /, French
+// at /fr, a first visit sent to the browser's first language, the menu's choice kept after that.
 
-test("the bare address speaks the browser's language", async ({ browser }) => {
-  for (const [locale, title, lang] of [
-    ["fr-FR", "Il y a un avion que vous n'entendez pas.", "fr"],
-    ["en-US", "There's a plane you can't hear.", "en"],
-    ["de-DE", "There's a plane you can't hear.", "en"],
+const EN = "There's a plane you can't hear.";
+const FR = "Il y a un avion que vous n'entendez pas.";
+
+test("a first visit gets the browser's first language, at its own address", async ({ browser }) => {
+  for (const [locale, title, lang, path] of [
+    ["fr-FR", FR, "fr", "/fr"],
+    ["en-US", EN, "en", "/"],
+    ["de-DE", EN, "en", "/"],
   ] as const) {
     const context = await browser.newContext({ locale });
     try {
@@ -15,20 +19,55 @@ test("the bare address speaks the browser's language", async ({ browser }) => {
       await page.goto("/");
       await expect(page.locator("h1")).toHaveText(title);
       await expect(page.locator("html")).toHaveAttribute("lang", lang);
-      expect(new URL(page.url()).pathname).toBe("/");
+      expect(new URL(page.url()).pathname).toBe(path);
     } finally {
       await context.close();
     }
   }
 });
 
-test("/fr is French whatever the browser, with a way back to English", async ({ page }) => {
+test("the menu switches the language and the site keeps it", async ({ browser }) => {
+  const context = await browser.newContext({ locale: "fr-FR" });
+  try {
+    const page = await context.newPage();
+    await page.goto("/privacy");
+    expect(new URL(page.url()).pathname).toBe("/fr/privacy");
+    // English, picked in the header: the same page, and / stays English for this French browser.
+    await page.getByTestId("language").getByRole("button", { name: "Langue" }).click();
+    await page.getByRole("link", { name: "English" }).click();
+    await expect(page).toHaveURL(/\/privacy$/);
+    expect(new URL(page.url()).pathname).toBe("/privacy");
+    await expect(page.locator("h1")).toHaveText("What is sent");
+    expect((await context.cookies()).find((c) => c.name === LANG_COOKIE)?.value).toBe("en");
+    await page.goto("/");
+    await expect(page.locator("h1")).toHaveText(EN);
+    expect(new URL(page.url()).pathname).toBe("/");
+    // Back to French from the foot of the page: / now sends to /fr.
+    await page.getByTestId("language-footer").getByRole("button", { name: "Language" }).click();
+    await page.getByRole("link", { name: "Français" }).click();
+    await expect(page.locator("h1")).toHaveText(FR);
+    await page.goto("/");
+    expect(new URL(page.url()).pathname).toBe("/fr");
+  } finally {
+    await context.close();
+  }
+});
+
+test("/en is / and /fr is French whatever the browser", async ({ page, request }) => {
+  const en = await request.get("/en", { maxRedirects: 0 });
+  expect(en.status()).toBe(308);
+  expect(en.headers().location).toBe("/");
   await page.goto("/fr");
-  await expect(page.locator("h1")).toHaveText("Il y a un avion que vous n'entendez pas.");
+  await expect(page.locator("h1")).toHaveText(FR);
   await expect(page.getByTestId("listen")).toHaveText("Écouter le ciel");
   await expect(page.getByTestId("proof")).toContainText("enregistrements de test");
-  await page.getByRole("link", { name: "English" }).click();
-  await expect(page.locator("h1")).toHaveText("There's a plane you can't hear.");
+  await expect(page.getByTestId("language").getByRole("button")).toHaveText(/fr/i);
+});
+
+test("link previews get the page they asked for", async ({ request }) => {
+  const slack = await request.get("/", { maxRedirects: 0, headers: { "user-agent": "Slackbot-LinkExpanding 1.0", "accept-language": "fr-FR,fr;q=0.9", cookie: `${LANG_COOKIE}=fr` } });
+  expect(slack.status()).toBe(200);
+  expect(await slack.text()).toContain('lang="en"');
 });
 
 test("the example in French, through to its verdict", async ({ page }) => {

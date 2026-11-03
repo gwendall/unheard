@@ -5,7 +5,7 @@ import { stateAt, type Track } from "@/lib/core/track";
 import type { Candidate } from "@/lib/core/match";
 import type { AircraftMeta } from "@/lib/adsb";
 import { nameOf } from "@/lib/client/format";
-import { useT } from "@/lib/i18n/client";
+import { useI18n } from "@/components/I18n";
 
 type Path = { id: string; name: string; points: [number, number][]; mark: [number, number] | null };
 
@@ -24,7 +24,7 @@ function pathOf(c: Candidate<AircraftMeta>, from: number, to: number, mark: numb
  * the matched one in amber, with a dot where it was when the sound you heard closest left it.
  */
 export function TrackPlot({ candidates, bestId, from, to, mark }: { candidates: Candidate<AircraftMeta>[]; bestId: string | null; from: number; to: number; mark: number | null }) {
-  const t = useT().plots;
+  const t = useI18n().m.plots;
   const paths = useMemo(() => candidates.map((c) => pathOf(c, from, to, c.id === bestId ? mark : null)).filter((p) => p.points.length > 1), [candidates, bestId, from, to, mark]);
   const best = paths.find((p) => p.id === bestId) ?? null;
 

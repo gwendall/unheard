@@ -10,8 +10,8 @@ import { Sky } from "@/lib/client/sky";
 import { nearbyFrom, type Nearby } from "@/lib/client/nearby";
 import { buildExample } from "@/lib/client/example";
 import { outlook, type Outlook } from "@/lib/client/chance";
-import type { Dict } from "@/lib/i18n";
-import { useFormat, useT } from "@/lib/i18n/client";
+import type { Messages } from "@/lib/i18n";
+import { useI18n } from "./I18n";
 import { Waterfall } from "./Waterfall";
 import { Hero } from "./Hero";
 import { Result } from "./Result";
@@ -37,7 +37,7 @@ type Phase =
   | { kind: "recording" }
   | { kind: "analyzing"; done: number; total: number }
   | { kind: "result"; analysis: Analysis; rec: Recording; example: boolean; device: Bundle["device"] | null }
-  | { kind: "error"; code: keyof Dict["sky"]["errors"] };
+  | { kind: "error"; code: keyof Messages["sky"]["errors"] };
 
 const noop = () => () => {};
 const useCaptureMode = () => useSyncExternalStore(noop, () => new URLSearchParams(window.location.search).has("capture"), () => false);
@@ -58,8 +58,8 @@ async function weather(lat: number, lon: number): Promise<{ elevation: number | 
 const nextFrame = () => new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
 
 export function Listener({ qr }: { qr: string }) {
-  const t = useT().sky;
-  const f = useFormat();
+  const { m, f, fill, plural } = useI18n();
+  const t = m.sky;
   const [phase, setPhase] = useState<Phase>({ kind: "idle" });
   const [around, setAround] = useState<{ list: Nearby[]; receivedAt: number; polled: boolean }>({ list: [], receivedAt: 0, polled: false });
   const [now, setNow] = useState(0);
@@ -291,7 +291,7 @@ export function Listener({ qr }: { qr: string }) {
       <Shell>
         <div className="flex flex-col gap-4 py-10" aria-live="polite">
           <h2 className="text-3xl font-semibold tracking-tight text-balance sm:text-4xl">{t.analyzing.title}</h2>
-          <p className="text-mute">{phase.total ? t.analyzing.checking(Math.min(phase.done + 1, phase.total), phase.total) : t.analyzing.reading}</p>
+          <p className="text-mute">{phase.total ? fill(t.analyzing.checking, { i: Math.min(phase.done + 1, phase.total), n: phase.total }) : t.analyzing.reading}</p>
           <div className="h-1 w-full max-w-md overflow-hidden rounded-full bg-line">
             <div className="h-full rounded-full bg-amber transition-[width] duration-300" style={{ width: `${phase.total ? (phase.done / phase.total) * 100 : 8}%` }} />
           </div>
@@ -310,27 +310,27 @@ export function Listener({ qr }: { qr: string }) {
     if (phase.kind === "locating") return t.locating;
     if (phase.kind === "asking") return t.asking;
     if (recording) {
-      if (!awaited) return { title: t.listening.title, text: left > 0 ? t.listening.hold(left) : t.listening.stop };
+      if (!awaited) return { title: t.listening.title, text: left > 0 ? plural(left, t.listening.hold) : t.listening.stop };
       const name = titleOf(awaited, ids);
       const closest = countdown(awaited, around.receivedAt, now);
       // When its closest sound reaches the phone: what passing and passed are measured against.
       const heard = closest + awaited.closestAt / SPEED_OF_SOUND;
-      if (heard > 15) return { title: t.coming.title(name), text: t.coming.text(f.clock(closest), f.km(awaited.closestAt)) };
-      if (heard >= -15) return { title: t.passing.title(name), text: t.passing.text };
+      if (heard > 15) return { title: fill(t.coming.title, { name }), text: fill(t.coming.text, { when: f.clock(closest), distance: f.km(awaited.closestAt) }) };
+      if (heard >= -15) return { title: fill(t.passing.title, { name }), text: t.passing.text };
       const stopIn = Math.max(0, Math.ceil(heard + AFTER));
-      return { title: t.passed.title(name), text: left > 0 ? t.passed.more(left) : t.passed.stopping(stopIn) };
+      return { title: fill(t.passed.title, { name }), text: left > 0 ? plural(left, t.passed.more) : fill(t.passed.stopping, { n: stopIn }) };
     }
     if (phase.kind === "paused") return t.paused;
     if (!around.polled) return t.looking;
     if (o.kind === "coming") {
       const left = countdown(o.best, around.receivedAt, now);
-      return { title: t.chance.title(titleOf(o.best, ids), f.km(o.at), f.clock(Math.max(0, left))), text: t.chance.text };
+      return { title: fill(t.chance.title, { name: titleOf(o.best, ids), distance: f.km(o.at), when: f.clock(Math.max(0, left)) }), text: t.chance.text };
     }
-    if (o.kind === "passing") return { title: t.now.title(titleOf(o.best, ids), f.km(o.best.distance)), text: t.now.text };
-    const nearest = o.nearest ? t.quiet.nearest(titleOf(o.nearest, ids), f.km(o.nearest.distance), f.height(Math.max(0, o.nearest.height))) : "";
-    return o.count
-      ? { title: t.quiet.title, text: t.quiet.text(o.count, nearest) }
-      : t.empty;
+    if (o.kind === "passing") return { title: fill(t.now.title, { name: titleOf(o.best, ids), distance: f.km(o.best.distance) }), text: t.now.text };
+    const nearest = o.nearest
+      ? fill(t.quiet.nearest, { name: titleOf(o.nearest, ids), distance: f.km(o.nearest.distance), height: f.height(Math.max(0, o.nearest.height)) })
+      : "";
+    return o.count ? { title: t.quiet.title, text: plural(o.count, t.quiet.text, { nearest }) } : t.empty;
   }
 
   const chance = o.kind !== "quiet";
@@ -393,5 +393,5 @@ export function Listener({ qr }: { qr: string }) {
 }
 
 function Shell({ children }: { children: React.ReactNode }) {
-  return <div className="mx-auto w-full max-w-6xl px-5 pt-14 pb-16 sm:px-8 sm:pt-24">{children}</div>;
+  return <div className="mx-auto w-full max-w-6xl px-5 pt-10 pb-16 sm:px-8 sm:pt-16">{children}</div>;
 }
