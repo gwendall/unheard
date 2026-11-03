@@ -70,6 +70,27 @@ All three serve the same readsb "trace" JSON (https://github.com/wiedehopf/reads
 - Extract one aircraft for a day: `cat v2025.05.18-planes-readsb-prod-0.tar.aa v2025.05.18-planes-readsb-prod-0.tar.ab | tar -xf - ./traces/d9/trace_full_7c77d9.json` then `gunzip -c`. That still downloads the whole day. Cheaper: GitHub serves HTTP ranges, and each `traces/XX/` directory is contiguous in the tar (directory order is not sorted), so probing 400 offsets then fetching only the directory's span pulled one trace with **18.8 MB of requests out of 1.1 GB** (tested; small script, not committed).
 - Coverage caveat, tested: on 2023-04-06 and 2023-05-09 adsb.lol had **no Adelaide receiver** (a Qantas 737 is traced at Perth, Melbourne and Sydney only; the AeroSonicDB R44 and DA42 are absent). So adsb.lol cannot back the 2023 AeroSonicDB clips. Check coverage near any new site before relying on it.
 - **Fit: yes** as the default history source for our own recordings (open license, any day since 2023-03-11), not for AeroSonicDB.
+- **Attribution**: "© adsb.lol contributors", ODbL 1.0. Anything built from it (our history tiles included) is a derived database under the same licence.
+- Which 2026 days exist (checked 2026-11-03): every `prod-0` release asked for, `v2026.05.09`, `.12`, `.13`, `.14`, `.16`, `.17` (the Livermore days), `v2026.09.08` (colsto's Oyster Bay day) and `v2026.11.01`, each with a `staging-0` twin (no `prod-1`). 3.2 to 3.9 GB a day.
+
+#### Unheard's history index (`pnpm history:build <day>`, format in `docs/history-format.md`)
+
+`scripts/history-index.ts` streams a day's tar (never stored), unpacks each `trace_full_<hex>.json` in a worker, keeps the airborne points at or below 10,000 ft (pressure altitude; geometric when there is none) with a speed and a track, tags each aircraft with its kind from tar1090-db's ICAO type table (pinned commit), and writes 1° tiles (`evals/.cache/history/<day>/`, never committed). Measured on seven days on the founder's Mac (8 workers, the machine shared with other agents, so the times vary twice over):
+
+| day | tar streamed | worker CPU | writing | peak memory | points kept (aircraft) | tiles | tile median / p99 / busiest | world MB (no jets) | contiguous US MB | Europe MB |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 2026-05-09 (Sat) | 3.18 GB, 18 s | 86 s | 106 s | 3.8 GB | 42.9 M (55,456) | 2,570 | 9 kB / 1.5 MB / 3.7 MB 33_-112 | 266 (140) | 164 (104) | 67 (22) |
+| 2026-05-12 (Tue) | 3.48 GB, 65 s | 218 s | 83 s | 2.2 GB | 49.6 M (60,073) | 2,770 | 8 kB / 1.8 MB / 4.1 MB 40_-74 | 309 (178) | 208 (138) | 57 (20) |
+| 2026-05-13 (Wed) | 3.43 GB, 29 s | 122 s | 77 s | 2.6 GB | 47.1 M (58,927) | 2,752 | 8 kB / 1.7 MB / 4.4 MB 33_-112 | 293 (161) | 191 (122) | 56 (17) |
+| 2026-05-14 (Thu) | 3.56 GB, 37 s | 132 s | 95 s | 2.4 GB | 48.8 M (60,589) | 2,681 | 8 kB / 1.8 MB / 4.5 MB 33_-112 | 304 (168) | 206 (133) | 52 (15) |
+| 2026-05-16 (Sat) | 3.22 GB, 50 s | 198 s | 190 s | 2.2 GB | 42.9 M (55,437) | 2,551 | 9 kB / 1.6 MB / 4.7 MB 40_-75 | 267 (148) | 177 (117) | 52 (16) |
+| 2026-05-17 (Sun) | 3.25 GB, 27 s | 122 s | 72 s | 2.8 GB | 41.1 M (53,464) | 2,603 | 7 kB / 1.4 MB / 4.6 MB 40_-75 | 254 (125) | 157 (93) | 60 (18) |
+| 2026-09-08 (Tue) | 3.87 GB, 30 s | 135 s | 87 s | 2.6 GB | 55.9 M (70,953) | 3,042 | 8 kB / 1.7 MB / 4.1 MB 40_-74 | 345 (202) | 228 (155) | 62 (22) |
+
+- About half the airborne points are kept (86 M parsed of 15 GB of JSON on 05-16, 42.9 M kept): 20,567 piston, 3,456 turboprop, 3,447 rotor, 24,466 jet and 3,501 other or unknown aircraft that day. A point costs about 6.2 bytes after gzip (16-bit columns of changes, low then high bytes).
+- No tile passed 5 MB, so none was split: the busiest are Phoenix (33_-112), Philadelphia and New Jersey (40_-75) and New York (40_-74). The Bay Area's four tiles hold 6.7 MB a day.
+- Average day: 291 MB for the world (160 MB without jets and unknown), 190 MB for the contiguous US, 58 MB for Europe. A month: 8.7 GB, 5.7 GB and 1.7 GB.
+- Deterministic, checked: 2026-05-16 built twice (8 then 6 workers, separate folders, the type table fetched again) gave byte-identical manifests, so all 2,551 tiles have the same `sha256`.
 
 ### ADS-B Exchange free samples (first of each month)
 
