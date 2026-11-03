@@ -117,6 +117,28 @@ async function main() {
   for (const day of days) await indexDay(day, options);
 }
 
+/** A release's tar parts and sizes. The API allows 60 requests an hour per address, which a cloud
+ * machine shares with its neighbours: past that, the download addresses answer the same. */
+async function tarParts(repository: string, tag: string): Promise<{ name: string; size: number }[]> {
+  const meta = await fetch(`https://api.github.com/repos/${repository}/releases/tags/${tag}`, { signal: AbortSignal.timeout(30_000) });
+  if (meta.ok) {
+    return ((await meta.json()) as { assets: { name: string; size: number }[] }).assets
+      .filter((a) => /\.tar(\.a[a-z])?$/.test(a.name))
+      .map(({ name, size }) => ({ name, size }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }
+  if (meta.status !== 403 && meta.status !== 429) throw new Error(`release ${tag}: HTTP ${meta.status}`);
+  const parts: { name: string; size: number }[] = [];
+  for (const suffix of ["", ..."abcdefghij".split("").map((c) => `.a${c}`)]) {
+    const name = `${tag}.tar${suffix}`;
+    const res = await fetch(`https://github.com/${repository}/releases/download/${tag}/${name}`, { method: "HEAD", headers: { "user-agent": "unheard-history/1" }, signal: AbortSignal.timeout(30_000) });
+    if (res.ok) parts.push({ name, size: Number(res.headers.get("content-length")) });
+    else if (suffix && suffix !== ".aa") break;
+  }
+  if (!parts.length) throw new Error(`release ${tag}: API HTTP ${meta.status}, no tar found`);
+  return parts;
+}
+
 async function indexDay(day: string, o: { out: URL; peek: boolean; force: boolean; workers: number; maxFt: number; pod: string }) {
   const { workers, maxFt, peek } = o;
   const OUT = new URL(`${day}/`, o.out);
@@ -138,12 +160,7 @@ async function indexDay(day: string, o: { out: URL; peek: boolean; force: boolea
   const [y, m, d] = day.split("-");
   const repository = `adsblol/globe_history_${y}`;
   const tag = `v${y}.${m}.${d}-planes-readsb-${o.pod}`;
-  const meta = await fetch(`https://api.github.com/repos/${repository}/releases/tags/${tag}`, { signal: AbortSignal.timeout(30_000) });
-  if (!meta.ok) throw new Error(`release ${tag}: HTTP ${meta.status}`);
-  const assets = ((await meta.json()) as { assets: { name: string; size: number }[] }).assets
-    .filter((a) => /\.tar(\.a[a-z])?$/.test(a.name))
-    .map(({ name, size }) => ({ name, size }))
-    .sort((a, b) => a.name.localeCompare(b.name));
+  const assets = await tarParts(repository, tag);
   const total = assets.reduce((s, a) => s + a.size, 0);
   console.log(`${tag}: ${assets.map((a) => a.name.replace(tag, "")).join(" + ")}, ${(total / 1e9).toFixed(2)} GB`);
 
