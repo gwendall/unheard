@@ -60,6 +60,15 @@ What a visitor goes through, and where it lives:
   voice. Three polls, 3 s apart. Then Unheard's own analysis reads the downloaded WAV back at
   that spot and says how strongly it names the plane. Linked by one line under the home's
   example and one under the result's buttons. The recording never leaves the phone.
+- **Check a video** (`/check`, `components/Check.tsx`, `lib/client/check.worker.ts`,
+  `lib/core/leak.ts`): the defence colsto's viewers asked for ("what's the counter strat?"). A
+  video or sound file is decoded in the page (Web Audio), searched for aircraft tones with no
+  flight data in a worker (findTraces over overlapping 3-minute chunks, so a long stream stays in
+  bounded memory; it reports 40 to 400 Hz, and takes out with those tones what it finds up to
+  3.4 kHz in the same chunk), and the tones are taken out along their curves (scrub, 20 s windows,
+  the emptied band filled with noise at its neighbours' level) on the sound at its own rate. The cleaned sound is searched again, shown before and after, and
+  downloaded as a WAV. Nothing leaves the device. Linked from the home and the footer. Measured
+  by `evals/leak.eval.ts`: on AeroSonicDB, tones found in 9 of 9 clips, 6 named before, none after.
 
 ## Results (2026-11-02)
 

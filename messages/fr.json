@@ -5,6 +5,8 @@
     "description": "Levez votre téléphone vers le ciel quelques minutes. Unheard repère le faible bourdonnement d'un avion dans le bruit et vous dit lequel c'était, d'après les données de vol en direct.",
     "ogAlt": "Il y a un avion que vous n'entendez pas. Votre téléphone l'entend. Unheard le nomme. Une note ambrée lumineuse s'infléchit sur un spectrogramme bleu nuit, comme la hauteur du son d'un avion qui passe.",
     "privacyTitle": "Ce qui est envoyé · Unheard",
+    "checkTitle": "Vérifier une vidéo · Unheard",
+    "checkDescription": "Le faible bourdonnement d'un avion au fond d'une vidéo peut la situer grâce aux données de vol. Cherchez ces sons dans une vidéo ou un fichier audio et retirez-les, dans votre navigateur : le fichier ne quitte pas votre appareil.",
     "elsewhereTitle": "Ailleurs · Unheard",
     "elsewhereDescription": "Faites croire que votre enregistrement a été fait dans une autre ville : Unheard glisse sous votre voix les vrais avions qui la survolent en ce moment, avec les courbes Doppler qu'un enquêteur comparerait aux données de vol."
   },
@@ -280,7 +282,8 @@
   "footer": {
     "github": "Code ouvert sur GitHub",
     "privacy": "Confidentialité",
-    "madeBy": "Made by Gwendall"
+    "madeBy": "Made by Gwendall",
+    "check": "Vérifier une vidéo"
   },
   "privacy": {
     "title": "Ce qui est envoyé",
@@ -309,5 +312,55 @@
         ]
       }
     ]
+  },
+  "check": {
+    "title": "Votre vidéo dit où vous êtes ?",
+    "lead": "Le faible bourdonnement d'un avion au loin peut situer une vidéo : sa hauteur baisse quand l'avion passe, et cette courbe, rapprochée des données de vol, dit où et quand elle a été filmée. Unheard cherche ces sons dans votre fichier et les retire.",
+    "private": "Votre fichier ne quitte pas cet appareil : il est ouvert, vérifié et nettoyé dans ce navigateur, et rien n'en est envoyé.",
+    "choose": "Choisir un fichier",
+    "drop": "ou le déposer ici",
+    "formats": "La plupart des vidéos et des fichiers audio : MP4, MOV, WebM, M4A, MP3, WAV.",
+    "steps": {
+      "open": "Ouverture du fichier...",
+      "find": "Recherche de sons d'avion, {n} %",
+      "clean": "Retrait des sons, {n} %",
+      "again": "Nouvelle vérification, {n} %",
+      "write": "Écriture du son nettoyé..."
+    },
+    "found": {
+      "one": "Cet enregistrement contient un son d'avion qui pourrait le situer.",
+      "other": "Cet enregistrement contient {n} sons d'avion qui pourraient le situer."
+    },
+    "foundText": {
+      "one": "Il baisse de hauteur comme celui d'un avion ou d'un hélicoptère qui passe. Rapproché des données de vol, il peut dire où et quand cet enregistrement a été fait.",
+      "other": "Chacun baisse de hauteur comme celui d'un avion ou d'un hélicoptère qui passe. Rapproché des données de vol, il peut dire où et quand cet enregistrement a été fait."
+    },
+    "clean": { "one": "Le retirer", "other": "Les retirer" },
+    "elsewhere": "Ou faire croire que vous êtes ailleurs",
+    "none": "Aucun son d'avion trouvé.",
+    "noneText": "Nous avons cherché le bourdonnement des avions et des hélicoptères, et aucun ne ressort. Cela ne rend pas le fichier sûr : voyez plus bas ce que nous ne vérifions pas.",
+    "gone": { "one": "Le son a disparu.", "other": "Les sons ont disparu." },
+    "goneText": "Nous avons cherché de nouveau dans le son nettoyé : nous n'y trouvons plus de son d'avion.",
+    "left": { "one": "Il reste un son.", "other": "Il reste {n} sons." },
+    "leftText": "Retirer un son peut en faire apparaître un plus faible. Vous pouvez les retirer encore.",
+    "download": "Télécharger le son nettoyé",
+    "remux": "Un fichier WAV. Pour le remettre dans votre vidéo : dans votre logiciel de montage, coupez le son d'origine et placez ce WAV tout au début. Il a la même durée, il tombe donc juste.",
+    "another": "Vérifier un autre fichier",
+    "suffix": "nettoye",
+    "tone": "De {start} à {end} dans le fichier, de {from} à {to} Hz, {sure}",
+    "sure": { "clear": "ressort nettement", "likely": "ressort", "faint": "faible, mais présent" },
+    "before": "Avant",
+    "after": "Après",
+    "picture": "Spectre de l'enregistrement autour du son",
+    "errors": {
+      "open": "Ce navigateur n'a pas pu ouvrir le son de ce fichier. Essayez un autre navigateur, ou le son seul en M4A, MP3 ou WAV.",
+      "failed": "Un problème est survenu pendant la vérification de ce fichier : {message}"
+    },
+    "scope": {
+      "title": "Ce que nous vérifions",
+      "yes": "Nous cherchons le bourdonnement des avions et des hélicoptères dont la hauteur baisse à leur passage, entre 40 et 400 Hz : le son qui peut situer un enregistrement grâce aux données de vol. Quand nous en trouvons un, le retirer retire aussi ce que nous entendons plus haut, jusqu'à 3,4 kHz. Les avions à réaction sont plus difficiles, leur son est plus aigu : sur quatre vrais enregistrements de réacteurs dans nos tests, nous avons trouvé un son dans trois et manqué le quatrième. Les données de vol en situaient deux, et aucun une fois nettoyé.",
+      "no": "Nous ne cherchons pas un son au-dessus de 400 Hz à lui seul, ni le ronflement du réseau électrique (ENF), qui peut dater un enregistrement, ni rien de ce qu'une vidéo montre ou dit d'autre."
+    },
+    "link": "Nouveau : vérifiez si votre vidéo dit où vous êtes"
   }
 }

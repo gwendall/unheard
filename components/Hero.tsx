@@ -48,6 +48,12 @@ export function Hero({ onListen, onExample, error, qr }: { onListen: () => void;
         </div>
         <div className="flex flex-col gap-4">
           <ExampleCard onOpen={onExample} />
+          <Link href={pathFor(locale, "/check")} className="group w-fit text-pretty text-mute transition hover:text-ink" data-testid="check-link">
+            {m.check.link}{" "}
+            <span aria-hidden className="inline-block text-amber-soft transition group-hover:translate-x-1">
+              →
+            </span>
+          </Link>
           <Link href={pathFor(locale, "/somewhere-else")} className="group w-fit text-pretty text-mute transition hover:text-ink" data-testid="elsewhere-link">
             {m.elsewhere.link}{" "}
             <span aria-hidden className="inline-block text-amber-soft transition group-hover:translate-x-1">

@@ -5,6 +5,8 @@
     "description": "Hold your phone up to the sky for a couple of minutes. Unheard picks out the faint drone of a plane in the noise and tells you which plane it was, from live flight data.",
     "ogAlt": "There's a plane you can't hear. Your phone hears it. Unheard names it. A glowing amber tone bends down across a night-blue spectrogram, as the pitch of a passing plane does.",
     "privacyTitle": "What is sent · Unheard",
+    "checkTitle": "Check a video · Unheard",
+    "checkDescription": "The faint hum of a plane in the background of a video can place it on flight data. Look for those tones in a video or a sound file and take them out, in your browser: the file never leaves your device.",
     "elsewhereTitle": "Somewhere else · Unheard",
     "elsewhereDescription": "Make your recording sound like it was made in another city: Unheard puts under your voice the real planes flying over it right now, with the Doppler curves an investigator would match to flight data."
   },
@@ -280,7 +282,8 @@
   "footer": {
     "github": "Open source on GitHub",
     "privacy": "Privacy",
-    "madeBy": "Made by Gwendall"
+    "madeBy": "Made by Gwendall",
+    "check": "Check a video"
   },
   "privacy": {
     "title": "What is sent",
@@ -309,5 +312,52 @@
         ]
       }
     ]
+  },
+  "check": {
+    "title": "Does your video give away where you are?",
+    "lead": "The faint hum of a plane in the background can place a video: its pitch falls as the plane passes, and matched to flight data, that curve tells where and when it was filmed. Unheard looks for those tones in your file and takes them out.",
+    "private": "Your file never leaves this device: it is opened, checked and cleaned in this browser, and nothing of it is sent.",
+    "choose": "Choose a file",
+    "drop": "or drop it here",
+    "formats": "Most videos and sound files: MP4, MOV, WebM, M4A, MP3, WAV.",
+    "steps": {
+      "open": "Opening the file...",
+      "find": "Listening for aircraft tones, {n} %",
+      "clean": "Taking the tones out, {n} %",
+      "again": "Checking again, {n} %",
+      "write": "Writing the cleaned sound..."
+    },
+    "found": { "one": "This recording holds an aircraft tone that could place it.", "other": "This recording holds {n} aircraft tones that could place it." },
+    "foundText": {
+      "one": "It falls in pitch the way a plane or a helicopter does as it passes. Matched to flight data, it can tell where and when this was recorded.",
+      "other": "Each one falls in pitch the way a plane or a helicopter does as it passes. Matched to flight data, it can tell where and when this was recorded."
+    },
+    "clean": { "one": "Take it out", "other": "Take them out" },
+    "elsewhere": "Or make it sound like you are somewhere else",
+    "none": "No aircraft tone found.",
+    "noneText": "We looked for the hum of planes and helicopters and found none that stands out. That does not make the file safe: below is what we do not check.",
+    "gone": { "one": "The tone is gone.", "other": "The tones are gone." },
+    "goneText": "We searched the cleaned sound again and no longer find an aircraft tone.",
+    "left": { "one": "One tone is still there.", "other": "{n} tones are still there." },
+    "leftText": "Taking a tone out can bring a fainter one to light. You can take them out again.",
+    "download": "Download the cleaned sound",
+    "remux": "A WAV file. To put it back in your video: in your editor, mute the video's own sound and place this WAV at the very start. It has the same length, so it lines up.",
+    "another": "Check another file",
+    "suffix": "cleaned",
+    "tone": "{start} to {end} in the file, {from} to {to} Hz, {sure}",
+    "sure": { "clear": "stands out clearly", "likely": "stands out", "faint": "faint, but there" },
+    "before": "Before",
+    "after": "After",
+    "picture": "Spectrum of the recording around the tone",
+    "errors": {
+      "open": "This browser could not open the sound of this file. Try another browser, or the sound alone as an M4A, MP3 or WAV.",
+      "failed": "Something went wrong while checking this file: {message}"
+    },
+    "scope": {
+      "title": "What we check",
+      "yes": "We look for the hum of planes and helicopters whose pitch falls as they pass, between 40 and 400 Hz: the tone that can place a recording on flight data. When we find one, taking it out also takes what we hear higher up, to 3.4 kHz. Jets are harder, their tone sits higher: of four real jet recordings in our tests, we found a tone in three and missed one. Flight data placed two, and neither once cleaned.",
+      "no": "We do not look for a tone above 400 Hz on its own, for the hum of the power grid (ENF), which can date a recording, or for anything else a video shows or says."
+    },
+    "link": "New: check whether your video gives away where you are"
   }
 }

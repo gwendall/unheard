@@ -71,6 +71,9 @@ export default async function Home({ params }: PageProps<"/[lang]">) {
         <a href={REPO} className="transition hover:text-ink">
           {t.footer.github}
         </a>
+        <Link href={pathFor(lang, "/check")} className="transition hover:text-ink">
+          {t.footer.check}
+        </Link>
         <Link href={pathFor(lang, "/privacy")} className="transition hover:text-ink">
           {t.footer.privacy}
         </Link>
