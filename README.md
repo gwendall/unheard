@@ -7,6 +7,8 @@ matching its Doppler curve against live ADS-B flight data.
 Everything runs in your browser. Your recording never leaves your phone unless you choose to
 donate it.
 
+Try it on a phone: https://unheard.gwendall.com
+
 Made by Gwendall.
 
 ## How it works
