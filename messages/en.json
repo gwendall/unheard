@@ -339,7 +339,7 @@
     "gone": { "one": "The tone is gone.", "other": "The tones are gone." },
     "goneText": "We searched the cleaned sound again and no longer find an aircraft tone.",
     "left": { "one": "One tone is still there.", "other": "{n} tones are still there." },
-    "leftText": "Taking a tone out can bring a fainter one to light. Take them out again: each pass leaves less.",
+    "leftText": "Taking a tone out can bring a fainter one to light. You can take them out again.",
     "download": "Download the cleaned sound",
     "remux": "A WAV file. To put it back in your video: in your editor, mute the video's own sound and place this WAV at the very start. It has the same length, so it lines up.",
     "another": "Check another file",
@@ -355,8 +355,8 @@
     },
     "scope": {
       "title": "What we check",
-      "yes": "We look for the hum of planes and helicopters, 40 Hz to 3.4 kHz, whose pitch falls as they pass: the tone that can place a recording on flight data. We have only just started on jets: of four real jet recordings in our tests, flight data placed two, and neither once cleaned.",
-      "no": "We do not look for the hum of the power grid (ENF), which can date a recording, or for anything else a video shows or says."
+      "yes": "We look for the hum of planes and helicopters whose pitch falls as they pass, between 40 and 400 Hz: the tone that can place a recording on flight data. When we find one, taking it out also takes what we hear higher up, to 3.4 kHz. Jets are harder, their tone sits higher: of four real jet recordings in our tests, we found a tone in three and missed one. Flight data placed two, and neither once cleaned.",
+      "no": "We do not look for a tone above 400 Hz on its own, for the hum of the power grid (ENF), which can date a recording, or for anything else a video shows or says."
     },
     "link": "New: check whether your video gives away where you are"
   }

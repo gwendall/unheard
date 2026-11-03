@@ -342,7 +342,7 @@
     "gone": { "one": "Le son a disparu.", "other": "Les sons ont disparu." },
     "goneText": "Nous avons cherché de nouveau dans le son nettoyé : nous n'y trouvons plus de son d'avion.",
     "left": { "one": "Il reste un son.", "other": "Il reste {n} sons." },
-    "leftText": "Retirer un son peut en faire apparaître un plus faible. Retirez-les encore : chaque passage en laisse moins.",
+    "leftText": "Retirer un son peut en faire apparaître un plus faible. Vous pouvez les retirer encore.",
     "download": "Télécharger le son nettoyé",
     "remux": "Un fichier WAV. Pour le remettre dans votre vidéo : dans votre logiciel de montage, coupez le son d'origine et placez ce WAV tout au début. Il a la même durée, il tombe donc juste.",
     "another": "Vérifier un autre fichier",
@@ -358,8 +358,8 @@
     },
     "scope": {
       "title": "Ce que nous vérifions",
-      "yes": "Nous cherchons le bourdonnement des avions et des hélicoptères, de 40 Hz à 3,4 kHz, dont la hauteur baisse à leur passage : le son qui peut situer un enregistrement grâce aux données de vol. Les avions à réaction, nous les cherchons depuis peu : sur quatre vrais enregistrements de réacteurs dans nos tests, les données de vol en situaient deux, et aucun une fois nettoyé.",
-      "no": "Nous ne cherchons pas le ronflement du réseau électrique (ENF), qui peut dater un enregistrement, ni rien de ce qu'une vidéo montre ou dit d'autre."
+      "yes": "Nous cherchons le bourdonnement des avions et des hélicoptères dont la hauteur baisse à leur passage, entre 40 et 400 Hz : le son qui peut situer un enregistrement grâce aux données de vol. Quand nous en trouvons un, le retirer retire aussi ce que nous entendons plus haut, jusqu'à 3,4 kHz. Les avions à réaction sont plus difficiles, leur son est plus aigu : sur quatre vrais enregistrements de réacteurs dans nos tests, nous avons trouvé un son dans trois et manqué le quatrième. Les données de vol en situaient deux, et aucun une fois nettoyé.",
+      "no": "Nous ne cherchons pas un son au-dessus de 400 Hz à lui seul, ni le ronflement du réseau électrique (ENF), qui peut dater un enregistrement, ni rien de ce qu'une vidéo montre ou dit d'autre."
     },
     "link": "Nouveau : vérifiez si votre vidéo dit où vous êtes"
   }
