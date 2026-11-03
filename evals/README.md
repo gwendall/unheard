@@ -5,6 +5,11 @@ page runs, and scores the verdict. Reports land in `evals/reports/<name>.md` (no
 `evals/baseline.json` is a ratchet: an eval fails when a metric falls below it. It holds the
 default corpus (what CI runs) minus one scenario of margin; raise it when a change lifts a metric.
 
+`evals/results.json` (committed) holds each eval's counts on its default corpus: a run with
+`SEEDS` or `PER_FILE` set does not write it. `pnpm scoreboard` turns it into the README's
+scoreboard (counts with Wilson 95 % intervals), and CI checks the README is current. On a pull
+request, CI posts this run's counts next to the base branch's (`scripts/eval-delta.ts`).
+
 ## Metrics
 
 - **heard**: an aircraft is in the sound and in the data. *strong and right* (the page says "It

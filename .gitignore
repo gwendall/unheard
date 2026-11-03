@@ -10,3 +10,5 @@ test-results/
 evals/reports/
 e2e/fixtures/
 evals/.cache/
+evals/results.json.lock
+evals/results.json.tmp

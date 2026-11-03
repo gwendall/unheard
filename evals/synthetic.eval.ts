@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { againstBaseline, run, summarize, writeReport, type Outcome } from "./lib/report";
+import { againstBaseline, recordResults, run, summarize, writeReport, type Outcome } from "./lib/report";
 import { syntheticScenario } from "./lib/synthetic";
 
 // SEEDS=n widens the corpus (default 30 per kind for heard, fewer for the rest).
@@ -17,5 +17,6 @@ it("synthetic corpus", async () => {
   const summary = summarize(outcomes);
   writeReport("synthetic", outcomes, summary, ["Made-up flybys: exact truth, clock error, wind and forecast air, noisy sparse ADS-B, hum, passing cars, bursts."]);
   console.log(JSON.stringify(summary));
+  recordResults("synthetic", outcomes, process.env.SEEDS === undefined || N === 30);
   expect(againstBaseline("synthetic", summary)).toEqual([]);
 });

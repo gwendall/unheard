@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { againstBaseline, run, summarize, writeReport, type Outcome } from "./lib/report";
+import { againstBaseline, recordResults, run, summarize, writeReport, type Outcome } from "./lib/report";
 import { trackScenarios } from "./lib/tracks";
 
 // Real ADS-B tracks recorded with scripts/record-sky.ts, made-up sound. PER_FILE=n scenarios
@@ -15,5 +15,6 @@ it("real tracks", async () => {
   const summary = summarize(outcomes);
   writeReport("real-tracks", outcomes, summary, ["Real tracks (adsb.lol, polled under its rate limit), made-up sound; the page sees every other poll and every aircraft within 30 km."]);
   console.log(JSON.stringify(summary));
+  recordResults("real-tracks", outcomes, process.env.PER_FILE === undefined || Number(process.env.PER_FILE) === 40);
   expect(againstBaseline("real-tracks", summary)).toEqual([]);
 });
