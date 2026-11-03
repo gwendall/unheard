@@ -120,17 +120,17 @@ describe("mergeTones", () => {
 
 describe("findTones", () => {
   it("follows a flyby across the seam of two chunks as one tone", () => {
-    // 150 s in chunks of 60 s sharing 20 s: the plane is closest at 70 s, on the first seam.
+    // 150 s in chunks of 30 s sharing 10 s: the plane is closest at 70 s, on a seam (60 to 70 s).
     const duration = 150;
     const { samples, track } = flyby(duration, 70, 5);
     const { read, length } = readerOf({ channels: [samples], sampleRate: RATE });
-    const chunks = chunksOf(length, RATE, 60, 20);
-    expect(chunks.length).toBe(4);
+    const chunks = chunksOf(length, RATE, 30, 10);
+    expect(chunks.length).toBe(7);
     const tones = findTones(read, chunks);
     expect(tones.length).toBeGreaterThanOrEqual(1);
     const t = tones[0];
-    // One tone that spans the seam at 40 to 60 s and the closest approach.
-    expect(t.times[0]).toBeLessThan(45);
+    // One tone across the seams at 60 to 70 s and 80 to 90 s, around the closest approach.
+    expect(t.times[0]).toBeLessThan(60);
     expect(t.times.at(-1)!).toBeGreaterThan(85);
     // It follows the true curve times a tone in closed form, the way traceFit reads it.
     const r = Array.from(t.times, (time, i) => Math.log(t.freq[i] / heardAt(track, START + time, STANDARD_AIR)!.factor)).sort((x, y) => x - y);
@@ -171,9 +171,10 @@ describe("clean", () => {
       freq.push(110 * heardAt(track, START + t, STANDARD_AIR)!.factor + 0.4);
     }
     const curve = { times, freq };
-    const whole = scrub(samples, RATE, [curve]);
+    // Without the fill, whose noise is new in every window.
+    const whole = scrub(samples, RATE, [curve], { fill: false });
     const channels = [samples.slice(), samples.slice()];
-    clean({ channels, sampleRate: RATE }, [curve], { window: 5, margin: 4 });
+    clean({ channels, sampleRate: RATE }, [curve], { window: 5, margin: 4, scrub: { fill: false } });
     let worst = 0;
     let peak = 0;
     for (let i = 0; i < whole.length; i++) {

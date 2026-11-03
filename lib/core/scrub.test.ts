@@ -109,6 +109,33 @@ describe("scrub", () => {
     expect(kept).toBeLessThan(1.1);
   });
 
+  it("fills the band it empties: no dark trail along the curve, even scrubbed again", async () => {
+    const raw = recording();
+    const curve = curveOf();
+    // Mean evidence along the curve `offHz` off, where it is heard.
+    const along = (samples: Float32Array, offHz: number) => {
+      const { base, evidence } = buildStack(samples, RATE);
+      const hop = base.times[1] - base.times[0];
+      let sum = 0;
+      let n = 0;
+      for (let i = 0; i < curve.times.length; i++) {
+        const k = Math.round((curve.times[i] - base.times[0]) / hop);
+        if (!Number.isFinite(curve.freq[i]) || k < 0 || k >= base.frames) continue;
+        sum += evidence[k * base.bins + Math.round((curve.freq[i] + offHz - base.minHz) / base.binHz)];
+        n++;
+      }
+      return sum / n;
+    };
+    const hollow = scrub(raw, RATE, [curve], { fill: false });
+    const filled = scrub(raw, RATE, [curve]);
+    const twice = scrub(filled, RATE, [curveOf(0.6)]);
+    // The notch alone leaves a hollow the shape of the curve: the line is gone, its trail is not.
+    expect(along(hollow, 0)).toBeLessThan(-2);
+    // Filled, the band and its shoulders sit where the sound 12 Hz away does, a second time too.
+    for (const x of [filled, twice]) for (const d of [-4, 0, 4]) expect(Math.abs(along(x, d) - along(x, 12))).toBeLessThan(0.5);
+    expect(await scoreOf(twice)).toBeLessThan(4.5);
+  });
+
   it("changes nothing where the curve is not heard", () => {
     const raw = recording();
     const half: Curve = { times: [0, 30, 30.1, DURATION], freq: [NaN, NaN, NaN, NaN] };
