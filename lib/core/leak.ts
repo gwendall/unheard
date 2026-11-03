@@ -28,6 +28,11 @@ export type Tone = {
   freq: Float32Array;
   /** How far it stands above what the noise alone makes (trace.ts): 4 is the bar. */
   confidence: number;
+  /**
+   * Fainter ridges that run beside this one all along (the leakage of a loud tone a few per cent
+   * off, a harmonic, a twin's second engine): one source to the eye, taken out with it.
+   */
+  beside?: Tone[];
 };
 
 export const CHUNK_SECONDS = 180;
@@ -120,7 +125,30 @@ function join(a: Tone, b: Tone): Tone {
   return { times, freq, confidence: first.confidence };
 }
 
-/** Pieces of one tone found in overlapping chunks become one. Strongest first. */
+/** Ratios at which a ridge runs beside a louder one: the same pitch a few per cent off, or a harmonic. */
+const KIN = [1 / 3, 1 / 2, 2 / 3, 3 / 2, 2, 3];
+const NEAR = 0.05;
+
+/** `b` runs beside `a`: over most of its frames, at one ratio to it (a near pitch or a harmonic), parallel. */
+function runsBeside(a: Tone, b: Tone): boolean {
+  const ka = frameOf(a.times[0]);
+  const kb = frameOf(b.times[0]);
+  const lo = Math.max(ka, kb);
+  const hi = Math.min(ka + a.times.length, kb + b.times.length) - 1;
+  if (hi - lo + 1 < Math.max(SHARED, 0.5 * b.times.length)) return false;
+  const r: number[] = [];
+  for (let k = lo; k <= hi; k++) r.push(Math.log(b.freq[k - kb] / a.freq[k - ka]));
+  r.sort((x, y) => x - y);
+  const mid = r[r.length >> 1];
+  const spread = r.map((x) => Math.abs(x - mid)).sort((x, y) => x - y)[r.length >> 1];
+  if (spread > AGREE / 2) return false;
+  return Math.abs(mid) < NEAR || KIN.some((ratio) => Math.abs(mid - Math.log(ratio)) < AGREE);
+}
+
+/**
+ * Pieces of one tone found in overlapping chunks become one, and a ridge that runs beside a louder
+ * one is kept with it (`beside`). Strongest first.
+ */
 export function mergeTones(tones: Tone[]): Tone[] {
   const out = [...tones].sort((a, b) => a.times[0] - b.times[0]);
   for (let i = 0; i < out.length; i++) {
@@ -132,8 +160,17 @@ export function mergeTones(tones: Tone[]): Tone[] {
       j = i;
     }
   }
-  return out.sort((a, b) => b.confidence - a.confidence);
+  const kept: Tone[] = [];
+  for (const t of out.sort((a, b) => b.confidence - a.confidence)) {
+    const louder = kept.find((k) => runsBeside(k, t));
+    if (louder) louder.beside = [...(louder.beside ?? []), t];
+    else kept.push(t);
+  }
+  return kept;
 }
+
+/** A tone and the ridges beside it: everything taken out for it. */
+export const ridgesOf = (tone: Tone): Tone[] => [tone, ...(tone.beside ?? [])];
 
 export type FindOptions = {
   trace?: TraceOptions;
@@ -283,10 +320,10 @@ export function cleanOut(audio: Audio, tones: Tone[], options: CleanOutOptions =
   let current = tones;
   for (let round = 0; round < rounds && current.length; round++) {
     options.onRound?.(round, current);
-    clean(audio, current.map((t) => curveOf(t)), options);
+    clean(audio, current.flatMap(ridgesOf).map((t) => curveOf(t)), options);
     cleaned.push(...current);
     // The chunks whose sound changed: those that reach a tone just taken out, its curve's ends included.
-    const touched = current.map((t) => ({ start: t.times[0] - EXTEND - 1, end: t.times[t.times.length - 1] + EXTEND + 1 }));
+    const touched = current.flatMap(ridgesOf).map((t) => ({ start: t.times[0] - EXTEND - 1, end: t.times[t.times.length - 1] + EXTEND + 1 }));
     const changed = chunks.filter((c) => touched.some((s) => s.start * ANALYSIS_RATE <= c.end && s.end * ANALYSIS_RATE >= c.start));
     current = findTones(read, changed, ANALYSIS_RATE, options.find);
   }

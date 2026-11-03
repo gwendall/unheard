@@ -62,7 +62,8 @@ describe("toneOf and curveOf", () => {
     expect(t.freq[99]).toBeCloseTo(110.1, 4);
     expect(t.confidence).toBe(7);
 
-    const curve = curveOf(t);
+    const c = curveOf(t);
+    const curve = { times: Array.from(c.times), freq: Array.from(c.freq) };
     // The tone's own frames, then 2 s more at either end along its slope.
     expect(curve.times.length).toBe(100 + 16);
     expect(curve.times[0]).toBeCloseTo(t.times[0] - 2, 9);
@@ -95,12 +96,25 @@ describe("mergeTones", () => {
     expect(joined.confidence).toBe(12);
   });
 
-  it("keeps apart tones at other pitches, and pieces that do not meet", () => {
-    const a = tone(0, falling(0, 80, 100), 9);
+  it("keeps a ridge that runs beside a louder one with it: a near pitch or a harmonic, parallel", () => {
+    const loud = tone(0, falling(0, 120, 100), 40);
+    const leak = tone(2, falling(2, 100, 103), 9);
     const harmonic = tone(5, falling(5, 80, 200), 12);
+    const [one, ...rest] = mergeTones([leak, loud, harmonic]);
+    expect(rest).toEqual([]);
+    expect(one.confidence).toBe(40);
+    expect(one.beside?.map((t) => t.confidence)).toEqual([12, 9]);
+  });
+
+  it("keeps apart other pitches, crossing tones and pieces that do not meet", () => {
+    const a = tone(0, falling(0, 80, 100), 9);
+    const other = tone(5, falling(5, 80, 130), 12);
+    // About as high, but rising while the other falls: another source.
+    const crossing = tone(0, Array.from({ length: 80 }, (_, i) => 98 * Math.exp(0.001 * i)), 7);
     const later = tone(30, falling(30, 80, 100), 5);
-    const out = mergeTones([a, harmonic, later]);
-    expect(out.map((t) => t.confidence)).toEqual([12, 9, 5]);
+    const out = mergeTones([a, other, crossing, later]);
+    expect(out.map((t) => t.confidence)).toEqual([12, 9, 7, 5]);
+    expect(out.every((t) => !t.beside)).toBe(true);
   });
 });
 
