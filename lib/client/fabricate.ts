@@ -11,7 +11,8 @@ export type Actor = { meta: AircraftMeta; flyby: Flyby };
 const FT = 0.3048;
 const KT = 1852 / 3600;
 
-function polled(meta: AircraftMeta, f: Fix): PolledAircraft {
+/** One aircraft as a poll reports it, from a fix. */
+export function polled(meta: AircraftMeta, f: Fix): PolledAircraft {
   const [ve, vn, vu] = f.velocity;
   return {
     hex: meta.hex,

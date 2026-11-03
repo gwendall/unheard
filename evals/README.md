@@ -63,3 +63,12 @@ request, CI posts this run's counts next to the base branch's (`scripts/eval-del
     `vercel env pull .env.local`) pulls them into `evals/.cache/donations/`, checks each with
     `lib/donation.ts`, and the real-audio eval replays those with a truth. They stay private
     until a review cuts out voices.
+- `somewhere-else` (`evals/lib/elsewhere.ts`): the "Somewhere else" page (`lib/client/elsewhere.ts`)
+  read back. A voice note made at home gets the sky of another place (made-up flights over a
+  city, and real adsb.lol polls from `evals/fixtures/sky/`: three polls 3 s apart, as the page
+  makes them), at the faintest level the page's own check names strongly. Then `analyze()` four
+  ways: at the fake spot with the page's flight data, at the fake spot with the true tracks of
+  that minute (what someone with the full ADS-B history would use), 3 km from the fake spot (the
+  curves point to a spot, not to a city), and at home with home's own sky. It does not write
+  `evals/results.json` (the home page's scoreboard): its ratchet is the `somewhere-else` entry of
+  `evals/baseline.json`. `SEEDS=n` scenes of each sky (default 15).
