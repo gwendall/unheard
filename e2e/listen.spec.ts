@@ -65,6 +65,13 @@ test("finds the plane in a recording made through the real page", async ({ page 
   await expect(page.getByTestId("identity")).toHaveText("F-GDEM");
   await expect(page.getByTestId("facts")).toContainText("for its sound to reach you");
 
+  // Share: a desktop browser has no share sheet for files, so the picture is saved instead.
+  const [download] = await Promise.all([page.waitForEvent("download"), page.getByTestId("share").click()]);
+  expect(download.suggestedFilename()).toBe("unheard.png");
+  const card = await download.path();
+  expect(readFileSync(card).length).toBeGreaterThan(50_000);
+  if (process.env.SHOTS) await download.saveAs(`${process.env.SHOTS}/share-card.png`);
+
   // Give it to the dataset. The Blob store is mocked: what matters is what leaves the page.
   let sent = "";
   const cors = { "access-control-allow-origin": "*", "access-control-allow-headers": "*", "access-control-allow-methods": "PUT, OPTIONS" };
@@ -135,6 +142,9 @@ test("the example ends on a strong match", async ({ page }) => {
   await page.getByTestId("example").click();
   await expect(page.getByTestId("verdict")).toHaveText("It was a Cessna 172 Skyhawk.", { timeout: 60_000 });
   await expect(page.getByTestId("facts")).toContainText("the Doppler effect");
+  // The plane brought out of the recording: four times faster, filtered to its band.
+  await expect(page.getByTestId("revealed")).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByTestId("hear-it")).toContainText("four times faster");
   await page.getByTestId("curve-toggle").click();
   await expect(page.getByTestId("curve-toggle")).toHaveText("Hide the curve");
 });

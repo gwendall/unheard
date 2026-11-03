@@ -28,10 +28,71 @@ function bandOf(match: Match<AircraftMeta> | null): Band {
  * curve the flight data predicts drawn as two rails on either side of it (the line itself stays
  * visible between them).
  */
+/**
+ * Paints the evidence map, zoomed on `band`, into a w x h area of a 2D context (already scaled),
+ * with the predicted curve as two rails when `showCurve`. Also used by the share card.
+ */
+export function paintSpectrum(ctx: CanvasRenderingContext2D, w: number, h: number, analysis: Analysis, match: Match<AircraftMeta> | null, showCurve: boolean) {
+  const { spec, evidence } = analysis;
+  const band = bandOf(match);
+  const b0 = Math.max(0, Math.floor((band.lo - spec.minHz) / spec.binHz));
+  const b1 = Math.min(spec.bins - 1, Math.ceil((band.hi - spec.minHz) / spec.binHz));
+  const rows = Math.max(1, b1 - b0 + 1);
+  const image = new ImageData(Math.max(1, spec.frames), rows);
+  for (let k = 0; k < spec.frames; k++) {
+    for (let r = 0; r < rows; r++) {
+      const v = evidence[k * spec.bins + b0 + r];
+      const [red, green, blue] = colorOf((v + 0.5) / 5);
+      const o = ((rows - 1 - r) * spec.frames + k) * 4;
+      image.data[o] = red;
+      image.data[o + 1] = green;
+      image.data[o + 2] = blue;
+      image.data[o + 3] = 255;
+    }
+  }
+  const off = document.createElement("canvas");
+  off.width = image.width;
+  off.height = image.height;
+  off.getContext("2d")!.putImageData(image, 0, 0);
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
+  ctx.drawImage(off, 0, 0, w, h);
+
+  if (showCurve && match) {
+    const lo = spec.minHz + b0 * spec.binHz;
+    const hi = spec.minHz + b1 * spec.binHz;
+    const y = (f: number) => h - ((f - lo) / (hi - lo)) * h;
+    const x = (k: number) => ((k + 0.5) / spec.frames) * w;
+    const gap = Math.max(4, h * 0.035);
+    ctx.strokeStyle = "rgba(255, 181, 71, 0.95)";
+    ctx.lineWidth = Math.max(1.5, h / 190);
+    ctx.shadowColor = "rgba(255, 181, 71, 0.6)";
+    ctx.shadowBlur = 6;
+    for (const side of [-1, 1]) {
+      ctx.beginPath();
+      let open = false;
+      for (let k = 0; k < spec.frames; k++) {
+        const f = match.factor[k];
+        if (!Number.isFinite(f)) {
+          open = false;
+          continue;
+        }
+        const px = x(k);
+        const py = y(f * match.f0) + side * gap;
+        if (open) ctx.lineTo(px, py);
+        else ctx.moveTo(px, py);
+        open = true;
+      }
+      ctx.stroke();
+    }
+    ctx.shadowBlur = 0;
+  }
+}
+
 export function Spectrum({ analysis, match, showCurve }: { analysis: Analysis; match: Match<AircraftMeta> | null; showCurve: boolean }) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const band = useMemo(() => bandOf(match), [match]);
-  const { spec, evidence } = analysis;
+  const { spec } = analysis;
   const duration = spec.times[spec.frames - 1] ?? 0;
 
   useEffect(() => {
@@ -39,66 +100,14 @@ export function Spectrum({ analysis, match, showCurve }: { analysis: Analysis; m
     if (!el) return;
     const ctx = el.getContext("2d");
     if (!ctx) return;
-    const b0 = Math.max(0, Math.floor((band.lo - spec.minHz) / spec.binHz));
-    const b1 = Math.min(spec.bins - 1, Math.ceil((band.hi - spec.minHz) / spec.binHz));
-    const rows = Math.max(1, b1 - b0 + 1);
-    const image = new ImageData(Math.max(1, spec.frames), rows);
-    for (let k = 0; k < spec.frames; k++) {
-      for (let r = 0; r < rows; r++) {
-        const v = evidence[k * spec.bins + b0 + r];
-        const [red, green, blue] = colorOf((v + 0.5) / 5);
-        const o = ((rows - 1 - r) * spec.frames + k) * 4;
-        image.data[o] = red;
-        image.data[o + 1] = green;
-        image.data[o + 2] = blue;
-        image.data[o + 3] = 255;
-      }
-    }
-    const off = document.createElement("canvas");
-    off.width = image.width;
-    off.height = image.height;
-    off.getContext("2d")!.putImageData(image, 0, 0);
-
     const dpr = window.devicePixelRatio || 1;
     const w = el.clientWidth;
     const h = el.clientHeight;
     el.width = Math.round(w * dpr);
     el.height = Math.round(h * dpr);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = "high";
-    ctx.drawImage(off, 0, 0, w, h);
-
-    if (showCurve && match) {
-      const lo = spec.minHz + b0 * spec.binHz;
-      const hi = spec.minHz + b1 * spec.binHz;
-      const y = (f: number) => h - ((f - lo) / (hi - lo)) * h;
-      const x = (k: number) => ((k + 0.5) / spec.frames) * w;
-      const gap = Math.max(4, h * 0.035);
-      ctx.strokeStyle = "rgba(255, 181, 71, 0.95)";
-      ctx.lineWidth = 1.5;
-      ctx.shadowColor = "rgba(255, 181, 71, 0.6)";
-      ctx.shadowBlur = 6;
-      for (const side of [-1, 1]) {
-        ctx.beginPath();
-        let open = false;
-        for (let k = 0; k < spec.frames; k++) {
-          const f = match.factor[k];
-          if (!Number.isFinite(f)) {
-            open = false;
-            continue;
-          }
-          const px = x(k);
-          const py = y(f * match.f0) + side * gap;
-          if (open) ctx.lineTo(px, py);
-          else ctx.moveTo(px, py);
-          open = true;
-        }
-        ctx.stroke();
-      }
-      ctx.shadowBlur = 0;
-    }
-  }, [spec, evidence, band, match, showCurve]);
+    paintSpectrum(ctx, w, h, analysis, match, showCurve);
+  }, [analysis, match, showCurve]);
 
   return (
     <figure className="m-0">
