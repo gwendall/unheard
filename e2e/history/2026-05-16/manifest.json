@@ -1,0 +1,44 @@
+{
+ "format": "unheard-history/v1",
+ "build": 1,
+ "day": "2026-05-16",
+ "source": {
+  "repository": "adsblol/globe_history_2026",
+  "release": "v2026.05.16-planes-readsb-prod-0",
+  "assets": [
+   {
+    "name": "v2026.05.16-planes-readsb-prod-0.tar.aa",
+    "size": 2000000000
+   },
+   {
+    "name": "v2026.05.16-planes-readsb-prod-0.tar.ab",
+    "size": 1222527488
+   }
+  ],
+  "licence": "ODbL-1.0",
+  "attribution": "© adsb.lol contributors"
+ },
+ "types": {
+  "source": "https://github.com/wiedehopf/tar1090-db",
+  "commit": "2ab834a65f2fbde9457823e88682cd46954b8bc1"
+ },
+ "filter": "airborne, at or below 10000 ft pressure altitude (geometric when no pressure altitude), with ground speed and track; end-to-end fixture: tile 33_-112 only, around the test's spot, 18:00 to 19:00 UTC with five minutes each side",
+ "tiles": {
+  "33_-112": {
+   "lat0": 33,
+   "lon0": -112,
+   "size": 1,
+   "runs": 41,
+   "points": 7758,
+   "bytes": 50181,
+   "sha256": "0b914f9d67e8aaa22f6d907d8108dda8e7a8688c848b7a7ba37eaab5e98e4aa5",
+   "content": "ed5916e006383d99bdd193f0e56488cfc692dc0ce3282440bb75e4a26751c002"
+  }
+ },
+ "totals": {
+  "tiles": 1,
+  "aircraft": 41,
+  "points": 7758,
+  "bytes": 50181
+ }
+}

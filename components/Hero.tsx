@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useSyncExternalStore } from "react";
+import { ARCHIVE_SET } from "@/lib/archive";
 import { pathFor } from "@/lib/locales";
 import { useI18n } from "./I18n";
 import { Logbook } from "./Logbook";
@@ -54,6 +55,14 @@ export function Hero({ onListen, onExample, error, qr }: { onListen: () => void;
               →
             </span>
           </Link>
+          {ARCHIVE_SET && (
+            <Link href={pathFor(locale, "/where")} className="group w-fit text-pretty text-mute transition hover:text-ink" data-testid="where-link">
+              {m.where.link}{" "}
+              <span aria-hidden className="inline-block text-amber-soft transition group-hover:translate-x-1">
+                →
+              </span>
+            </Link>
+          )}
           <Link href={pathFor(locale, "/somewhere-else")} className="group w-fit text-pretty text-mute transition hover:text-ink" data-testid="elsewhere-link">
             {m.elsewhere.link}{" "}
             <span aria-hidden className="inline-block text-amber-soft transition group-hover:translate-x-1">

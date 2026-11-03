@@ -7,6 +7,8 @@
     "privacyTitle": "Ce qui est envoyé · Unheard",
     "checkTitle": "Vérifier une vidéo · Unheard",
     "checkDescription": "Le faible bourdonnement d'un avion au fond d'une vidéo peut la situer grâce aux données de vol. Cherchez ces sons dans une vidéo ou un fichier audio et retirez-les, dans votre navigateur : le fichier ne quitte pas votre appareil.",
+    "whereTitle": "Où a-t-on enregistré ça ? · Unheard",
+    "whereDescription": "Le bourdonnement des avions dans une vidéo ou un fichier son, rapproché d'une archive de vols, peut dire où et quand il a été enregistré. Cherchez dans votre fichier, depuis votre navigateur : il ne quitte pas votre appareil.",
     "elsewhereTitle": "Ailleurs · Unheard",
     "elsewhereDescription": "Faites croire que votre enregistrement a été fait dans une autre ville : Unheard glisse sous votre voix les vrais avions qui la survolent en ce moment, avec les courbes Doppler qu'un enquêteur comparerait aux données de vol."
   },
@@ -294,7 +296,8 @@
           "Votre enregistrement est analysé sur votre téléphone et y reste. La page demande à notre serveur les avions autour de vous avec votre position arrondie à environ 10 km, puis l'altitude du sol et la température avec votre position arrondie à environ 100 m. Unheard ne garde ni l'une ni l'autre ; les journaux de requêtes de l'hébergeur les conservent peu de temps. Pour donner leur nom aux avions (compagnie, trajet, modèle), la page interroge adsbdb.com sur les avions autour de vous par leurs codes, jamais avec votre position, et le serveur d'Unheard demande à planespotters.net une photo de celui qu'il a trouvé, par son code aussi. Rien d'autre ne quitte votre téléphone.",
           "Les avions que vous avez trouvés sont gardés dans le stockage de ce navigateur pour afficher votre liste sur l'accueil. Rien n'en est envoyé, et « Effacer » la supprime.",
           "La langue choisie dans le menu est gardée un an dans un cookie, pour que le site s'ouvre dans cette langue la fois suivante.",
-          "Sur Ailleurs, la page demande à notre serveur les avions au-dessus du lieu que vous choisissez, jamais avec votre propre position, et votre enregistrement reste sur la page."
+          "Sur Ailleurs, la page demande à notre serveur les avions au-dessus du lieu que vous choisissez, jamais avec votre propre position, et votre enregistrement reste sur la page.",
+        "Sur Où a-t-on enregistré ça ?, votre fichier reste sur la page et n'est jamais envoyé. Pour chercher, la page demande les tuiles de vols du jour et de la zone cherchés, et des tuiles de hauteur du sol pour cette zone aux données ouvertes d'Amazon. Un nom de lieu saisi part chez Open-Meteo pour le trouver sur la carte, et seulement ce nom."
         ]
       },
       {
@@ -362,5 +365,96 @@
       "no": "Nous ne cherchons pas un son au-dessus de 400 Hz à lui seul, ni le ronflement du réseau électrique (ENF), qui peut dater un enregistrement, ni rien de ce qu'une vidéo montre ou dit d'autre."
     },
     "link": "Nouveau : vérifiez si votre vidéo dit où vous êtes"
+  },
+  "where": {
+    "title": "Où a-t-on enregistré ça ?",
+    "link": "Nouveau : trouvez où une vidéo a été enregistrée",
+    "fromCheck": "Curieux de ce qu'un fichier révèle ? Trouvez où il a été enregistré.",
+    "lead": "Les avions au fond d'une vidéo ou d'un fichier son laissent un son dont la hauteur baisse quand ils passent. Rapprochés d'une archive de vols, ces sons peuvent dire où et quand il a été enregistré.",
+    "private": "Votre fichier reste dans ce navigateur : il est ouvert et analysé ici, rien n'en est envoyé, et rien n'est conservé.",
+    "offline": "L'archive de vols n'est pas encore branchée, la recherche n'est donc pas proposée. Vous pouvez quand même voir ce qu'un fichier dit de lui-même.",
+    "choose": "Choisir un fichier",
+    "drop": "ou le déposer ici",
+    "formats": "La plupart des vidéos et fichiers son : MP4, MOV, WebM, M4A, MP3, WAV.",
+    "another": "Choisir un autre fichier",
+    "gps": {
+      "title": "Ce fichier dit déjà où il a été filmé : {place}",
+      "still": "C'est ce que disent ses propres balises, et n'importe qui peut les modifier. Vous pouvez quand même le vérifier avec les avions de sa bande son.",
+      "made": "Il donne une date : {when} ({source}).",
+      "nothing": "Ce fichier ne dit rien de l'endroit où il a été filmé."
+    },
+    "fromFile": {
+      "zoned": "Jour et heure repris de la date de création du fichier, qui donne son fuseau ({source}).",
+      "utc": "Jour et heure repris de l'heure de création du fichier, en UTC ({source}). Un fichier retouché peut montrer l'heure de l'export à la place.",
+      "clock": "Jour et heure repris de l'horloge du fichier, qui ne donne pas de fuseau ({source}) : nous la lisons comme l'heure locale.",
+      "day": "Jour repris de la date du fichier ({source}), qui ne donne pas d'heure."
+    },
+    "day": "Jour",
+    "dayPick": "Choisir un jour",
+    "daysHeld": "L'archive de vols se remplit et contient pour l'instant {days} : les vols d'un jour arrivent le lendemain, les jours plus anciens quelques-uns à la fois.",
+    "dayAbsent": "La date de ce fichier, {day}, n'est pas encore dans l'archive de vols. Elle se remplit et contient pour l'instant {days} : les vols d'un jour arrivent le lendemain, les jours plus anciens quelques-uns à la fois.",
+    "dayBefore": "La date de ce fichier, {day}, est antérieure au début de l'archive de vols, le {oldest}. Elle contient pour l'instant {days}.",
+    "daysRange": "{n} jours entre le {first} et le {last}",
+    "noDays": "L'archive de vols ne contient encore aucun jour : il n'y a rien à chercher.",
+    "hour": "Heure, si vous la connaissez",
+    "zone": "Fuseau de l'heure",
+    "zones": {
+      "local": "Heure locale",
+      "utc": "UTC"
+    },
+    "hourWhy": "Une heure à peu près donne de meilleures réponses qu'une journée entière.",
+    "place": "À peu près où",
+    "placePlaceholder": "Une ville, ou des coordonnées : 48.85, 2.35",
+    "placeHint": "Nous cherchons dans un carré de 100 km autour. Un nom saisi part chez Open-Meteo pour le trouver, et seulement le nom.",
+    "placeChosen": "{place} : nous cherchons dans un carré de 100 km autour.",
+    "noPlace": "Aucun lieu à ce nom. Essayez une ville proche, ou des coordonnées.",
+    "search": "Chercher",
+    "window": "Début entre {from} et {to} UTC",
+    "steps": {
+      "open": "Ouverture du fichier...",
+      "find": "1 sur 4 : écoute des sons d'avions...",
+      "flights": "2 sur 4 : chargement des vols de ce jour et de cette zone...",
+      "search": "3 sur 4 : recherche, {n} %",
+      "refine": "4 sur 4 : affinage des meilleures réponses, {n} %"
+    },
+    "result": {
+      "sure": "Probablement ici",
+      "sureText": "Des avions entendus dans le fichier sont passés à cet endroit à ce moment, et aucune autre réponse n'en approche.",
+      "best": "Meilleure hypothèse",
+      "honest": "Cette recherche trouve le bon endroit dans environ 8 de nos 20 enregistrements de test quand l'heure est connue, moins avec le jour seul.",
+      "dayHint": "Vous avez cherché sur une journée entière. Donnez l'heure, même à peu près, et relancez : les réponses seront meilleures.",
+      "none": "Aucun son d'avion trouvé.",
+      "noneText": "Nous avons cherché le bourdonnement des avions et des hélicoptères, aucun ne ressort. Sans lui, il n'y a rien à rapprocher des vols.",
+      "onePass": "Nous n'entendons passer qu'un avion, et un passage correspond à beaucoup d'endroits : il en faut deux, à des moments différents, pour en retenir un.",
+      "nothing": "Aucun vol ne correspond à ces sons.",
+      "nothingText": "Nous avons trouvé des sons d'avions, mais aucun avion de l'archive ne leur correspond dans cette zone à ce moment. Vérifiez le jour, l'heure et le lieu.",
+      "missing": "L'archive n'a pas de vols pour le {day}.",
+      "missingText": "Elle se remplit : les vols d'un jour arrivent le lendemain, les jours plus anciens quelques-uns à la fois. Essayez un autre jour.",
+      "guesses": "Réponses",
+      "first": "Meilleure hypothèse : {place}",
+      "next": "Réponse suivante : {place}, à {distance}",
+      "later": "Réponse {n} : {place}, à {distance}",
+      "explains": { "one": "Explique {n} survol : {planes}.", "other": "Explique {n} survols : {planes}." },
+      "started": "Commencé le {day} à {utc} UTC, {local} heure locale",
+      "startedGuess": "Aurait commencé le {day} à {utc} UTC, {local} heure locale",
+      "about": "(à peu près, d'après la longitude)",
+      "osm": "Ouvrir dans OpenStreetMap",
+      "mirror": "Ou son miroir de l'autre côté de la trajectoire de l'avion, {place} : le son seul ne peut pas les départager.",
+      "here": "Ici",
+      "hereGuess": "Hypothèse",
+      "mirrorLabel": "Miroir",
+      "planes": "Les avions entendus",
+      "planesGuess": "Les avions qui expliqueraient ces sons",
+      "plane": "{type}, à {distance}, passé à {time} UTC",
+      "noType": "type inconnu",
+      "again": "Changer la recherche",
+      "check": "C'est votre vidéo ? Retirez-en les sons.",
+      "credit": "Données de vol © contributeurs adsb.lol (ODbL). Rien n'est conservé.",
+      "stored": "Rien n'est conservé."
+    },
+    "errors": {
+      "open": "Ce navigateur n'a pas pu ouvrir le son de ce fichier. Essayez un autre navigateur, ou le son seul en M4A, MP3 ou WAV.",
+      "failed": "Un problème est survenu pendant la recherche : {message}"
+    }
   }
 }

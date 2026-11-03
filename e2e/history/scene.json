@@ -1,0 +1,46 @@
+{
+ "day": "2026-05-16",
+ "hour": 18,
+ "duration": 300,
+ "lat": 33.4727,
+ "lon": -111.7187,
+ "elevation": 418,
+ "start": 1778957043,
+ "aircraft": [
+  {
+   "hex": "a48f7e",
+   "registration": "N393S",
+   "type": "B06",
+   "passes": 35,
+   "metres": 924
+  },
+  {
+   "hex": "a54d0a",
+   "registration": "N4400W",
+   "type": "P28A",
+   "passes": 73,
+   "metres": 559
+  },
+  {
+   "hex": "a2d11e",
+   "registration": "N28053",
+   "type": "P28A",
+   "passes": 110,
+   "metres": 348
+  },
+  {
+   "hex": "ace744",
+   "registration": "N930SL",
+   "type": "SR20",
+   "passes": 185,
+   "metres": 556
+  },
+  {
+   "hex": "a63de0",
+   "registration": "N501CG",
+   "type": "SR22",
+   "passes": 231,
+   "metres": 1328
+  }
+ ]
+}

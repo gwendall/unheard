@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { decodeTile, fixesOf, gunzip, kindOfDescription, KIND, loadFlights, mergeFlights, STRIDE, tileOf, tilesAround, TileWriter, type Aircraft, type Manifest } from "./history";
+import { decodeTile, fixesOf, gunzip, kindOfDescription, KIND, loadFlights, mergeFlights, readDays, STRIDE, tileOf, tilesAround, TileWriter, type Aircraft, type Manifest } from "./history";
 
 const day = Date.parse("2026-05-16T00:00:00Z") / 1000;
 
@@ -94,5 +94,31 @@ describe("history tiles", () => {
     const got = await loadFlights(async (path) => files[path] ?? null, ["2026-05-16", "2026-05-17"], { lat: 37.6, lon: -121.6, side: 20_000 });
     expect(got.flights.map((f) => f.hex)).toEqual(["a1b2c3"]);
     expect(got.missing).toEqual(["2026-05-17"]);
+  });
+});
+
+describe("the days an archive holds", () => {
+  const serving = (text: string | null) => async () => (text === null ? null : new TextEncoder().encode(text));
+
+  it("reads a list of days, in order, once each", async () => {
+    expect(await readDays(serving('["2026-09-08","2026-05-16","2026-09-08"]'))).toEqual(["2026-05-16", "2026-09-08"]);
+    expect(await readDays(serving('{"days":["2026-09-08"]}'))).toEqual(["2026-09-08"]);
+    expect(await readDays(serving('{"days":[{"day":"2026-09-08","tiles":3000}]}'))).toEqual(["2026-09-08"]);
+    expect(await readDays(serving("[]"))).toEqual([]);
+  });
+
+  it("leaves out what is not a day", async () => {
+    expect(await readDays(serving('["2026-09-08","soon",7,null]'))).toEqual(["2026-09-08"]);
+  });
+
+  it("says nothing when there is no list, or a broken one", async () => {
+    expect(await readDays(serving(null))).toBeNull();
+    expect(await readDays(serving("<Error>"))).toBeNull();
+    expect(await readDays(serving('{"tiles":1}'))).toBeNull();
+    expect(
+      await readDays(async () => {
+        throw new TypeError("Failed to fetch");
+      }),
+    ).toBeNull();
   });
 });

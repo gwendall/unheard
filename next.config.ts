@@ -7,7 +7,7 @@ import { DEFAULT_LOCALE, LANG_COOKIE, LOCALES } from "./lib/locales";
 // language when the site has it; after that, to the one picked in the language menu (the
 // unheard-lang cookie, English included). Link previews and crawlers always get the page they
 // asked for.
-const PAGES = ["", "/privacy", "/somewhere-else", "/check"];
+const PAGES = ["", "/privacy", "/somewhere-else", "/check", "/where"];
 const OTHER = LOCALES.filter((code) => code !== DEFAULT_LOCALE).join("|");
 // The first language of Accept-Language: "fr-FR,fr;q=0.9,en;q=0.8" is French.
 const FIRST = `(?<lang>${OTHER})(?:-[^,;]*)?(?:[,;].*)?`;
