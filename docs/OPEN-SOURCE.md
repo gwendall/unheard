@@ -41,6 +41,12 @@ repository goes public, and the design of the listening station.
 
 ## Go-public checklist
 
+Done on 2026-11-03, in this order: runners uninstalled (none registered), approval required for
+every outside contributor's workflows, no repository secrets, gitleaks over the whole history
+(no leak), `evals/.cache` never committed, contact unheard@gwendall.com, private vulnerability
+reporting on, Firewall rate limit on `/api/donate`, then the switch. Kept here for any other
+repository that goes the same way.
+
 Do these in order. The first one is a security issue, not a formality.
 
 1. **Uninstall the local-ci runners first.** While the repository is private its CI runs on this
@@ -65,7 +71,9 @@ Do these in order. The first one is a security issue, not a formality.
 8. **Abuse limits on donations:** today the site's Vercel Authentication is what keeps
    strangers away from `/api/donate`. Before the site opens to the public (a separate decision
    from the repository's visibility), add a Vercel Firewall rate limit on that route (a few
-   tokens per address per ten minutes) and an alert on the Blob store's size.
+   tokens per address per ten minutes) and an alert on the Blob store's size. On Vercel Hobby,
+   one rate-limit rule only (spent on `/api/donate`: 10 per address per 10 minutes), and the
+   Hobby plan has no overage billing for the Blob store.
 9. **Change the visibility**, then open the starter issues.
 
 ## The listening station

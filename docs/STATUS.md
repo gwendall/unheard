@@ -1,23 +1,26 @@
 # Status
 
-Updated 2026-11-02.
+Updated 2026-11-03.
 
 ## Where it is
 
-- Prototype, private repo `gwendall/unheard`, not deployed. Web app (Next.js 16, React 19,
-  Tailwind 4), analysis entirely in the browser (`lib/core`), two small API routes
+- Public since 2026-11-03: repository `gwendall/unheard` (MIT), site https://unheard.gwendall.com
+  (Vercel, project `unheard`, production follows `main`). Web app (Next.js 16, React 19,
+  Tailwind 4), analysis entirely in the browser (`lib/core`), three small API routes
   (`/api/aircraft`: adsb.lol with adsb.fi fallback, location rounded to 0.1°; `/api/weather`:
-  Open-Meteo elevation and temperature).
+  Open-Meteo elevation and temperature; `/api/donate`: upload tokens for donated recordings,
+  rate-limited by the Vercel Firewall at 10 per address per 10 minutes).
 - Pipeline: RTS-smoothed ADS-B tracks, emission-time Doppler model (temperature lapse, wind
   supported but unknown in production), four-window evidence stack (2 s to 0.25 s, 20 Hz to
   3.8 kHz), sweep of tone (40 Hz to 2 kHz) and clock (±2 s), score against each aircraft's own
   wrong guesses, verdict strong / possible / none.
 - Tests: unit (`pnpm test`), evals (`pnpm eval`, see `evals/README.md`), E2E in Chromium with a
   fake microphone (`pnpm e2e`).
-- Open-source prep (03/11, still private): MIT `LICENSE`, public `README.md` with a scoreboard
-  and a "What it is not" section, `CONTRIBUTING.md` (four ways to help), `CODE_OF_CONDUCT.md`,
-  `docs/OPEN-SOURCE.md` (phases, go-public checklist: uninstall the local-ci runners first,
-  listening station design).
+- Open source: MIT `LICENSE`, `README.md` with the scoreboard and a "What it is not" section,
+  `CONTRIBUTING.md` (four ways to help), `CODE_OF_CONDUCT.md` and `SECURITY.md` (reports to
+  unheard@gwendall.com, or GitHub's private vulnerability reporting), `docs/OPEN-SOURCE.md`
+  (phases, the go-public checklist as done on 03/11, listening station design). CI runs on
+  GitHub's runners; workflows from outside contributors wait for a maintainer's approval.
 
 ## Results (2026-11-02)
 
@@ -48,24 +51,25 @@ Thresholds: strong at score 9 and lead 2.5, possible at 6.5 and 1.5 (`lib/core/m
 
 1. Founder: record real flybys with `?capture=1` on a phone (a light-aircraft field, a heliport,
    an approach path), fill `truth`, commit them to `evals/fixtures/real/`. First real phone data.
-2. Deploy a protected preview so the page can be opened on a phone (getUserMedia needs HTTPS).
-3. A silent aircraft can borrow part of a loud line: in the page's example, JET881 (no sound
+2. A silent aircraft can borrow part of a loud line: in the page's example, JET881 (no sound
    at all) scores 8.6 beside the Cessna's 12.7, and the worst synthetic case with the heard
    aircraft left out of the data reached 8.19. Strong at 9 holds on every eval today, with a
    thin margin. Fix in the matcher: score each candidate again on the frames the best match
    does not explain, or ask a curve to fit its whole audible span. Then lower STRONG.
-4. Wind: Open-Meteo wind at 10 m and aloft into `Air.wind` (the synthetic eval shows wind costs
+3. Wind: Open-Meteo wind at 10 m and aloft into `Air.wind` (the synthetic eval shows wind costs
    about one score point at 8 m/s).
-5. Two aircraft heard at once (two helicopters at Adelaide): say both when both curves stand out
+4. Two aircraft heard at once (two helicopters at Adelaide): say both when both curves stand out
    and do not overlap, instead of "none" for want of a lead.
-6. Speed: the wide band costs about 4x; coarse-to-fine tone search if a phone takes more than a
+5. Speed: the wide band costs about 4x; coarse-to-fine tone search if a phone takes more than a
    few seconds.
-7. adsb.lol rate limit (about one request every 2 s per address): the API route must share one
-   upstream poll per area across users; ask adsb.lol for a key before any launch.
+6. adsb.lol rate limit (about one request every 2 s per address): the API route must share one
+   upstream poll per area across users (the site is public now; Vercel Hobby allows a single
+   rate-limit rule, spent on `/api/donate`); ask adsb.lol for a key.
 
 ## Needs the founder
 
 - Commercial or not? AeroSonicDB (CC BY-NC), ADS-B Exchange samples and OpenSky restrict
   commercial use; adsb.lol (ODbL) does not. The evals use the restricted sets only locally.
 - Request access to AeroSonicDB 3K (3,058 events): an email to its author with the project.
-- Name and domain (Unheard is a working name).
+- Donations license: CC BY 4.0 for the sound, but the anonymised tracks come from adsb.lol
+  (ODbL). Confirm the combination before the first release of the dataset.

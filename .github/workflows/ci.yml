@@ -11,20 +11,13 @@ concurrency:
 
 jobs:
   check:
-    # The local-ci Mac while the repository is private; GitHub's runners once it is public
-    # (a self-hosted runner never serves a public repository).
-    runs-on: ${{ github.event.repository.private && fromJSON('["self-hosted", "local-ci"]') || 'ubuntu-latest' }}
-    # On the Mac the job first waits in local-ci's queue (up to 3 h behind the release gate's lab
-    # lock): a shorter timeout cancels it in line and orphans its hook, as on 02/11. As ragequit.
-    timeout-minutes: ${{ github.event.repository.private && 210 || 20 }}
+    # GitHub's runners only: a self-hosted runner never serves a public repository.
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
-      # On the Mac, Node 22 and pnpm are the Mac's own (the runner's PATH), as in ragequit: two
-      # jobs running pnpm/action-setup at once share ~/setup-pnpm and break each other (02/11).
       - uses: pnpm/action-setup@v4
-        if: runner.environment == 'github-hosted'
       - uses: actions/setup-node@v4
-        if: runner.environment == 'github-hosted'
         with:
           node-version: 22
           cache: pnpm
@@ -38,8 +31,8 @@ jobs:
   eval:
     # The synthetic and real-track evals are the ratchet of the matcher (evals/baseline.json).
     # The real-audio eval needs licensed data that never enters git: it runs on demand.
-    runs-on: ${{ github.event.repository.private && fromJSON('["self-hosted", "local-ci"]') || 'ubuntu-latest' }}
-    timeout-minutes: ${{ github.event.repository.private && 210 || 30 }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
     # The eval delta comments on the pull request (a fork's token stays read-only: summary only).
     permissions:
       contents: read
@@ -49,12 +42,8 @@ jobs:
         with:
           # The merge commit and its first parent, the base branch: the delta's reference.
           fetch-depth: 2
-      # On the Mac, Node 22 and pnpm are the Mac's own (the runner's PATH), as in ragequit: two
-      # jobs running pnpm/action-setup at once share ~/setup-pnpm and break each other (02/11).
       - uses: pnpm/action-setup@v4
-        if: runner.environment == 'github-hosted'
       - uses: actions/setup-node@v4
-        if: runner.environment == 'github-hosted'
         with:
           node-version: 22
           cache: pnpm

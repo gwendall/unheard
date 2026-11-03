@@ -6,8 +6,7 @@ discussions or anywhere else on its behalf, is expected to follow it.
 
 ## Reporting
 
-Report unacceptable behaviour to the maintainers at: _contact to be set before the repository
-goes public_.
+Report unacceptable behaviour to the maintainers at unheard@gwendall.com.
 
 Reports are read by the maintainers only and handled as the Covenant's enforcement guidelines
 describe.
