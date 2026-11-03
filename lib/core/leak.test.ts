@@ -171,6 +171,16 @@ describe("findTones, lines taken along", () => {
     const tones = findTones(read, chunksOf(length), RATE, { along: null });
     expect(tones.some((t) => near(t, 13.5))).toBe(false);
   });
+
+  it("takes a line up there that runs with no tone too, without reporting it", () => {
+    // Heard at 1485 Hz only, passing 25 s earlier than the plane at 110 Hz: parallel to nothing.
+    const other = trackOf({ ...f, closestAt: START + 5, offset: 300 }, duration);
+    const both = synthesize({ start: START, duration, sampleRate: RATE, air: STANDARD_AIR, sources: [{ track, f0: 110, level: 0.25 }, { track: other, f0: 1485, level: 0.25, harmonics: [1] }], noise: 0.05, seed: 8 });
+    const r = readerOf({ channels: [both], sampleRate: RATE });
+    const tones = findTones(r.read, chunksOf(r.length));
+    expect(tones.every((t) => Math.max(...t.freq) < 400)).toBe(true);
+    expect(tones.flatMap(ridgesOf).some((t) => Math.max(...t.freq) > 1000)).toBe(true);
+  });
 });
 
 describe("readerOf", () => {

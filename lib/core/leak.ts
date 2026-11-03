@@ -198,19 +198,21 @@ export type FindOptions = {
 export const CHECK_TRACE: TraceOptions = { trimShare: 0 };
 
 /**
- * Where the check also looks, for what a tone brings along: up to 3.4 kHz (REAL_RANGE, what
- * Locate me reads). A line found there is taken out with a tone found below 400 Hz when it runs
- * parallel to it (the same aircraft), never reported on its own: alone, this range finds a line
- * in 3 of 6 two-minute white-noise files. On 7C3A50 (14:01), a Bell 412 heard at 3, 4, 5 and 7
- * times 59 Hz, the 7th at 412 Hz kept the helicopter named once the three below 400 Hz were out.
+ * Where the check also looks once a chunk holds a tone: up to 3.4 kHz (REAL_RANGE, what Locate me
+ * reads). A line found there is taken out with the tones and never reported on its own: alone,
+ * this range finds a line in 3 of 6 two-minute white-noise files, but cleaning a band of noise
+ * costs nothing, and leaving a real line costs the recording. On 7C3A50 (14:01), a Bell 412 heard
+ * at 3, 4, 5 and 7 times 59 Hz, the 7th at 412 Hz kept the helicopter named once the three below
+ * 400 Hz were out. On 7C6D29 (14:12), a B738 heard at 80 Hz for 20 s and at 2.5 to 1.5 kHz for the
+ * whole minute, the high line named it once the low one was out, loud as it was.
  */
 export const ALONG: TraceOptions = { ...REAL_RANGE, trimShare: 0, maxTraces: 8 };
 
 /**
  * The aircraft tones in `chunks` of a recording, joined across chunks, strongest first. Each chunk
  * gets the evidence stack analyze() builds, findTraces with CHECK_TRACE, and with ALONG for the
- * lines that run parallel to a tone found (in its `beside`): what the page finds is what
- * evals/leak measures.
+ * lines to take out with them (in a tone's `beside`): what the page finds is what evals/leak
+ * measures.
  */
 export function findTones(read: Reader, chunks: Chunk[], rate = ANALYSIS_RATE, options: FindOptions = {}): Tone[] {
   const found: Tone[] = [];
@@ -226,8 +228,8 @@ export function findTones(read: Reader, chunks: Chunk[], rate = ANALYSIS_RATE, o
   });
   options.onChunk?.(chunks.length, chunks.length);
   const tones = mergeTones(found);
-  // A line that runs parallel to a tone is taken out with it, unless scrub already takes it: a
-  // line already found, or one of the first harmonics of one.
+  // A line found up there goes out with the tones, with the one it runs parallel to if any, unless
+  // scrub already takes it: a line already found, or one of the first harmonics of one.
   const taken = (w: Tone) =>
     tones.flatMap(ridgesOf).some((r) => {
       const mid = parallel(r, w);
@@ -237,8 +239,8 @@ export function findTones(read: Reader, chunks: Chunk[], rate = ANALYSIS_RATE, o
     });
   for (const w of mergeTones(wide).flatMap(ridgesOf)) {
     if (taken(w)) continue;
-    const lead = tones.find((t) => parallel(t, w) !== null);
-    if (lead) lead.beside = [...(lead.beside ?? []), w];
+    const lead = tones.find((t) => parallel(t, w) !== null) ?? tones[0];
+    lead.beside = [...(lead.beside ?? []), w];
   }
   return tones;
 }

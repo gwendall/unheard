@@ -78,7 +78,7 @@ function report(name: string, title: string, outcomes: Outcome[]) {
     `# Eval leak, ${title}`,
     "",
     `${new Date().toISOString()}, ${outcomes.length} recordings, median ${[...outcomes.map((o) => o.ms)].sort((a, b) => a - b)[outcomes.length >> 1]} ms per check (find, take out, look again).`,
-    `- The check page's path with no flight data: tones found chunk by chunk (lib/core/leak.ts: 40 to 400 Hz, each ridge whole; the lines up to 3.4 kHz that run parallel to one go with it), each taken out along its curve (scrub, the band filled with noise) on the sound at its own rate, the changed chunks searched again and what they show taken out too, up to ${ROUNDS} rounds. Tones left: the whole file searched once more.`,
+    `- The check page's path with no flight data: tones found chunk by chunk (lib/core/leak.ts: 40 to 400 Hz, each ridge whole; the lines up to 3.4 kHz in a chunk that holds one go out with them), each taken out along its curve (scrub, the band filled with noise) on the sound at its own rate, the changed chunks searched again and what they show taken out too, up to ${ROUNDS} rounds. Tones left: the whole file searched once more.`,
     "- Named: analyze() with the flight data says strong or possible (any aircraft). Must be 0 after cleaning.",
     "- Named without a tone: the flight data names an aircraft, but the check found no tone to take out: what \"no aircraft tone found\" can miss.",
     "",
