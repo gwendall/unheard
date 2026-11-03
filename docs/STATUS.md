@@ -13,7 +13,8 @@ Updated 2026-11-03.
 - Pipeline: RTS-smoothed ADS-B tracks, emission-time Doppler model (temperature lapse, wind
   supported but unknown in production), four-window evidence stack (2 s to 0.25 s, 20 Hz to
   3.8 kHz), sweep of tone (40 Hz to 2 kHz) and clock (±2 s), score against each aircraft's own
-  wrong guesses, verdict strong / possible / none.
+  wrong guesses, a check of the strongest against the lines heard in the sound alone
+  (`lib/core/explain.ts`), verdict strong / possible / none.
 - Tests: unit (`pnpm test`), evals (`pnpm eval`, see `evals/README.md`), E2E in Chromium with a
   fake microphone (`pnpm e2e`).
 - Open source: MIT `LICENSE`, `README.md` with the scoreboard and a "What it is not" section,
@@ -90,13 +91,14 @@ Thresholds: strong at score 9 and lead 2.5, possible at 6.5 and 1.5 (`lib/core/m
   R50 (an EMB-145 5 km up), R51. Two false "possible" in 28 runs without the aircraft. The
   microphone is recovered from the published offsets (2 m rms), the start from the UTC ridge.
 - Speed: median 0.7 s (real audio, 60 s clips) to 2.1 s (synthetic, 120 s) per analysis in
-  Node on this Mac.
+  Node on this Mac, before the line check of 2026-11-03, which about doubles it (Next #5).
 - Somewhere else (2026-11-03, `evals/somewhere-else`, CI corpus: 15 made-up skies and 15 real
   Phoenix skies, voice notes of 30 to 60 s). The page's own check names the planted plane
   strongly in 0.90 of scenes, and never a plane it did not plant. With the true tracks of that
-  minute instead of the page's dead reckoning: 0.70. From 3 km away: 0. The planes sit 47 dB under
-  the voice (median). At home, with home's own sky, one of home's planes is named strongly in
-  0.37 of scenes: see Next #2.
+  minute instead of the page's dead reckoning: 0.83 (0.70 before the line check), and never a
+  plane it did not plant. From 3 km away: 0. The planes sit 47 dB under the voice (median). At
+  home, with home's own sky, one of home's planes is named strongly in 0.10 of scenes (0.37
+  before the line check): see Next #2.
 
 ## Where and when: the flight history (2026-11-03)
 
@@ -131,25 +133,28 @@ What the web version needs (nothing created yet, no paid resource):
 1. Founder: record real flybys with `?capture=1` on a phone (a light-aircraft field, a heliport,
    an approach path), fill `truth`, commit them to `evals/fixtures/real/`. First recordings
    made through the page itself.
-2. A silent aircraft can borrow part of a loud line: in the page's example, JET881 (no sound
-   at all) scores 8.6 beside the Cessna's 12.7, and the worst synthetic case with the heard
-   aircraft left out of the data reached 8.19. Strong at 9 holds on the synthetic, real-track
-   and real-audio evals, with a thin margin. The somewhere-else eval breaks it: its voice notes
-   carry loud lines from planes that are not in home's flight data, and read at home, one of
-   home's planes gets a strong in 11 of 30 scenes (scores 9.2 to 16.7). At the fake spot with
-   the true tracks, an E145 12.6 km away that was never planted outscored the planted Cessna
-   (22.5 to 17.8). So strong is not safe when loud planes are missing from the data (no
-   transponder, outside the polled radius): here up to eight at once, where the synthetic
-   eval's single left-out plane peaked at 8.19. Fix in the matcher: score each candidate again
-   on the frames the best match does not explain, or ask a curve to fit its whole audible
-   span. Then lower STRONG.
+2. Done 2026-11-03 (`lib/core/explain.ts`): a loud line from a plane missing from the data no
+   longer makes a plane of the data strong. Every aircraft that could be strong is checked
+   against the lines heard in the sound alone (blind traces): one whose curve follows only a
+   stretch of a line, where a straight flyby that follows the same stretch follows a good part
+   of the rest, is scored again without that line. At home with home's own sky, a strong in 3 of
+   30 scenes (was 11); with the true tracks at the fake spot, 0.83 strong and right and never a
+   plane that was not planted (was 0.70, and the E145). Nothing lost on the synthetic,
+   real-track and real-audio evals. Left, the three home strongs: home's plane runs along the
+   planted line within 2 % for all of it (synthetic-3, phoenix-9-25, tracks known throughout),
+   or for 32 s of a 58 s line, wherever its track is known (phoenix-6-22). The curves cannot
+   tell these apart; the next signal is the level (how loud a line can be from a plane that
+   far). STRONG stays at 9 until then. `analyze()` returns `unexplained`, the lines no aircraft
+   of the data explains (a plane we hear that the data does not have), for the page to say so.
 3. Wind: Open-Meteo wind at 10 m and aloft into `Air.wind` (the synthetic eval shows wind costs
    about one score point at 8 m/s).
 4. Two aircraft heard at once (two helicopters at Adelaide, a jet and a Cessna in Livermore
    R21): say both when both curves stand out and do not overlap, instead of "none" for want of
    a lead.
-5. Speed: the wide band costs about 4x; coarse-to-fine tone search if a phone takes more than a
-   few seconds.
+5. Speed: the wide band costs about 4x, and the line search of the check (blind traces up to
+   2 kHz) about twice the evidence stack (16 clips under load: stack 1.2 s, matcher 0.9 s, lines
+   2.3 s, check 0.2 s); coarse-to-fine tone search, or lines only near the candidates' tones, if
+   a phone takes more than a few seconds.
 6. adsb.lol rate limit (about one request every 2 s per address): the API route must share one
    upstream poll per area across users (the site is public now; Vercel Hobby allows a single
    rate-limit rule, spent on `/api/donate`); ask adsb.lol for a key.

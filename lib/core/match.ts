@@ -37,6 +37,9 @@ export type Match<M = unknown> = {
   range: Float32Array;
   /** The closest moment within the recording. */
   closest: { range: number; heardAt: number; delay: number } | null;
+  /** The score before the lines this aircraft does not explain were taken out of the evidence
+   * (lib/core/explain.ts); absent when it was not scored again. */
+  borrowed?: number;
 };
 
 export type Verdict<M = unknown> = {
@@ -44,6 +47,24 @@ export type Verdict<M = unknown> = {
   best: Match<M> | null;
   ranked: Match<M>[];
 };
+
+/**
+ * Evidence taken out when an aircraft is scored again: per base frame, frequency bands in Hz as
+ * [lo, hi, lo, hi, ...] sorted by lo (empty where nothing is taken out). A curve point inside a
+ * band, or within half a bin and the evidence map's reach of it, reads nothing there.
+ */
+export type Mask = Float32Array[];
+
+/** The evidence map's own reach around a frequency (lib/core/spectrogram.ts, its defaults). */
+const reachHz = (f: number) => Math.max(0.5, 0.0015 * f);
+
+function masked(bands: Float32Array, f: number, pad: number): boolean {
+  for (let i = 0; i < bands.length; i += 2) {
+    if (bands[i] - pad > f) return false;
+    if (f <= bands[i + 1] + pad) return true;
+  }
+  return false;
+}
 
 const DEFAULTS: Required<MatchOptions> = {
   f0Min: 40,
@@ -115,7 +136,7 @@ function model(spec: Spectrogram, start: number, clock: number, track: Track, ai
  * point is read from the layer whose window suits the curve's slope there: about 1 / sqrt(slope)
  * seconds, so the tone stays within one bin while the window lasts.
  */
-function score(stack: Stack, m: Model, f0: number, harmonics: number[]): number {
+function score(stack: Stack, m: Model, f0: number, harmonics: number[], mask?: Mask): number {
   const { layers } = stack;
   const top = layers.length - 1;
   const w0 = Math.log2(layers[0].window);
@@ -127,14 +148,17 @@ function score(stack: Stack, m: Model, f0: number, harmonics: number[]): number 
     const f = f0 * m.factor[k];
     let sum = 0;
     let norm = 0;
+    const bands = mask?.[k];
     for (let h = 0; h < harmonics.length; h++) {
       const li = Math.min(top, Math.max(0, Math.round(w0 + 0.5 * (m.slope[k] + lift[h]))));
       const layer = layers[li];
       const { bins, binHz, minHz } = layer.spec;
       const b = Math.round(((h + 1) * f - minHz) / binHz);
       if (b < 0 || b >= bins) continue;
-      sum += harmonics[h] * layer.evidence[layer.index[k] * bins + b];
       norm += harmonics[h] * harmonics[h];
+      // Taken out: reads as the noise around it, zero on average.
+      if (bands?.length && masked(bands, (h + 1) * f, 0.5 * binHz + reachHz((h + 1) * f))) continue;
+      sum += harmonics[h] * layer.evidence[layer.index[k] * bins + b];
     }
     if (!norm) continue;
     const w = m.weight[k];
@@ -160,7 +184,7 @@ type Peak = { score: number; f0: number; clock: number };
 
 const coarseStep = (f0: number) => Math.max(0.5, f0 * 0.003);
 
-function matchOne<M>(stack: Stack, start: number, c: Candidate<M>, air: Air, o: Required<MatchOptions>): Match<M> | null {
+function matchOne<M>(stack: Stack, start: number, c: Candidate<M>, air: Air, o: Required<MatchOptions>, mask?: Mask): Match<M> | null {
   const spec = stack.base;
   const maxHz = spec.minHz + (spec.bins - 1) * spec.binHz;
   const models = new Map<number, Model>();
@@ -185,7 +209,7 @@ function matchOne<M>(stack: Stack, start: number, c: Candidate<M>, air: Air, o: 
     for (const k of m.frames) top = Math.max(top, m.factor[k]);
     const f0Max = Math.min(o.f0Max, maxHz / top);
     for (let f0 = o.f0Min; f0 <= f0Max; f0 += coarseStep(f0)) {
-      const s = score(stack, m, f0, o.harmonics);
+      const s = score(stack, m, f0, o.harmonics, mask);
       peaks.push({ score: s, f0, clock });
     }
   }
@@ -197,7 +221,7 @@ function matchOne<M>(stack: Stack, start: number, c: Candidate<M>, air: Air, o: 
   // frame, at 300 tries spread evenly over the coarse grid.
   const stride = Math.max(1, Math.floor(peaks.length / 300));
   const nullScores: number[] = [];
-  for (let i = 0; i < peaks.length; i += stride) nullScores.push(score(stack, modelAt(peaks[i].clock), peaks[i].f0, o.harmonics));
+  for (let i = 0; i < peaks.length; i += stride) nullScores.push(score(stack, modelAt(peaks[i].clock), peaks[i].f0, o.harmonics, mask));
   const raw = Float64Array.from(nullScores).sort();
   const nullMid = raw[raw.length >> 1];
   for (let i = 0; i < raw.length; i++) raw[i] = Math.abs(raw[i] - nullMid);
@@ -222,7 +246,7 @@ function matchOne<M>(stack: Stack, start: number, c: Candidate<M>, air: Air, o: 
       const m = modelAt(clock);
       if (m.frames.length < o.minFrames) continue;
       for (let df = -step; df <= step + 1e-9; df += step / 10) {
-        const s = score(stack, m, seed.f0 + df, o.harmonics);
+        const s = score(stack, m, seed.f0 + df, o.harmonics, mask);
         if (s > best.score) best = { score: s, f0: seed.f0 + df, clock };
       }
     }
@@ -249,6 +273,16 @@ export function verdictOf<M>(ranked: Match<M>[]): Verdict<M> {
   return { kind: "none", best, ranked };
 }
 
+/** Options with their defaults; an option passed as undefined keeps its default. */
+export function matchOptions(options: MatchOptions = {}): Required<MatchOptions> {
+  return { ...DEFAULTS, ...Object.fromEntries(Object.entries(options).filter(([, v]) => v !== undefined)) } as Required<MatchOptions>;
+}
+
+/** One aircraft scored again with part of the evidence taken out (see Mask). */
+export function matchMasked<M>(stack: Stack, start: number, c: Candidate<M>, air: Air, mask: Mask, options: MatchOptions = {}): Match<M> | null {
+  return matchOne(stack, start, c, air, matchOptions(options), mask);
+}
+
 /**
  * Scores every candidate against the recording and ranks them. `start` is the phone's UTC time
  * of the first sample. Yields to the event loop between aircraft so a page stays responsive.
@@ -261,8 +295,7 @@ export async function matchAll<M>(
   options: MatchOptions = {},
   onProgress?: (done: number, total: number, id: string) => void,
 ): Promise<Verdict<M>> {
-  // An option passed as undefined keeps its default.
-  const o = { ...DEFAULTS, ...Object.fromEntries(Object.entries(options).filter(([, v]) => v !== undefined)) } as Required<MatchOptions>;
+  const o = matchOptions(options);
   const ranked: Match<M>[] = [];
   for (let i = 0; i < candidates.length; i++) {
     onProgress?.(i, candidates.length, candidates[i].id);
