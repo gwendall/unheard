@@ -14,7 +14,8 @@ import { aircraftType, isTonal } from "@/lib/client/types";
 import type { Bundle } from "@/lib/bundle";
 import { Donate } from "./Donate";
 import { HearIt } from "./HearIt";
-import { Spectrum } from "./Spectrum";
+import { paintSpectrum, Spectrum } from "./Spectrum";
+import { Share } from "./Share";
 import { TrackPlot } from "./TrackPlot";
 
 export function Result({
@@ -116,6 +117,23 @@ export function Result({
           )}
           {facts && <Facts best={best} facts={facts} />}
         </div>
+      )}
+
+      {best && facts && identity && !example && (
+        <Share
+          text={`My phone ${verdict.kind === "possible" ? "probably " : ""}heard ${spoken(identity)} I couldn't hear, ${km(facts.range)} away.`}
+          card={{
+            lead: verdict.kind === "possible" ? "My phone probably heard" : "My phone heard",
+            name: spoken(identity),
+            detail,
+            facts: [
+              [km(facts.range), "from me at its closest"],
+              [height(Math.max(0, facts.height)), "above me"],
+              [seconds(facts.delay), "for its sound to reach me"],
+            ],
+            paint: (ctx, w, h) => paintSpectrum(ctx, w, h, analysis, best, true),
+          }}
+        />
       )}
 
       <HearIt rec={rec} match={best} />
