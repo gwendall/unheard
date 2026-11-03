@@ -98,6 +98,34 @@ Thresholds: strong at score 9 and lead 2.5, possible at 6.5 and 1.5 (`lib/core/m
   the voice (median). At home, with home's own sky, one of home's planes is named strongly in
   0.37 of scenes: see Next #2.
 
+## Where and when: the flight history (2026-11-03)
+
+The groundwork for "where and when was this recorded?" (colsto's idea): a day of low flights
+anyone can fetch tile by tile. Format `docs/history-format.md` (v1, ODbL 1.0, "© adsb.lol
+contributors"), builder `pnpm history:build <day> [--out dir]` (`scripts/history-index.ts`, any
+machine with Node 22), reader `lib/history.ts` (takes a fetcher: the base URL is one setting).
+
+- Proved on seven days (numbers in `evals/DATASETS.md`): a day's 3.2 to 3.9 GB tar is streamed,
+  never stored, in 18 to 65 s, parsed in 86 to 218 s of worker CPU, written in 72 to 190 s, at
+  most 3.8 GB of memory. It keeps about 47 M points of 58,000 aircraft a day, at or below
+  10,000 ft. The world weighs 254 to 345 MB a day (125 to 202 MB without jets), the contiguous
+  US 157 to 228 MB, Europe 52 to 67 MB. Tiles: median 8 kB, p99 1.8 MB, the busiest 4.7 MB
+  (none passed 5 MB, so none was split). The Bay Area is 6.7 MB a day.
+- Deterministic: the same day built twice gave byte-identical manifests (all 2,551 tile hashes).
+
+What the web version needs (nothing created yet, no paid resource):
+
+- A daily job: `pnpm history:build <yesterday>` once adsb.lol publishes the day (its release
+  lands the next morning, UTC), then an upload of the day's folder. On a GitHub runner of this
+  public repository (4 cores, 16 GB, free minutes) that is about 5 to 8 minutes.
+- Storage: 8.7 GB a month for the world (4.8 GB without jets), 105 GB a year. At Cloudflare R2's
+  list price (0.015 $ per GB-month, no egress fee, checked 2025) that is 0.13 $ after a month and
+  about 1.6 $ a month after a year; the free 10 GB covers the first month. The US alone: 5.7 GB
+  a month.
+- Reads: a search of one day over a 100 km square fetches 4 tiles, about 7 MB (the Bay Area).
+- In the page, one setting (say `NEXT_PUBLIC_HISTORY_URL`: the bucket, a folder served in
+  development, or anyone's mirror) handed to `httpFetcher`.
+
 ## Next
 
 1. Founder: record real flybys with `?capture=1` on a phone (a light-aircraft field, a heliport,
