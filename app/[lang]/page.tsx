@@ -66,11 +66,32 @@ export default async function Home({ params }: PageProps<"/[lang]">) {
           </a>
         </p>
       </section>
+      <section className="mx-auto w-full max-w-6xl px-5 pb-16 sm:px-8">
+        <Link
+          href={pathFor(lang, "/check")}
+          className="group flex flex-col gap-3 rounded-2xl border border-line bg-deep/70 p-5 transition hover:border-mute sm:flex-row sm:items-center sm:justify-between sm:gap-8"
+          data-testid="check-link"
+        >
+          <span className="flex flex-col gap-1">
+            <span className="text-lg font-semibold text-balance">{t.check.home.title}</span>
+            <span className="text-pretty text-mute">{t.check.home.text}</span>
+          </span>
+          <span className="shrink-0 font-medium text-amber-soft">
+            {t.check.home.link}{" "}
+            <span aria-hidden className="inline-block transition group-hover:translate-x-1">
+              →
+            </span>
+          </span>
+        </Link>
+      </section>
       <footer className="mx-auto mt-auto flex w-full max-w-6xl flex-wrap items-center gap-x-6 gap-y-3 px-5 pb-10 text-sm text-faint sm:px-8">
         <LanguageMenu current={lang} label={t.nav.language} full />
         <a href={REPO} className="transition hover:text-ink">
           {t.footer.github}
         </a>
+        <Link href={pathFor(lang, "/check")} className="transition hover:text-ink">
+          {t.footer.check}
+        </Link>
         <Link href={pathFor(lang, "/privacy")} className="transition hover:text-ink">
           {t.footer.privacy}
         </Link>
