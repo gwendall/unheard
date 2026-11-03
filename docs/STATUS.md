@@ -140,55 +140,60 @@ What the web version needs (nothing created yet, no paid resource):
 ## Where and when: the search (2026-11-03)
 
 `lib/core/flyby.ts` (#39: each tone read as a straight pass), `lib/core/guess.ts` (#40: one spot
-and start checked against the flights), `lib/core/wherewhen.ts` (the search), all without DOM;
+and start checked against the flights), `lib/core/tracks.ts` (the guesses, from the real tracks),
+`lib/core/wherewhen.ts` (the search), all without DOM;
 `pnpm where <audio> --day <day> --near lat,lon [--radius km]` (`scripts/where.ts`, builds a
 missing day first); eval `evals/wherewhen.eval.ts`. Given a recording, a UTC day and a square, it
-returns ranked spots with a start time, the aircraft that explain each tone, the mirror spot, and a
-flag raised only when two flyovers by two aircraft, heard apart, agree on one spot and one start,
-one aircraft ahead of every other answer.
+returns ranked spots with a start time, the aircraft that explain each tone, the mirror spot, what
+the answer is worth against the size of the search, and a flag raised only when two flyovers by two
+aircraft, heard apart, agree on one spot and one start, worth 8 nats more than the search's size
+and 3 ahead of every other answer. `--from` and `--to` narrow the day to an hour.
 
-Measured (Livermore: the 40 phone recordings, day only, squares centred on Oakland; Node on the
-founder's Mac while other sessions loaded it to a load average of 100 to 600, so times are CPU
-time; wall time ran 2 to 20 times longer):
+How a guess is made: one tone per flyover heard; for each tone and each flight in the window, the
+clock slid along the flight's real curve (turns, speed, height, terrain) from spots sampled around
+its track; a fit is worth how rarely one that good happens at a random spot and second; the flyovers
+must agree on one spot and one start, read exactly; silence prunes the rest; `locate()` does the
+fine search.
 
-- One recording, one aircraft, 100 km square (29 of the 40; the rest did not finish on the loaded
-  Mac): median error 29 km, p90 66 km; one within 1 km (R05: 512 m, start 7 s off), none within
-  500 m; all flagged unsure. 300 km (8 of them): none within 1 km, all unsure. One flyover is not
-  enough over a whole day: on R01 about 4,900 other aircraft, spots and starts fit its one pass
-  better than the truth.
-- Two recordings made at one site under 30 minutes apart (two flyovers), 100 km, 18 pairs: 2
-  found (28 m and 1 s; 129 m and 0.7 s), a third with the truth as its second answer (164 m,
-  5 s), the rest 9 to 79 km off; all flagged unsure. 300 km (3 pairs run): none within 1 km.
-- colsto's hour (Oyster Bay, 2026-09-08, 100 km square, 65 tones): best answer 64 km off, flagged
-  unsure, 372 s. At the truth the reading is right: a Cessna 208 at 8.4 km, a Piper PA-30 at 8.2 km
-  and the Beech 350 at 3.6 km explain their tones (misfit 0.07 to 0.12), no aircraft passed close
-  unheard, evidence 2.31, above every spot found (best 1.63). But no candidate lands within 500 m
-  and 30 s of it. The Pilatus PC-12 his video names never comes within 70 km of the spot in the
-  index (part of its flight is above the index's 10,000 ft ceiling).
-- The flag: raised 0 times in 59 runs, so never wrong, but it stayed down on the 3 answers
-  within 1 km too (their lead over the next spot was under one aircraft).
-- Time and memory: a 2-minute clip at 100 km (R01 from the command line, 1,615 flights, 143,000
-  candidates) takes 22 s of CPU and 0.4 GB, decoding and traces included; the eval's recordings
-  take about 20 s of CPU each. colsto's hour: under 4 minutes of CPU in all (its 65 traces found
-  chunk by chunk, 3 M candidate reads), 2 GB. A phone runs this JavaScript perhaps 2 to 3 times
-  slower (not measured yet): about a minute for a clip, too long for an hour.
+Measured (Node on the founder's Mac, shared with other sessions, so times are CPU time; 100 km
+squares, a start within 30 s for every "within"):
+
+| | before, day | day | hour |
+|---|---|---|---|
+| colsto's hour, best answer | 64 km, 24 min | 39 km, truth second (164 m, 2 s) | 55 m, 0.9 s |
+| colsto's hour, CPU | under 240 s, 2 GB | 206 s, 1.5 GB | 35 s, 1.6 GB |
+| Livermore pairs, within 250 m | 2 of 18 | 6 of 20 | 8 of 20 |
+| Livermore pairs, truth among the answers | 3 of 18 | 6 of 20 | 9 of 20 |
+| Livermore pairs, median error | 9 to 79 km when missed | 19 km | 12 km |
+| Livermore pairs, CPU p50 | about 20 s a recording | 48 s | 13 s |
+
+- An hour instead of a day: 2 more pairs of 20 and colsto's truth from second answer to first, for
+  a quarter of the CPU. It is worth 3.2 nats (ln 24).
+- The day still misses most pairs (14 of 20) and the hour 12 of 20. colsto's hour is found because
+  3 flyovers are read well there: a Cessna 208, a Piper PA-30 and the Beech 350.
+- Memory: 0.6 to 0.9 GB for a pair in Node, 1.6 GB for colsto's hour, whose stacks are held whole. A
+  phone is perhaps 2 to 3 times slower and tighter on memory: not measured.
+- One recording alone (before, day): median 29 km, one within 1 km of 29. See below for why this
+  cannot improve much; its rerun goes here when it is done.
+- The flag: raised 0 times in 42 searches of pairs and colsto, so never wrong, and down on all 15
+  right answers. Raised at 3 nats over the search, it was wrong on colsto's day (39 km off, 5.6 nats
+  over, 3.1 ahead of the truth), so it now takes 8. It does not earn its keep yet.
 
 Why it does not find more yet (measured):
 
-- The lead is rough on real passes and the search only looks where it points. The straight-pass
-  fit misses the ADS-B ground speed by more than 4 m/s in 8 of 35 Livermore recordings (the
-  Doppler sees airspeed: wind; turns), the closest moment by up to 10 s (p90; 12 s on colsto's
-  Beech), and colsto's Piper, 8 km away and turning, reads as a pass at 45 to 665 m. Widening the
-  clock to 12 s and letting the open tones raise candidates (tried on colsto: 4.6 M candidates)
-  still put none near the truth, and let a wrong spot reach 2.37.
-- When the truth is among the candidates, it does not stand out: on R23 + R22 the truth is the
-  best spot before the fine search (evidence 1.77, 164 m, 5 s) and a spot 40 km away reaches
-  1.78 after it. Busy Bay Area or Long Island traffic over 24 hours offers a near-equal
-  explanation almost anywhere.
-- Next, in order: a window of an hour (a file's date, or the user's "this afternoon") cuts the
-  rivals by 24; candidates from the real tracks instead of the straight-pass lead (every aircraft
-  within 10 km, on a coarse grid of spots and starts); measure what a ceiling of 15,000 ft adds to
-  the index for turboprops.
+- Physics: over a day at 100 km the search is 19.7 nats (spots and starts at 500 m and 10 s), an
+  hour 16.5, and one flyover read very well gives 6 to 12. One flyover cannot be told from chance,
+  two are about even over a day.
+- The data: in 8 of the Livermore recordings the lead tone cannot read at the truth for want of
+  points: the flight has a gap over 60 s in the index around the pass (R08, R24), no points near it
+  (R13, R17, R50), points only from 17 s on (R44), or its closest moment outside the clip (R57, R59).
+- The lead tone: one tone per flyover, the most confident. On R03 it jumps a harmonic (211 to 102
+  Hz), on R02 it runs past the flight's data, while a weaker tone of the same flyover reads 0.17 and
+  0.33 at the truth. Up to two tones per flyover is the next thing to try.
+- A lucky fit can lead, as on R40 + R23 over a day. Capping a fit's worth at a loss of 0.1 finds
+  that pair and misses another (still 6 of 20) but loses colsto's hour (truth second, 250 m).
+  Scanning only the distances a tone's steepest slope allows saves 10 to 25 % of the CPU and, with
+  the cap on, drops colsto's truth to 11th. Both left out.
 
 What the web version needs:
 
@@ -245,9 +250,10 @@ What the web version needs:
    answer scoring 12 or more was within 1 km every time. Medium-loud synthetic flybys (oracle 6
    to 10) still give a right trace 2 times in 10: a slower, longer-integrating search did not
    find more without false traces in noise.
-9. Where and when (core and command line, no UI yet): two flyovers at one spot are found 2 times
-   in 18 at 100 km, one alone never; next a window of an hour and candidates from the real
-   tracks (section "Where and when: the search").
+9. Where and when (core and command line, no UI yet): guesses come from the real tracks. Two
+   flyovers at one spot are found 6 times in 20 over a day at 100 km, 8 in 20 over an hour; colsto's
+   hour to 55 m with an hour given. Next: two tones per flyover, a flag that can be raised (section
+   "Where and when: the search").
 
 ## Needs the founder
 

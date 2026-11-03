@@ -96,6 +96,6 @@ for (const [i, a] of ww.answers.entries()) {
   const byHex = new Map<string, (typeof a.planes)[number]>();
   for (const p of a.planes) if (!byHex.has(p.hex) || p.f0) byHex.set(p.hex, p);
   const planes = [...byHex.values()].map((p) => `${p.registration || p.hex} (${p.type || "?"}${p.f0 ? `, ${p.f0} Hz` : ""})`).join(", ");
-  console.log(`${i + 1}. ${a.lat.toFixed(5)}, ${a.lon.toFixed(5)}  started ${iso(a.start)}  ${a.wellHeard} flyover(s) heard well (evidence ${a.evidence.toFixed(2)})  ${planes}${a.mirror ? `  mirror ${a.mirror.lat.toFixed(5)}, ${a.mirror.lon.toFixed(5)}` : ""}${a.silent.length ? `  silent: ${a.silent.join(" ")}` : ""}`);
+  console.log(`${i + 1}. ${a.lat.toFixed(5)}, ${a.lon.toFixed(5)}  started ${iso(a.start)}  ${a.wellHeard} flyover(s) heard well (worth ${a.worth.toFixed(1)} of ${ww.searched.toFixed(1)} nats)  ${planes}${a.mirror ? `  mirror ${a.mirror.lat.toFixed(5)}, ${a.mirror.lon.toFixed(5)}` : ""}${a.silent.length ? `  silent: ${a.silent.join(" ")}` : ""}`);
 }
-console.log(`\n${ww.candidates} candidates from ${ww.flights} aircraft, ${Math.round((performance.now() - t0) / 100) / 10} s. Flight data © adsb.lol contributors (ODbL 1.0).`);
+console.log(`\n${ww.candidates} fits from ${ww.flights} aircraft, ${Math.round((performance.now() - t0) / 100) / 10} s. Flight data © adsb.lol contributors (ODbL 1.0).`);
