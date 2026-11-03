@@ -53,9 +53,9 @@
       "other": "erreurs quand il dit « C'était », sur {tested} enregistrements de test, dont {nothing} sans aucun avion à trouver. Quand la trace est faible, il dit « sans doute »."
     },
     "realValue": "{hit} sur {n}",
-    "real": "vrais passages enregistrés près d'Adélaïde, bien identifiés : {strong} avec certitude, les autres en « sans doute ».",
+    "real": "vrais passages enregistrés près d'Adélaïde et à Livermore, en Californie, bien identifiés : {strong} avec certitude, les autres en « sans doute ».",
     "yoursValue": "Le vôtre",
-    "yours": "Les enregistrements faits au téléphone sont le prochain test. Après un résultat, vous pouvez donner le vôtre, sans lieu ni heure.",
+    "yours": "Les enregistrements faits sur cette page sont le prochain test. Après un résultat, vous pouvez donner le vôtre, sans lieu ni heure.",
     "measured": "Dernière mesure le {date}.",
     "scoreboard": "Tous les chiffres et leur mesure (en anglais)"
   },

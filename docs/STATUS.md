@@ -67,22 +67,30 @@ Thresholds: strong at score 9 and lead 2.5, possible at 6.5 and 1.5 (`lib/core/m
 | synthetic, CI corpus (SEEDS=30) | 36 heard, 30 empty | 0.39 | 0.50 | 0 | 0 |
 | real-tracks (Phoenix, adsb.lol) | 34 heard | 0.47 | 0.59 | 0 | 0 |
 | real-audio (AeroSonicDB, Adelaide) | 10 heard, 8 empty | 0.20 | 0.70 | 0 | 0 |
+| real-audio (Livermore phone recordings, 2026-11-03) | 41 heard, 28 empty | 0.88 | 0.90 | 0 | 0 |
 
 - Synthetic, by findability (oracle score with a perfect model): above 6, 23 of 23 named
   (18 strong), 0 wrong; 4 to 6, 4 of 6; under 4 (43 of 72, faint on purpose), 3.
 - Nothing to find: worst score 8.19 (synthetic: a loud aircraft left out of the data and a
-  decoy close to its curve), 4.41 on real audio. Strong starts at 9.
+  decoy close to its curve), 7.88 on real audio (Livermore R08 without its PA-28: a Cessna 172
+  1.2 km away, perhaps audible). Strong starts at 9.
 - Real audio: the Bell 412 helicopter twice (12.5 and 9.9, strong), a Cessna 172 (7.9),
   a Beech King Air (9.0), two 737s at 0.9 to 1.9 kHz (6.9 and 6.6), the second helicopter
   (EC135) when the Bell is left out; missed a Dash 8, a 737 and an E190 (scores 4.5 to 5.5),
   never a wrong name. The microphone position is only known to tens or hundreds of metres.
+- Livermore (Pathak 2026, CC BY 4.0, `node scripts/fetch-livermore.ts`): 40 phone recordings of
+  aircraft 0.3 to 5.7 km away. 35 named for sure, 1 as possible, 0 wrong; the right aircraft
+  ranks first in 39 of 40. Missed: R21 (a jet and a Cessna 172 heard at once, lead 1.4), R44,
+  R50 (an EMB-145 5 km up), R51. Two false "possible" in 28 runs without the aircraft. The
+  microphone is recovered from the published offsets (2 m rms), the start from the UTC ridge.
 - Speed: median 0.7 s (real audio, 60 s clips) to 2.1 s (synthetic, 120 s) per analysis in
   Node on this Mac.
 
 ## Next
 
 1. Founder: record real flybys with `?capture=1` on a phone (a light-aircraft field, a heliport,
-   an approach path), fill `truth`, commit them to `evals/fixtures/real/`. First real phone data.
+   an approach path), fill `truth`, commit them to `evals/fixtures/real/`. First recordings
+   made through the page itself.
 2. A silent aircraft can borrow part of a loud line: in the page's example, JET881 (no sound
    at all) scores 8.6 beside the Cessna's 12.7, and the worst synthetic case with the heard
    aircraft left out of the data reached 8.19. Strong at 9 holds on every eval today, with a
@@ -90,8 +98,9 @@ Thresholds: strong at score 9 and lead 2.5, possible at 6.5 and 1.5 (`lib/core/m
    does not explain, or ask a curve to fit its whole audible span. Then lower STRONG.
 3. Wind: Open-Meteo wind at 10 m and aloft into `Air.wind` (the synthetic eval shows wind costs
    about one score point at 8 m/s).
-4. Two aircraft heard at once (two helicopters at Adelaide): say both when both curves stand out
-   and do not overlap, instead of "none" for want of a lead.
+4. Two aircraft heard at once (two helicopters at Adelaide, a jet and a Cessna in Livermore
+   R21): say both when both curves stand out and do not overlap, instead of "none" for want of
+   a lead.
 5. Speed: the wide band costs about 4x; coarse-to-fine tone search if a phone takes more than a
    few seconds.
 6. adsb.lol rate limit (about one request every 2 s per address): the API route must share one
@@ -104,7 +113,7 @@ Thresholds: strong at score 9 and lead 2.5, possible at 6.5 and 1.5 (`lib/core/m
 ## Needs the founder
 
 - Commercial or not? AeroSonicDB (CC BY-NC), ADS-B Exchange samples and OpenSky restrict
-  commercial use; adsb.lol (ODbL) does not. The evals use the restricted sets only locally.
+  commercial use; adsb.lol (ODbL) and the Livermore recordings (CC BY 4.0) do not. The evals use the restricted sets only locally.
 - Request access to AeroSonicDB 3K (3,058 events): an email to its author with the project.
 - Donations license: CC BY 4.0 for the sound, but the anonymised tracks come from adsb.lol
   (ODbL). Confirm the combination before the first release of the dataset.
