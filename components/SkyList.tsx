@@ -54,9 +54,9 @@ export function SkyList({ list, ids, receivedAt, now, target }: { list: Nearby[]
           return (
             <li key={n.meta.hex} className={`flex items-center justify-between gap-4 px-4 py-3 ${n.meta.hex === target ? "bg-amber/5" : ""}`}>
               <div className="min-w-0">
-                <div className="flex items-center gap-2">
-                  {hear && <span className="size-2 shrink-0 rounded-full bg-amber" aria-label={t.audible} />}
-                  <span className="truncate font-medium">{titleOf(n, ids)}</span>
+                <div className="flex items-start gap-2">
+                  {hear && <span className="mt-2 size-2 shrink-0 rounded-full bg-amber" aria-label={t.audible} />}
+                  <span className="line-clamp-2 font-medium text-balance break-words">{titleOf(n, ids)}</span>
                 </div>
                 <div className="truncate text-sm text-faint">{detail}</div>
               </div>
