@@ -1,9 +1,9 @@
 // Where and when (lib/core/wherewhen.ts): the Livermore phone recordings searched blind, with
-// only their UTC day and a square of the Bay Area (100 km, then 300 km), against a day of
+// only their UTC day or hour and a square of the Bay Area (100 km, then 300 km), against a day of
 // adsb.lol history (scripts/history-index.ts). How far the best spot lands from the truth, how
-// far its start time, and how often the confidence flag is right.
+// far its start time, how often the confidence flag is right, what a search costs.
 //
-//   SIDES=100000,300000 ONLY=lvk-N86LP_R01 pnpm eval evals/wherewhen
+//   SIDES=100000,300000 WINDOWS=day,hour ONLY=lvk-N86LP_R01 pnpm eval evals/wherewhen
 //   ONLY=singles | pairs | colsto (or a list of them) runs one part.
 //
 // Needs evals/.cache/livermore (node scripts/fetch-livermore.ts) and the recording days indexed
@@ -20,14 +20,31 @@ import { livermoreScenarios } from "./lib/real";
 
 const SIDES = (process.env.SIDES ?? "100000,300000").split(",").map(Number);
 const ONLY = process.env.ONLY?.split(",");
+/** `day`: the UTC day. `hour`: the UTC hour holding the true start (what a file's date tells). */
+const WINDOWS = (process.env.WINDOWS ?? "day,hour").split(",") as ("day" | "hour")[];
+/** The earliest and latest start searched, for a recording `length` seconds long. */
+const windowOf = (kind: "day" | "hour", start: number, length: number): [number, number] => {
+  if (kind === "hour") return [Math.floor(start / 3600) * 3600, Math.floor(start / 3600) * 3600 + 3600];
+  const day = Math.floor(start / 86_400) * 86_400;
+  return [day, day + 86_400 - length];
+};
+/** CPU seconds spent while a search runs (this thread and the collector's). */
+const cpuOf = async <T>(work: () => Promise<T>): Promise<[T, number]> => {
+  const before = process.cpuUsage();
+  const out = await work();
+  const used = process.cpuUsage(before);
+  return [out, (used.user + used.system) / 1e6];
+};
 /** Each part writes its own report (the parts can run at once): evals/reports/wherewhen-<part>-<km>.md. */
-const reportOf = (part: string, ext = "md") => new URL(`./reports/wherewhen-${part}-${SIDES.map((x) => x / 1000).join("-")}.${ext}`, import.meta.url);
+const reportOf = (part: string, ext = "md") => new URL(`./reports/wherewhen-${part}-${SIDES.map((x) => x / 1000).join("-")}-${WINDOWS.join("-")}.${ext}`, import.meta.url);
 /** The Bay Area: the squares are centred on Oakland, not on the recordings (about 40 km east). */
 const BAY = { lat: 37.75, lon: -122.2 };
 
 type Outcome = {
   id: string;
   side: number;
+  window: "day" | "hour";
+  cpu: number;
   traces: number;
   flights: number;
   candidates: number;
@@ -71,6 +88,9 @@ const progress = (id: string) => {
     last = stage;
   };
 };
+/** The floors this eval holds to, for the 100 km square alone (evals/baseline.json). */
+const floors = (JSON.parse(readFileSync(new URL("./baseline.json", import.meta.url), "utf8")) as Record<string, Record<string, number> | undefined>).wherewhen;
+const ratcheted = SIDES.length === 1 && SIDES[0] === 100_000;
 const pct = (k: number, n: number) => (n ? `${Math.round((100 * k) / n)} %` : "-");
 const num = (x: number) => (Number.isFinite(x) ? String(Math.round(x)) : "-");
 
@@ -89,37 +109,39 @@ it("where and when", async () => {
         log(`${s.id}: ${day} not indexed`);
         continue;
       }
-      const dayStart = Date.parse(`${day}T00:00:00Z`) / 1000;
       const { flights, bytes } = await historyAround([day], BAY.lat, BAY.lon, side);
       const { segments, searched } = findSegments(s.recording.samples, s.recording.sampleRate);
       const duration = s.recording.samples.length / s.recording.sampleRate;
-      const ww = await whereWhen(segments, flights, { window: [dayStart, dayStart + 86_400 - duration], area: { ...BAY, side }, ground, air: s.recording.air, searched, probe: { lat: truth.lat, lon: truth.lon, start: s.recording.start }, onProgress: process.env.PROGRESS ? progress(s.id) : undefined });
-      const best = ww.answers[0] ?? null;
-      const dist = (p: { lat: number; lon: number }) => Math.hypot(...offsetOf(truth, p.lat, p.lon));
-      const answers = [s.truth.heard, ...(s.truth.alsoHeard ?? [])];
-      const o: Outcome = {
-        id: s.id,
-        side,
-        traces: ww.traces,
-        flights: ww.flights,
-        candidates: ww.candidates,
-        error: best ? Math.round(dist(best)) : null,
-        timeError: best ? Math.round((best.start - s.recording.start) * 10) / 10 : null,
-        rank: ww.answers.findIndex((a) => dist(a) <= 250 && Math.abs(a.start - s.recording.start) <= 30) + 1,
-        hypothesis: ww.hypotheses.findIndex((h) => dist(h) <= 500 && Math.abs(h.start - s.recording.start) <= 30) + 1,
-        mirror: best?.mirror ? Math.round(dist(best.mirror)) : null,
-        rightAircraft: best ? best.planes.some((p) => answers.includes(p.hex)) : null,
-        score: best ? Math.round(best.score * 10) / 10 : null,
-        evidence: best ? Math.round(best.evidence * 100) / 100 : null,
-        confident: ww.confident,
-        ms: ww.ms,
-        bytes,
-        probe: ww.probe,
-        flybys: ww.flybys,
-      };
-      outcomes.push(o);
-      for (const h of ww.flybys) log(`  trace ${Math.round(h.from)}-${Math.round(h.to)} s, closest at ${Math.round(h.closest)} s, ${Math.round(h.f0)} Hz, ${h.speeds.join("-")} m/s, ${h.distances.join("-")} m, ${h.candidates} candidates`);
-      log(`${o.id} ${side / 1000} km: ${o.error ?? "-"} m, ${o.timeError ?? "-"} s, rank ${o.rank}, hyp ${o.hypothesis}, evidence ${o.evidence}, score ${o.score}, ${o.confident ? "confident" : "unsure"}, ${ww.candidates} candidates, ${ww.flights} flights, ${ww.ms.total} ms, probe ${JSON.stringify(ww.probe)}`);
+      for (const window of WINDOWS) {
+        const [ww, cpu] = await cpuOf(() => whereWhen(segments, flights, { window: windowOf(window, s.recording.start, duration), area: { ...BAY, side }, ground, air: s.recording.air, searched, probe: { lat: truth.lat, lon: truth.lon, start: s.recording.start }, onProgress: process.env.PROGRESS ? progress(s.id) : undefined }));
+        const best = ww.answers[0] ?? null;
+        const dist = (p: { lat: number; lon: number }) => Math.hypot(...offsetOf(truth, p.lat, p.lon));
+        const answers = [s.truth.heard, ...(s.truth.alsoHeard ?? [])];
+        const o: Outcome = {
+          id: s.id,
+          side,
+          window,
+          cpu,
+          traces: ww.traces,
+          flights: ww.flights,
+          candidates: ww.candidates,
+          error: best ? Math.round(dist(best)) : null,
+          timeError: best ? Math.round((best.start - s.recording.start) * 10) / 10 : null,
+          rank: ww.answers.findIndex((a) => dist(a) <= 250 && Math.abs(a.start - s.recording.start) <= 30) + 1,
+          hypothesis: ww.hypotheses.findIndex((h) => dist(h) <= 500 && Math.abs(h.start - s.recording.start) <= 30) + 1,
+          mirror: best?.mirror ? Math.round(dist(best.mirror)) : null,
+          rightAircraft: best ? best.planes.some((p) => answers.includes(p.hex)) : null,
+          score: best ? Math.round(best.score * 10) / 10 : null,
+          evidence: best ? Math.round(best.worth * 10) / 10 : null,
+          confident: ww.confident,
+          ms: ww.ms,
+          bytes,
+          probe: ww.probe,
+          flybys: ww.flybys,
+        };
+        outcomes.push(o);
+        log(`${o.id} ${side / 1000} km ${window}: ${o.error ?? "-"} m, ${o.timeError ?? "-"} s, rank ${o.rank}, hyp ${o.hypothesis}, worth ${o.evidence} of ${ww.searched.toFixed(1)}, score ${o.score}, ${o.confident ? "confident" : "unsure"}, ${ww.candidates} fits, ${ww.flights} flights, ${cpu.toFixed(1)} s CPU, ${Math.round(process.memoryUsage().rss / 2 ** 20)} MB, probe ${JSON.stringify({ ...ww.probe, truth: undefined })}`);
+      }
     }
   }
 
@@ -132,28 +154,31 @@ it("where and when", async () => {
     const confRight = conf.filter((o) => (o.error ?? Infinity) <= 1000).length;
     const unsureWrong = xs.filter((o) => !o.confident && (o.error ?? Infinity) > 1000).length;
     const ms = xs.map((o) => o.ms.total);
-    return `| ${name} | ${n} | ${num(quantile(errors, 0.5))} | ${num(quantile(errors, 0.9))} | ${pct(within(100), n)} | ${pct(within(500), n)} | ${pct(within(1000), n)} | ${num(quantile(times, 0.5))} | ${pct(xs.filter((o) => o.rank > 0).length, n)} | ${pct(xs.filter((o) => o.hypothesis > 0).length, n)} | ${pct(xs.filter((o) => o.rightAircraft).length, n)} | ${conf.length ? `${confRight} of ${conf.length}` : "0"} | ${pct(confRight + unsureWrong, n)} | ${num(quantile(ms, 0.5))} / ${num(quantile(ms, 0.9))} |`;
+    const cpu = xs.map((o) => o.cpu);
+    return `| ${name} | ${n} | ${num(quantile(errors, 0.5))} | ${num(quantile(errors, 0.9))} | ${pct(within(250), n)} | ${pct(within(1000), n)} | ${num(quantile(times, 0.5))} | ${pct(xs.filter((o) => o.rank > 0).length, n)} | ${pct(xs.filter((o) => o.hypothesis > 0).length, n)} | ${pct(xs.filter((o) => o.rightAircraft).length, n)} | ${conf.length ? `${confRight} of ${conf.length}` : "0"} | ${pct(confRight + unsureWrong, n)} | ${num(quantile(cpu, 0.5))} / ${num(quantile(cpu, 0.9))} / ${num(quantile(ms, 0.5))} |`;
   };
   const lines = [
     "# Eval where and when",
     "",
-    `${new Date().toISOString()}, ${outcomes.length} runs: the Livermore phone recordings (Pathak 2026, CC BY 4.0) searched with only their UTC day and a square of the Bay Area centred on Oakland, against that day of adsb.lol history (ODbL 1.0, © adsb.lol contributors).`,
+    `${new Date().toISOString()}, ${outcomes.length} runs: the Livermore phone recordings (Pathak 2026, CC BY 4.0) searched with only their UTC day or hour and a square of the Bay Area centred on Oakland, against that day of adsb.lol history (ODbL 1.0, © adsb.lol contributors).`,
     "- Error: metres from the best answer to the microphone; within N m counts only answers whose start is also within 30 s. Time: |start error|, seconds.",
     "- Truth in answers: an answer within 250 m and 30 s. Truth in hypotheses: one of the 50 best spots and times before the fine search within 500 m and 30 s.",
-    "- Flag right: confident and within 1 km, or unsure and not. Time: wall time of the search in Node on the founder's Mac (shared, heavily loaded), the spectrogram and traces left out.",
+    "- Flag right: confident and within 1 km, or unsure and not. CPU: seconds of the search in Node on the founder's Mac, p50 and p90, then wall ms (the Mac is shared), the spectrogram and traces left out.",
     "",
-    "| square | n | median m | p90 m | <= 100 m | <= 500 m | <= 1 km | time s p50 | truth in answers | truth in hypotheses | right aircraft | confident and right | flag right | ms p50 / p90 |",
-    "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|",
-    ...SIDES.map((side) => row(`${side / 1000} km`, outcomes.filter((o) => o.side === side))),
+    "| square, window | n | median m | p90 m | <= 250 m | <= 1 km | time s p50 | truth in answers | truth in hypotheses | right aircraft | confident and right | flag right | CPU s p50 / p90 / wall ms |",
+    "|---|---|---|---|---|---|---|---|---|---|---|---|---|",
+    ...SIDES.flatMap((side) => WINDOWS.map((w) => row(`${side / 1000} km, ${w}`, outcomes.filter((o) => o.side === side && o.window === w)))),
     "",
-    "| id | square km | traces | flights | candidates | error m | time s | rank | hypothesis | mirror m | right aircraft | evidence | score | confident | ms (shape, smooth, candidates, coarse, joint, fine) | tiles kB |",
-    "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|",
-    ...outcomes.map((o) => `| ${o.id} | ${o.side / 1000} | ${o.traces} | ${o.flights} | ${o.candidates} | ${o.error ?? ""} | ${o.timeError ?? ""} | ${o.rank} | ${o.hypothesis} | ${o.mirror ?? ""} | ${o.rightAircraft ?? ""} | ${o.evidence ?? ""} | ${o.score ?? ""} | ${o.confident} | ${o.ms.total} (${o.ms.shape}, ${o.ms.smooth}, ${o.ms.candidates}, ${o.ms.coarse}, ${o.ms.joint}, ${o.ms.fine}) | ${Math.round(o.bytes / 1000)} |`),
+    "| id | square km | window | traces | flights | fits | error m | time s | rank | hypothesis | mirror m | right aircraft | worth | score | confident | CPU s | ms (shape, smooth, scan, join, joint, fine) | tiles kB |",
+    "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|",
+    ...outcomes.map((o) => `| ${o.id} | ${o.side / 1000} | ${o.window} | ${o.traces} | ${o.flights} | ${o.candidates} | ${o.error ?? ""} | ${o.timeError ?? ""} | ${o.rank} | ${o.hypothesis} | ${o.mirror ?? ""} | ${o.rightAircraft ?? ""} | ${o.evidence ?? ""} | ${o.score ?? ""} | ${o.confident} | ${o.cpu.toFixed(1)} | ${o.ms.total} (${o.ms.shape}, ${o.ms.smooth}, ${o.ms.scan}, ${o.ms.join}, ${o.ms.joint}, ${o.ms.fine}) | ${Math.round(o.bytes / 1000)} |`),
   ];
   writeFileSync(reportOf("singles"), lines.join("\n") + "\n");
   writeFileSync(reportOf("singles", "json"), JSON.stringify({ outcomes }, null, 1));
-  console.log(lines.slice(0, 10 + SIDES.length).join("\n"));
+  console.log(lines.slice(0, 8 + SIDES.length * WINDOWS.length).join("\n"));
   expect(outcomes.length).toBeGreaterThan(0);
+  // A flag raised must be right.
+  expect(outcomes.filter((o) => o.confident && ((o.error ?? Infinity) > 1000 || Math.abs(o.timeError ?? Infinity) > 30)).length).toBe(0);
 }, HOURS);
 
 /**
@@ -175,14 +200,13 @@ it("where and when: two recordings at one spot", async () => {
     if (a.tags.site === b.tags.site && dayOf(a) === dayOf(b) && gap <= 1800 && days.has(dayOf(a))) pairs.push([a, b]);
   }
   const rows: string[] = [];
-  const outcomes: { error: number | null; timeError: number | null; rank: number; confident: boolean; ms: number }[] = [];
+  const outcomes: { window: string; error: number | null; timeError: number | null; rank: number; confident: boolean; cpu: number; ms: number }[] = [];
   for (const side of SIDES) {
     const ground = await groundAround(BAY.lat, BAY.lon, side);
     for (const [a, b] of pairs) {
       const ra = a.recording;
       const rb = b.recording;
       const day = new Date(ra.start * 1000).toISOString().slice(0, 10);
-      const dayStart = Date.parse(`${day}T00:00:00Z`) / 1000;
       const { flights } = await historyAround([day], BAY.lat, BAY.lon, side);
       const sa = findSegments(ra.samples, ra.sampleRate);
       const sb = findSegments(rb.samples, rb.sampleRate);
@@ -191,33 +215,45 @@ it("where and when: two recordings at one spot", async () => {
       const end = off + rb.samples.length / rb.sampleRate;
       const searched: [number, number][] = [[0, ra.samples.length / ra.sampleRate], [off, end]];
       const truth = ra.listener;
-      const ww = await whereWhen(segments, flights, { window: [dayStart, dayStart + 86_400 - end], area: { ...BAY, side }, ground, air: ra.air, searched, probe: { lat: truth.lat, lon: truth.lon, start: ra.start } });
-      const best = ww.answers[0];
-      const error = best ? Math.round(Math.hypot(...offsetOf(truth, best.lat, best.lon))) : null;
-      const timeError = best ? Math.round((best.start - ra.start) * 10) / 10 : null;
-      // The first answer within 250 m and 30 s of the truth, 0 if none.
-      const rank = ww.answers.findIndex((x) => Math.hypot(...offsetOf(truth, x.lat, x.lon)) <= 250 && Math.abs(x.start - ra.start) <= 30) + 1;
-      outcomes.push({ error, timeError, rank, confident: ww.confident, ms: ww.ms.total });
-      const id = `${a.id.slice(4)} + ${b.id.slice(4)}`;
-      log(`pair ${id} ${side / 1000} km: ${error} m, ${timeError} s, rank ${rank}, ${ww.confident ? "confident" : "unsure"}, ${ww.candidates} candidates, ${ww.ms.total} ms, probe ${JSON.stringify(ww.probe)}`);
-      rows.push(`| ${id} | ${Math.round(off / 60)} | ${side / 1000} | ${ww.traces} | ${ww.candidates} | ${error ?? "-"} | ${timeError ?? "-"} | ${rank} | ${best ? best.evidence.toFixed(2) : "-"} | ${[...new Set(best?.planes.map((p) => p.registration || p.hex))].join(", ") ?? ""} | ${ww.confident} | ${ww.ms.total} |`);
+      for (const window of WINDOWS) {
+        const [ww, cpu] = await cpuOf(() => whereWhen(segments, flights, { window: windowOf(window, ra.start, end), area: { ...BAY, side }, ground, air: ra.air, searched, probe: { lat: truth.lat, lon: truth.lon, start: ra.start } }));
+        const best = ww.answers[0];
+        const error = best ? Math.round(Math.hypot(...offsetOf(truth, best.lat, best.lon))) : null;
+        const timeError = best ? Math.round((best.start - ra.start) * 10) / 10 : null;
+        // The first answer within 250 m and 30 s of the truth, 0 if none.
+        const rank = ww.answers.findIndex((x) => Math.hypot(...offsetOf(truth, x.lat, x.lon)) <= 250 && Math.abs(x.start - ra.start) <= 30) + 1;
+        outcomes.push({ window, error, timeError, rank, confident: ww.confident, cpu, ms: ww.ms.total });
+        const id = `${a.id.slice(4)} + ${b.id.slice(4)}`;
+        log(`pair ${id} ${side / 1000} km ${window}: ${error} m, ${timeError} s, rank ${rank}, worth ${best?.worth.toFixed(1)} of ${ww.searched.toFixed(1)}, ${ww.confident ? "confident" : "unsure"}, ${ww.candidates} fits, ${cpu.toFixed(1)} s CPU, ${Math.round(process.memoryUsage().rss / 2 ** 20)} MB, probe ${JSON.stringify({ ...ww.probe, truth: undefined })}`);
+        rows.push(`| ${id} | ${Math.round(off / 60)} | ${side / 1000} | ${window} | ${ww.traces} | ${ww.candidates} | ${error ?? "-"} | ${timeError ?? "-"} | ${rank} | ${best ? best.worth.toFixed(1) : "-"} of ${ww.searched.toFixed(1)} | ${[...new Set(best?.planes.map((p) => p.registration || p.hex))].join(", ") ?? ""} | ${ww.confident} | ${cpu.toFixed(1)} |`);
+      }
     }
   }
-  const n = outcomes.length;
-  const within = (m: number) => outcomes.filter((o) => (o.error ?? Infinity) <= m && Math.abs(o.timeError ?? Infinity) <= 30).length;
-  const conf = outcomes.filter((o) => o.confident);
-  const flagRight = outcomes.filter((o) => o.confident === ((o.error ?? Infinity) <= 1000 && Math.abs(o.timeError ?? Infinity) <= 30)).length;
+  const part = (window: string) => {
+    const xs = outcomes.filter((o) => o.window === window);
+    const n = xs.length;
+    const within = (m: number) => xs.filter((o) => (o.error ?? Infinity) <= m && Math.abs(o.timeError ?? Infinity) <= 30).length;
+    const conf = xs.filter((o) => o.confident);
+    const flagRight = xs.filter((o) => o.confident === ((o.error ?? Infinity) <= 1000 && Math.abs(o.timeError ?? Infinity) <= 30)).length;
+    return `${window}: ${n} runs, median ${num(quantile(xs.map((o) => o.error ?? Infinity), 0.5))} m, time ${num(quantile(xs.map((o) => Math.abs(o.timeError ?? Infinity)), 0.5))} s; within 250 m ${pct(within(250), n)}, 1 km ${pct(within(1000), n)} (start within 30 s); truth among the answers ${pct(xs.filter((o) => o.rank > 0).length, n)}; confident ${conf.length}, of which right ${conf.filter((o) => (o.error ?? Infinity) <= 1000).length}; flag right ${pct(flagRight, n)}; median ${num(quantile(xs.map((o) => o.cpu), 0.5))} s CPU.`;
+  };
   const lines = [
     "",
     "## Two recordings at one spot (Livermore, same site and day, under 30 minutes apart)",
     "",
-    `${pairs.length} pairs, ${n} runs: within 100 m ${pct(within(100), n)}, 500 m ${pct(within(500), n)}, 1 km ${pct(within(1000), n)} (start within 30 s); truth among the answers ${pct(outcomes.filter((o) => o.rank > 0).length, n)}; confident ${conf.length}, of which right ${conf.filter((o) => (o.error ?? Infinity) <= 1000).length}; flag right ${pct(flagRight, n)}; median ${num(quantile(outcomes.map((o) => o.ms), 0.5))} ms.`,
+    `${pairs.length} pairs.`,
     "",
-    "| pair | minutes apart | square km | traces | candidates | error m | time error s | truth's rank | evidence | planes | confident | ms |",
-    "|---|---|---|---|---|---|---|---|---|---|---|---|",
+    ...WINDOWS.flatMap((w) => [`- ${part(w)}`]),
+    "",
+    "| pair | minutes apart | square km | window | traces | fits | error m | time error s | truth's rank | worth of searched | planes | confident | CPU s |",
+    "|---|---|---|---|---|---|---|---|---|---|---|---|---|",
     ...rows,
   ];
   writeFileSync(reportOf("pairs"), "# Eval where and when\n" + lines.join("\n") + "\n");
+  const right = (o: (typeof outcomes)[number]) => (o.error ?? Infinity) <= 1000 && Math.abs(o.timeError ?? Infinity) <= 30;
+  // A flag raised must be right. The rest is a ratchet.
+  expect(outcomes.filter((o) => o.confident && !right(o)).length).toBe(0);
+  if (ratcheted && floors) for (const w of WINDOWS) expect(outcomes.filter((o) => o.window === w && right(o)).length).toBeGreaterThanOrEqual(floors[`pairs-${w}-1km`] ?? 0);
 }, HOURS);
 
 /**
@@ -241,19 +277,22 @@ it("where and when: colsto's recording", async () => {
   const found = segments.flatMap((g) => g.traces.map((tr) => `${Math.round(g.offset + g.stack.base.times[tr.from])}-${Math.round(g.offset + g.stack.base.times[tr.to])} s ${Math.round(tr.freq[tr.from])}->${Math.round(tr.freq[tr.to])} Hz (${tr.confidence.toFixed(1)})`));
   log(`colsto: ${found.length} traces in ${traceMs} ms: ${found.join(", ")}`);
   const day = "2026-09-08";
-  const dayStart = Date.parse(`${day}T00:00:00Z`) / 1000;
   const LONG_ISLAND = { lat: 40.8, lon: -73.7 };
-  const lines = ["", "## colsto's recording (Oyster Bay, NY, 2026-09-08, one hour)", "", `${found.length} traces found over the hour in ${traceMs} ms: ${found.join("; ")}.`, "", "| square | flights | candidates | error m | time error s | evidence | flyovers heard well | confident | planes | ms |", "|---|---|---|---|---|---|---|---|---|---|"];
+  const lines = ["", "## colsto's recording (Oyster Bay, NY, 2026-09-08, one hour)", "", `${found.length} traces found over the hour in ${traceMs} ms: ${found.join("; ")}.`, "", "| square | window | flights | fits | error m | time error s | worth of searched | flyovers heard well | confident | planes | CPU s |", "|---|---|---|---|---|---|---|---|---|---|---|"];
   for (const side of SIDES) {
     const ground = await groundAround(LONG_ISLAND.lat, LONG_ISLAND.lon, side);
     const { flights } = await historyAround([day], LONG_ISLAND.lat, LONG_ISLAND.lon, side);
-    const ww = await whereWhen(segments, flights, { window: [dayStart, dayStart + 86_400 - total], area: { ...LONG_ISLAND, side }, ground, air: { groundTempC: 24 }, searched: [[0, total]], probe: truth, onProgress: process.env.PROGRESS ? progress("colsto") : undefined });
-    const best = ww.answers[0];
-    const error = best ? Math.round(Math.hypot(...offsetOf(truth, best.lat, best.lon))) : null;
-    const dt = best ? Math.round((best.start - truth.start) * 10) / 10 : null;
-    log(`colsto ${side / 1000} km: ${error} m, ${dt} s, evidence ${best?.evidence.toFixed(2)}, ${ww.confident}, ${ww.candidates} candidates, probe ${JSON.stringify(ww.probe)}, ${ww.ms.total} ms`);
-    for (const a of ww.answers) log(`  ${Math.round(Math.hypot(...offsetOf(truth, a.lat, a.lon)))} m, ${Math.round(a.start - truth.start)} s, evidence ${a.evidence.toFixed(2)} (${a.wellHeard} well), score ${a.score.toFixed(1)}, ${[...new Set(a.planes.map((p) => `${p.hex} ${p.type}`))].join(" ")}, silent ${a.silent.length}`);
-    lines.push(`| ${side / 1000} km | ${ww.flights} | ${ww.candidates} | ${error ?? "-"} | ${dt ?? "-"} | ${best ? best.evidence.toFixed(2) : "-"} | ${best?.wellHeard ?? "-"} | ${ww.confident} | ${[...new Set(best?.planes.map((p) => `${p.hex} ${p.type}`))].join(", ") ?? ""} | ${ww.ms.total} |`);
+    for (const window of WINDOWS) {
+      const [ww, cpu] = await cpuOf(() => whereWhen(segments, flights, { window: windowOf(window, truth.start, total), area: { ...LONG_ISLAND, side }, ground, air: { groundTempC: 24 }, searched: [[0, total]], probe: truth, onProgress: process.env.PROGRESS ? progress("colsto") : undefined }));
+      const best = ww.answers[0];
+      const error = best ? Math.round(Math.hypot(...offsetOf(truth, best.lat, best.lon))) : null;
+      const dt = best ? Math.round((best.start - truth.start) * 10) / 10 : null;
+      log(`colsto ${side / 1000} km ${window}: ${error} m, ${dt} s, worth ${best?.worth.toFixed(1)} of ${ww.searched.toFixed(1)}, ${ww.confident}, ${ww.candidates} fits, ${cpu.toFixed(1)} s CPU, ${Math.round(process.memoryUsage().rss / 2 ** 20)} MB, probe ${JSON.stringify({ ...ww.probe, truth: undefined })}`);
+      for (const a of ww.answers) log(`  ${Math.round(Math.hypot(...offsetOf(truth, a.lat, a.lon)))} m, ${Math.round(a.start - truth.start)} s, worth ${a.worth.toFixed(1)}, evidence ${a.evidence.toFixed(2)} (${a.wellHeard} well), score ${a.score.toFixed(1)}, ${[...new Set(a.planes.map((p) => `${p.hex} ${p.type}`))].join(" ")}, silent ${a.silent.length}`);
+      if (ww.confident) expect(error ?? Infinity).toBeLessThanOrEqual(1000);
+      if (ratcheted && floors?.[`colsto-${window}-metres`]) expect(error ?? Infinity).toBeLessThanOrEqual(floors[`colsto-${window}-metres`]);
+      lines.push(`| ${side / 1000} km | ${window} | ${ww.flights} | ${ww.candidates} | ${error ?? "-"} | ${dt ?? "-"} | ${best ? best.worth.toFixed(1) : "-"} of ${ww.searched.toFixed(1)} | ${best?.wellHeard ?? "-"} | ${ww.confident} | ${[...new Set(best?.planes.map((p) => `${p.hex} ${p.type}`))].join(", ") ?? ""} | ${cpu.toFixed(1)} |`);
+    }
   }
   writeFileSync(reportOf("colsto"), "# Eval where and when\n" + lines.join("\n") + "\n");
 }, HOURS);

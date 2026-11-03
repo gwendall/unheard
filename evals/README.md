@@ -35,13 +35,14 @@ request, CI posts this run's counts next to the base branch's (`scripts/eval-del
   mirror spot, by findability and by score, and the run time.
 
 - `wherewhen` (`evals/wherewhen.eval.ts`): where and when (`lib/core/wherewhen.ts`), with no
-  clue but the UTC day and a square to search (100 km, then 300 km, `SIDES=`), against that day
-  of the flight history (`pnpm history:build <day>`). The Livermore recordings one by one, pairs
-  of them made at the same site under 30 minutes apart (two flyovers, `ONLY=pairs`), and
-  colsto's hour at Oyster Bay (`ONLY=colsto`, audio fetched by hand into `evals/.cache/colsto/`):
-  distance and start error, how often the truth is among the answers, and how often the
-  confidence flag is right. Each part writes `evals/reports/wherewhen-<part>-<km>.md`, so the
-  parts can run at once. Slow (minutes per recording); never in CI.
+  clue but the UTC day or hour (`WINDOWS=day,hour`) and a square to search (100 km, then 300 km,
+  `SIDES=`), against that day of the flight history (`pnpm history:build <day>`). The Livermore
+  recordings one by one, pairs of them made at the same site under 30 minutes apart (two
+  flyovers, `ONLY=pairs`), and colsto's hour at Oyster Bay (`ONLY=colsto`, audio fetched by hand
+  into `evals/.cache/colsto/`): distance and start error, how often the truth is among the
+  answers, how often the confidence flag is right, and the CPU time of a search. Each part writes
+  `evals/reports/wherewhen-<part>-<km>-<windows>.md`, so the parts can run at once. Slow (minutes
+  per recording); never in CI.
 
 ## Check a video
 
