@@ -52,7 +52,11 @@ export function Donate({ rec, analysis, device }: { rec: Recording; analysis: An
       <div className="flex flex-col gap-2 rounded-2xl border border-line bg-deep p-5" data-testid="donated">
         <h3 className="font-medium text-balance">Thank you, it is in.</h3>
         <p className="text-sm text-pretty text-mute">
-          Donation <span className="font-mono text-ink">{state.id}</span>. Quote it to have the recording removed.
+          Donation <span className="font-mono text-ink">{state.id}</span>. Write to{" "}
+          <a href="mailto:unheard@gwendall.com" className="text-amber-soft underline-offset-4 hover:underline">
+            unheard@gwendall.com
+          </a>{" "}
+          with it to have the recording removed.
         </p>
       </div>
     );

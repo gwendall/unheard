@@ -21,7 +21,7 @@ const SECTIONS = [
     title: "What happens to it",
     body: [
       "Each recording is checked by a program and then by a person before it joins the public dataset the project tests itself on. Parts with voices are cut out. The dataset is published under CC BY 4.0, so anyone may use it with credit.",
-      "After sending, the page shows the donation's id. Quote it to have the recording removed, before or after publication.",
+      "After sending, the page shows the donation's id. Write to unheard@gwendall.com with it to have the recording removed, before or after publication.",
     ],
   },
 ];
