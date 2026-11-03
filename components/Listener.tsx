@@ -308,8 +308,10 @@ export function Listener({ qr }: { qr: string }) {
     if (recording) {
       if (!awaited) return { title: "Listening", text: left > 0 ? `Hold still. Keep going at least ${left} more seconds.` : "Stop once a plane has passed. Propellers and rotors work best." };
       const name = titleOf(awaited, ids);
-      const t = countdown(awaited, around.receivedAt, now) + awaited.closestAt / SPEED_OF_SOUND;
-      if (t > 15) return { title: `${name} is coming`, text: `Closest in ${clock(t)}, ${km(awaited.closestAt)} from you. Hold still, microphone to the sky.` };
+      const closest = countdown(awaited, around.receivedAt, now);
+      // When its closest sound reaches the phone: what passing and passed are measured against.
+      const t = closest + awaited.closestAt / SPEED_OF_SOUND;
+      if (t > 15) return { title: `${name} is coming`, text: `Closest in ${clock(closest)}, ${km(awaited.closestAt)} from you. Hold still, microphone to the sky.` };
       if (t >= -15) return { title: `${name} is passing`, text: "Hold still: this is the part that counts." };
       const stopIn = Math.max(0, Math.ceil(t + AFTER));
       return { title: `${name} has passed`, text: left > 0 ? `Keep going ${left} more seconds.` : `Stopping on its own in ${stopIn} s, or stop now.` };
