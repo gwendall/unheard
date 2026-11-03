@@ -5,7 +5,7 @@ import { Capture, keepAwake, openMicrophone, resample } from "@/lib/audio";
 import { analyze, ANALYSIS_RATE, type Analysis, type Recording } from "@/lib/core/pipeline";
 import type { Air } from "@/lib/core/doppler";
 import type { Listener as Spot } from "@/lib/core/geo";
-import { makeBundle } from "@/lib/bundle";
+import { makeBundle, type Bundle } from "@/lib/bundle";
 import { Sky } from "@/lib/client/sky";
 import { nearbyFrom, type Nearby } from "@/lib/client/nearby";
 import { buildExample } from "@/lib/client/example";
@@ -23,7 +23,7 @@ type Phase =
   | { kind: "warming" }
   | { kind: "recording" }
   | { kind: "analyzing"; done: number; total: number }
-  | { kind: "result"; analysis: Analysis; rec: Recording; example: boolean }
+  | { kind: "result"; analysis: Analysis; rec: Recording; example: boolean; device: Bundle["device"] | null }
   | { kind: "error"; message: string };
 
 const noop = () => () => {};
@@ -147,7 +147,7 @@ export function Listener() {
     const rec: Recording = { samples, sampleRate: ANALYSIS_RATE, start: captured.start, listener: where.listener, air: where.air, polls: s.polls };
     const analysis = await analyze(rec, {}, (done, total) => setPhase({ kind: "analyzing", done, total }));
     device.current = { userAgent: navigator.userAgent, inputSampleRate, settings: settings as Record<string, unknown> };
-    setPhase({ kind: "result", analysis, rec, example: false });
+    setPhase({ kind: "result", analysis, rec, example: false, device: device.current });
   }, [teardown]);
 
   const example = useCallback(async () => {
@@ -156,7 +156,7 @@ export function Listener() {
     const rec = buildExample();
     const analysis = await analyze(rec, {}, (done, total) => setPhase({ kind: "analyzing", done, total }));
     device.current = null;
-    setPhase({ kind: "result", analysis, rec, example: true });
+    setPhase({ kind: "result", analysis, rec, example: true, device: null });
   }, []);
 
   const cancel = useCallback(async () => {
@@ -197,6 +197,7 @@ export function Listener() {
           analysis={phase.analysis}
           rec={phase.rec}
           example={phase.example}
+          device={phase.device}
           onBundle={captureMode ? () => download(phase.rec, phase.analysis) : null}
           onAgain={() => {
             setPhase({ kind: "idle" });
@@ -319,7 +320,7 @@ function Hero({ onListen, onExample, error }: { onListen: () => void; onExample:
           See an example
         </button>
       </div>
-      <p className="text-sm text-faint">Your recording never leaves your phone.</p>
+      <p className="text-sm text-faint">Your recording stays on your phone unless you choose to give it.</p>
     </div>
   );
 }
