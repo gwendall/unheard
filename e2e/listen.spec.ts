@@ -65,6 +65,13 @@ test("finds the plane in a recording made through the real page", async ({ page 
   await expect(page.getByTestId("identity")).toHaveText("F-GDEM");
   await expect(page.getByTestId("facts")).toContainText("for its sound to reach you");
 
+  // Share: a desktop browser has no share sheet for files, so the picture is saved instead.
+  const [download] = await Promise.all([page.waitForEvent("download"), page.getByTestId("share").click()]);
+  expect(download.suggestedFilename()).toBe("unheard.png");
+  const card = await download.path();
+  expect(readFileSync(card).length).toBeGreaterThan(50_000);
+  if (process.env.SHOTS) await download.saveAs(`${process.env.SHOTS}/share-card.png`);
+
   // Give it to the dataset. The Blob store is mocked: what matters is what leaves the page.
   let sent = "";
   const cors = { "access-control-allow-origin": "*", "access-control-allow-headers": "*", "access-control-allow-methods": "PUT, OPTIONS" };
