@@ -225,7 +225,17 @@ What the web version needs:
    or for 32 s of a 58 s line, wherever its track is known (phoenix-6-22). The curves cannot
    tell these apart; the next signal is the level (how loud a line can be from a plane that
    far). STRONG stays at 9 until then. `analyze()` returns `unexplained`, the lines no aircraft
-   of the data explains (a plane we hear that the data does not have), for the page to say so.
+   of the data explains, and `ghosts`, those a visitor can be told (`GHOST` in
+   `lib/core/explain.ts`, measured by `evals/ghost.eval.ts`): the flyby follows 80 % of it,
+   confidence 20, no aircraft of the data follows half of it at any tone, read as a straight pass
+   it is 300 m away or more. Told on 1 of 276 recordings with nothing to find (0 of 90 voice notes,
+   1 of 107 stretches of street sound a human labelled free of aircraft, and that one looks like a
+   far plane), 3 of 190 on the same street cut to 60 s; never with the heard plane in the data
+   (0 of 191); 23 of 38 real planes left out of the data, always the right line, read within a
+   factor of 2 in speed 28 times in 28 and in distance 25 in 28. Left: a line the data's other
+   planes could follow at some tone is not told, so a busy sky hides it; and in the E2E's made-up
+   sky, the heard plane left out, a jet at 31,000 ft can still go strong (9.9) on its line
+   (`none` or `possible` on other cuts of the same recording): the matcher's limit, not changed.
 3. Wind: Open-Meteo wind at 10 m and aloft into `Air.wind` (the synthetic eval shows wind costs
    about one score point at 8 m/s).
 4. Two aircraft heard at once (two helicopters at Adelaide, a jet and a Cessna in Livermore

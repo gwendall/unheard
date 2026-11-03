@@ -7,7 +7,7 @@
 // every ADS-B Exchange snapshot (one per 5 s, the whole world, readsb JSON like adsb.lol's)
 // from 30 s before the clip to its end, cut to 40 km around the microphone and slimmed to a Poll.
 //
-//   node scripts/fetch-aerosonic.ts
+//   node scripts/fetch-aerosonic.ts [--env]
 
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
@@ -20,6 +20,21 @@ const ROOT = new URL("../evals/.cache/aerosonic/", import.meta.url);
 const ZENODO = "https://zenodo.org/api/records/10215080/files";
 const DATE = "2023-03-01";
 mkdirSync(ROOT, { recursive: true });
+
+// --env: only the six one-hour environmental recordings and their labels (495 MB), for the ghost
+// eval's real "nothing to find" (evals/lib/ambient.ts).
+if (process.argv.includes("--env")) {
+  const env = new URL("../evals/.cache/aerosonic-env/", import.meta.url);
+  mkdirSync(env, { recursive: true });
+  for (const name of ["environment_class_mappings.csv", "env_audio.zip"]) {
+    if (existsSync(new URL(name, env))) continue;
+    const r = spawnSync("curl", ["-sSfL", "-A", "unheard-evals/0.1", "-o", new URL(name, env).pathname, `${ZENODO}/${name}/content`], { stdio: "inherit" });
+    if (r.status !== 0) throw new Error(`could not fetch ${name}`);
+  }
+  const r = spawnSync("unzip", ["-n", "-q", new URL("env_audio.zip", env).pathname, "-d", new URL("extracted/", env).pathname], { stdio: "inherit" });
+  if (r.status !== 0) throw new Error("could not unpack env_audio.zip");
+  process.exit(0);
+}
 
 async function get(url: string): Promise<Buffer> {
   for (let attempt = 1; ; attempt++) {

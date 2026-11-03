@@ -31,6 +31,7 @@ jobs:
   eval:
     # The synthetic and real-track evals are the ratchet of the matcher (evals/baseline.json);
     # somewhere-else reads back the curves the "Somewhere else" page plants.
+    # ghost holds how rarely the result page tells a line the flight data does not have by mistake.
     # The real-audio eval needs licensed data that never enters git: it runs on demand.
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -49,7 +50,7 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile --prefer-offline
-      - run: pnpm eval evals/synthetic evals/real-tracks evals/somewhere-else
+      - run: pnpm eval evals/synthetic evals/real-tracks evals/somewhere-else evals/ghost
       - name: Eval delta
         if: ${{ !cancelled() }}
         env:
