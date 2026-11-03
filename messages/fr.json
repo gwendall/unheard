@@ -358,7 +358,7 @@
     },
     "scope": {
       "title": "Ce que nous vérifions",
-      "yes": "Nous cherchons le bourdonnement des avions et des hélicoptères, de 40 Hz à 3,4 kHz, dont la hauteur baisse à leur passage : le son qui peut situer un enregistrement grâce aux données de vol. Les avions à réaction sont plus nouveaux pour nous : sur quatre vrais enregistrements de réacteurs dans nos tests, les données de vol en situaient deux, et aucun une fois nettoyé.",
+      "yes": "Nous cherchons le bourdonnement des avions et des hélicoptères, de 40 Hz à 3,4 kHz, dont la hauteur baisse à leur passage : le son qui peut situer un enregistrement grâce aux données de vol. Les avions à réaction, nous les cherchons depuis peu : sur quatre vrais enregistrements de réacteurs dans nos tests, les données de vol en situaient deux, et aucun une fois nettoyé.",
       "no": "Nous ne cherchons pas le ronflement du réseau électrique (ENF), qui peut dater un enregistrement, ni rien de ce qu'une vidéo montre ou dit d'autre."
     },
     "link": "Nouveau : vérifiez si votre vidéo dit où vous êtes"

@@ -355,7 +355,7 @@
     },
     "scope": {
       "title": "What we check",
-      "yes": "We look for the hum of planes and helicopters, 40 Hz to 3.4 kHz, whose pitch falls as they pass: the tone that can place a recording on flight data. Jets are newer to us: of four real jet recordings in our tests, flight data placed two, and neither once cleaned.",
+      "yes": "We look for the hum of planes and helicopters, 40 Hz to 3.4 kHz, whose pitch falls as they pass: the tone that can place a recording on flight data. We have only just started on jets: of four real jet recordings in our tests, flight data placed two, and neither once cleaned.",
       "no": "We do not look for the hum of the power grid (ENF), which can date a recording, or for anything else a video shows or says."
     },
     "link": "New: check whether your video gives away where you are"
