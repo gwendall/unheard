@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Analysis, Recording } from "@/lib/core/pipeline";
 import { candidatesOf } from "@/lib/core/pipeline";
+import type { Ghost } from "@/lib/core/explain";
 import { STRONG, type Match } from "@/lib/core/match";
 import type { AircraftMeta } from "@/lib/adsb";
 import { stateAt } from "@/lib/core/track";
@@ -150,6 +151,8 @@ export function Result({
         </div>
       )}
 
+      {analysis.ghosts.length > 0 && <Ghosts ghosts={analysis.ghosts} />}
+
       {best && facts && identity && !example && (
         <Share
           text={fill(verdict.kind === "possible" ? t.shareTextPossible : t.shareText, { name: spoken(identity, all.article), distance: f.km(facts.range) })}
@@ -171,10 +174,11 @@ export function Result({
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
         <div className="flex flex-col gap-3">
-          <Spectrum analysis={analysis} match={best} showCurve={showCurve} />
+          <Spectrum analysis={analysis} match={best} showCurve={showCurve} ghosts={analysis.ghosts} />
           <div className="flex flex-wrap items-center justify-between gap-3">
             <p className="text-sm text-pretty text-mute">
-              {best ? (showCurve ? t.curveShown : t.curveHidden) : t.band}
+              {best ? (showCurve ? t.curveShown : t.curveHidden) : analysis.ghosts.length ? null : t.band}
+              {analysis.ghosts.length > 0 && `${best ? " " : ""}${t.ghost.curve}`}
             </p>
             {best && (
               <button type="button" onClick={() => setShowCurve((v) => !v)} className="shrink-0 rounded-full border border-amber/50 px-4 py-2 text-sm font-medium text-amber-soft transition hover:bg-amber/10" data-testid="curve-toggle">
@@ -236,6 +240,40 @@ export function Result({
           →
         </span>
       </Link>
+    </section>
+  );
+}
+
+/** What we hear that the flight data does not have, line by line. Says "may", and leaves the verdict alone. */
+function Ghosts({ ghosts }: { ghosts: Ghost[] }) {
+  const { m, f, fill } = useI18n();
+  const t = m.result.ghost;
+  return (
+    <section className="flex flex-col gap-4 rounded-2xl border border-line bg-deep p-5" data-testid="ghost">
+      <h3 className="flex items-center gap-2.5 text-sm font-medium tracking-wide text-mute uppercase">
+        <span aria-hidden className="w-5 border-t-2 border-dashed border-ghost" />
+        {t.label}
+      </h3>
+      <p className="text-pretty text-ink">{t.text}</p>
+      <ul className="flex flex-col divide-y divide-line">
+        {ghosts.map((g) => (
+          <li key={g.from} className="py-3 first:pt-0 last:pb-0" data-testid="ghost-line">
+            <dl className="grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-4">
+              {[
+                [fill(t.range, { from: f.clock(g.from), to: f.clock(g.to) }), t.heard],
+                [fill(t.range, { from: Math.round(g.hzFrom), to: `${Math.round(g.hzTo)}\u00a0Hz` }), t.pitch],
+                [fill(t.about, { value: f.roughSpeed(g.speed) }), t.speed],
+                [fill(t.about, { value: f.roughKm(g.distance) }), t.closest],
+              ].map(([value, label]) => (
+                <div key={label} className="flex flex-col gap-0.5">
+                  <dt className="order-2 text-sm text-pretty text-faint">{label}</dt>
+                  <dd className="order-1 font-mono text-base tabular-nums text-ink">{value}</dd>
+                </div>
+              ))}
+            </dl>
+          </li>
+        ))}
+      </ul>
     </section>
   );
 }

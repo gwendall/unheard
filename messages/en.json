@@ -182,7 +182,18 @@
     "score": "The score says how far each plane's curve stands above chance in your recording. With no plane to find, no score has reached {strong} in our tests.",
     "realSky": "Listen to the real sky",
     "again": "Listen again",
-    "bundle": "Download recording bundle"
+    "bundle": "Download recording bundle",
+    "ghost": {
+      "label": "Not in the flight data",
+      "text": "We hear something pass that the flight data does not have. It may be a plane with no transponder, or another moving sound.",
+      "heard": "when we hear it",
+      "pitch": "the pitch it falls through",
+      "speed": "its speed, read as a straight pass",
+      "closest": "its closest distance, read the same way",
+      "about": "about {value}",
+      "range": "{from} to {to}",
+      "curve": "The dashed rails follow the sound the flight data does not have."
+    }
   },
   "donate": {
     "thanks": "Thank you, it is in.",

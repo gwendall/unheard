@@ -152,6 +152,7 @@ test("the example ends on a strong match", async ({ page }) => {
   await page.getByTestId("example").click();
   await expect(page.getByTestId("verdict")).toHaveText("It was a Cessna 172 Skyhawk.", { timeout: 60_000 });
   await expect(page.getByTestId("facts")).toContainText("the Doppler effect");
+  await expect(page.getByTestId("ghost")).toHaveCount(0);
   // The plane brought out of the recording: four times faster, filtered to its band.
   await expect(page.getByTestId("revealed")).toBeVisible({ timeout: 10_000 });
   await expect(page.getByTestId("hear-it")).toContainText("four times faster");
