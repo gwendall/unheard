@@ -10,7 +10,8 @@ import { Sky } from "@/lib/client/sky";
 import { nearbyFrom, type Nearby } from "@/lib/client/nearby";
 import { buildExample } from "@/lib/client/example";
 import { outlook, type Outlook } from "@/lib/client/chance";
-import { clock, height, km } from "@/lib/client/format";
+import type { Dict } from "@/lib/i18n";
+import { useFormat, useT } from "@/lib/i18n/client";
 import { Waterfall } from "./Waterfall";
 import { Hero } from "./Hero";
 import { Result } from "./Result";
@@ -36,7 +37,7 @@ type Phase =
   | { kind: "recording" }
   | { kind: "analyzing"; done: number; total: number }
   | { kind: "result"; analysis: Analysis; rec: Recording; example: boolean; device: Bundle["device"] | null }
-  | { kind: "error"; message: string };
+  | { kind: "error"; code: keyof Dict["sky"]["errors"] };
 
 const noop = () => () => {};
 const useCaptureMode = () => useSyncExternalStore(noop, () => new URLSearchParams(window.location.search).has("capture"), () => false);
@@ -57,6 +58,8 @@ async function weather(lat: number, lon: number): Promise<{ elevation: number | 
 const nextFrame = () => new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
 
 export function Listener({ qr }: { qr: string }) {
+  const t = useT().sky;
+  const f = useFormat();
   const [phase, setPhase] = useState<Phase>({ kind: "idle" });
   const [around, setAround] = useState<{ list: Nearby[]; receivedAt: number; polled: boolean }>({ list: [], receivedAt: 0, polled: false });
   const [now, setNow] = useState(0);
@@ -124,7 +127,7 @@ export function Listener({ qr }: { qr: string }) {
     try {
       at = await position();
     } catch {
-      setPhase({ kind: "error", message: "Unheard needs your location to know which planes are around you. Allow it for this site and try again." });
+      setPhase({ kind: "error", code: "location" });
       return;
     }
     const { latitude: lat, longitude: lon, altitude, altitudeAccuracy } = at.coords;
@@ -153,7 +156,7 @@ export function Listener({ qr }: { qr: string }) {
     } catch {
       await ctx.close();
       await teardown();
-      setPhase({ kind: "error", message: "Unheard needs the microphone to listen. Allow it for this site and try again." });
+      setPhase({ kind: "error", code: "microphone" });
       return;
     }
     try {
@@ -162,7 +165,7 @@ export function Listener({ qr }: { qr: string }) {
       for (const t of stream.getTracks()) t.stop();
       await ctx.close();
       await teardown();
-      setPhase({ kind: "error", message: "This browser could not open the microphone for recording. Try another browser." });
+      setPhase({ kind: "error", code: "recorder" });
       return;
     }
     setAnalyser(capture.current.analyser);
@@ -189,7 +192,7 @@ export function Listener({ qr }: { qr: string }) {
     const settings = c.settings;
     await teardown();
     if (!captured) {
-      setPhase({ kind: "error", message: "Nothing was recorded. Check that the microphone works and try again." });
+      setPhase({ kind: "error", code: "nothing" });
       return;
     }
     setPhase({ kind: "analyzing", done: 0, total: 0 });
@@ -234,12 +237,12 @@ export function Listener({ qr }: { qr: string }) {
     if (phase.kind !== "recording") return;
     const id = setInterval(() => {
       const s = capture.current?.seconds ?? 0;
-      const t = Date.now();
+      const at = Date.now();
       setElapsed(s);
-      setNow(t);
+      setNow(at);
       const { list, receivedAt } = aroundRef.current;
       const awaited = list.find((n) => n.meta.hex === targetRef.current);
-      const passed = awaited ? countdown(awaited, receivedAt, t) + awaited.closestAt / SPEED_OF_SOUND < -AFTER : false;
+      const passed = awaited ? countdown(awaited, receivedAt, at) + awaited.closestAt / SPEED_OF_SOUND < -AFTER : false;
       if (s >= MAX_SECONDS || (s >= MIN_SECONDS && passed)) void finish();
     }, 250);
     return () => clearInterval(id);
@@ -278,7 +281,7 @@ export function Listener({ qr }: { qr: string }) {
   if (phase.kind === "idle" || phase.kind === "error") {
     return (
       <Shell>
-        <Hero onListen={() => void look()} onExample={() => void example()} error={phase.kind === "error" ? phase.message : null} qr={qr} />
+        <Hero onListen={() => void look()} onExample={() => void example()} error={phase.kind === "error" ? t.errors[phase.code] : null} qr={qr} />
       </Shell>
     );
   }
@@ -287,8 +290,8 @@ export function Listener({ qr }: { qr: string }) {
     return (
       <Shell>
         <div className="flex flex-col gap-4 py-10" aria-live="polite">
-          <h2 className="text-3xl font-semibold tracking-tight text-balance sm:text-4xl">Looking for the plane in your recording</h2>
-          <p className="text-mute">{phase.total ? `Checking ${Math.min(phase.done + 1, phase.total)} of ${phase.total} planes` : "Reading the sound"}</p>
+          <h2 className="text-3xl font-semibold tracking-tight text-balance sm:text-4xl">{t.analyzing.title}</h2>
+          <p className="text-mute">{phase.total ? t.analyzing.checking(Math.min(phase.done + 1, phase.total), phase.total) : t.analyzing.reading}</p>
           <div className="h-1 w-full max-w-md overflow-hidden rounded-full bg-line">
             <div className="h-full rounded-full bg-amber transition-[width] duration-300" style={{ width: `${phase.total ? (phase.done / phase.total) * 100 : 8}%` }} />
           </div>
@@ -304,30 +307,30 @@ export function Listener({ qr }: { qr: string }) {
   const { title, text } = headline();
 
   function headline(): { title: string; text: string } {
-    if (phase.kind === "locating") return { title: "Where are you?", text: "Unheard needs your rough area to know which planes are around you. Only a square of about 10 km leaves your phone." };
-    if (phase.kind === "asking") return { title: "Allow the microphone", text: "Unheard listens for the hum of a plane. The sound stays on your phone." };
+    if (phase.kind === "locating") return t.locating;
+    if (phase.kind === "asking") return t.asking;
     if (recording) {
-      if (!awaited) return { title: "Listening", text: left > 0 ? `Hold still. Keep going at least ${left} more seconds.` : "Stop once a plane has passed. Propellers and rotors work best." };
+      if (!awaited) return { title: t.listening.title, text: left > 0 ? t.listening.hold(left) : t.listening.stop };
       const name = titleOf(awaited, ids);
       const closest = countdown(awaited, around.receivedAt, now);
       // When its closest sound reaches the phone: what passing and passed are measured against.
-      const t = closest + awaited.closestAt / SPEED_OF_SOUND;
-      if (t > 15) return { title: `${name} is coming`, text: `Closest in ${clock(closest)}, ${km(awaited.closestAt)} from you. Hold still, microphone to the sky.` };
-      if (t >= -15) return { title: `${name} is passing`, text: "Hold still: this is the part that counts." };
-      const stopIn = Math.max(0, Math.ceil(t + AFTER));
-      return { title: `${name} has passed`, text: left > 0 ? `Keep going ${left} more seconds.` : `Stopping on its own in ${stopIn} s, or stop now.` };
+      const heard = closest + awaited.closestAt / SPEED_OF_SOUND;
+      if (heard > 15) return { title: t.coming.title(name), text: t.coming.text(f.clock(closest), f.km(awaited.closestAt)) };
+      if (heard >= -15) return { title: t.passing.title(name), text: t.passing.text };
+      const stopIn = Math.max(0, Math.ceil(heard + AFTER));
+      return { title: t.passed.title(name), text: left > 0 ? t.passed.more(left) : t.passed.stopping(stopIn) };
     }
-    if (phase.kind === "paused") return { title: "Paused", text: "The page stopped watching the sky after 10 minutes, to spare the free service that tracks the planes." };
-    if (!around.polled) return { title: "Looking at the sky around you", text: "Asking for every plane within 30 km." };
+    if (phase.kind === "paused") return t.paused;
+    if (!around.polled) return t.looking;
     if (o.kind === "coming") {
-      const t = countdown(o.best, around.receivedAt, now);
-      return { title: `${titleOf(o.best, ids)} passes ${km(o.at)} from you in ${clock(Math.max(0, t))}.`, text: "Start listening now and keep your phone still, microphone to the sky. It stops on its own once the plane has passed." };
+      const left = countdown(o.best, around.receivedAt, now);
+      return { title: t.chance.title(titleOf(o.best, ids), f.km(o.at), f.clock(Math.max(0, left))), text: t.chance.text };
     }
-    if (o.kind === "passing") return { title: `${titleOf(o.best, ids)} is ${km(o.best.distance)} from you right now.`, text: "Start listening now and keep your phone still, microphone to the sky." };
-    const nearest = o.nearest ? ` The nearest, ${titleOf(o.nearest, ids)}, is ${km(o.nearest.distance)} away and ${height(Math.max(0, o.nearest.height))} up.` : "";
+    if (o.kind === "passing") return { title: t.now.title(titleOf(o.best, ids), f.km(o.best.distance)), text: t.now.text };
+    const nearest = o.nearest ? t.quiet.nearest(titleOf(o.nearest, ids), f.km(o.nearest.distance), f.height(Math.max(0, o.nearest.height))) : "";
     return o.count
-      ? { title: "Quiet sky for now", text: `${o.count} ${o.count === 1 ? "plane" : "planes"} around, none close enough to hear.${nearest} Propeller planes and helicopters within a few km work best. This page keeps watching: leave it open.` }
-      : { title: "No plane within 30 km", text: "This page keeps watching: leave it open, the list fills in as planes come." };
+      ? { title: t.quiet.title, text: t.quiet.text(o.count, nearest) }
+      : t.empty;
   }
 
   const chance = o.kind !== "quiet";
@@ -343,7 +346,7 @@ export function Listener({ qr }: { qr: string }) {
           </div>
           {recording && (
             <div className="font-mono text-3xl tabular-nums text-ink sm:text-4xl" data-testid="timer">
-              {clock(elapsed)}
+              {f.clock(elapsed)}
             </div>
           )}
         </div>
@@ -359,12 +362,12 @@ export function Listener({ qr }: { qr: string }) {
               className={`rounded-full px-6 py-3 font-medium transition disabled:opacity-40 ${chance ? "bg-amber text-night enabled:hover:bg-amber-soft" : "border border-line text-ink enabled:hover:border-mute"}`}
               data-testid="start"
             >
-              {chance ? "Start listening" : "Listen anyway"}
+              {chance ? t.start : t.anyway}
             </button>
           )}
           {phase.kind === "paused" && (
             <button type="button" onClick={() => void look()} className="rounded-full bg-amber px-6 py-3 font-medium text-night transition hover:bg-amber-soft" data-testid="watch">
-              Keep watching
+              {t.watch}
             </button>
           )}
           {(recording || phase.kind === "asking") && (
@@ -375,11 +378,11 @@ export function Listener({ qr }: { qr: string }) {
               className="rounded-full bg-amber px-6 py-3 font-medium text-night transition enabled:hover:bg-amber-soft disabled:opacity-40"
               data-testid="stop"
             >
-              Stop and find the plane
+              {t.stop}
             </button>
           )}
           <button type="button" onClick={() => void cancel()} className="rounded-full border border-line px-6 py-3 font-medium text-ink transition hover:border-mute">
-            Cancel
+            {t.cancel}
           </button>
         </div>
 

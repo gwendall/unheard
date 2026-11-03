@@ -75,6 +75,9 @@ export default async function Home({ params }: PageProps<"/[lang]">) {
         <a href="mailto:unheard@gwendall.com" className="transition hover:text-ink">
           unheard@gwendall.com
         </a>
+        <Link href={`/${t.footer.other.lang}`} hrefLang={t.footer.other.lang} lang={t.footer.other.lang} className="transition hover:text-ink">
+          {t.footer.other.label}
+        </Link>
         <a href="https://gwendall.com" className="transition hover:text-ink sm:ml-auto">
           {t.footer.madeBy}
         </a>
