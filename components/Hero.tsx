@@ -1,6 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import { useSyncExternalStore } from "react";
+import { pathFor } from "@/lib/locales";
 import { useI18n } from "./I18n";
 import { Logbook } from "./Logbook";
 
@@ -9,7 +11,8 @@ const noop = () => () => {};
 const useHydrated = () => useSyncExternalStore(noop, () => true, () => false);
 
 export function Hero({ onListen, onExample, error, qr }: { onListen: () => void; onExample: () => void; error: string | null; qr: string }) {
-  const t = useI18n().m.hero;
+  const { m, locale } = useI18n();
+  const t = m.hero;
   return (
     <div className="flex flex-col gap-8">
       <h1 className="text-5xl leading-[1.02] font-semibold tracking-tight text-balance sm:text-6xl">{t.title}</h1>
@@ -43,7 +46,15 @@ export function Hero({ onListen, onExample, error, qr }: { onListen: () => void;
             </p>
           </div>
         </div>
-        <ExampleCard onOpen={onExample} />
+        <div className="flex flex-col gap-4">
+          <ExampleCard onOpen={onExample} />
+          <Link href={pathFor(locale, "/somewhere-else")} className="group w-fit text-pretty text-mute transition hover:text-ink" data-testid="elsewhere-link">
+            {m.elsewhere.link}{" "}
+            <span aria-hidden className="inline-block text-amber-soft transition group-hover:translate-x-1">
+              →
+            </span>
+          </Link>
+        </div>
       </div>
       <Logbook />
     </div>

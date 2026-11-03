@@ -4,7 +4,9 @@
     "shareTitle": "Unheard : votre téléphone nomme l'avion qui passe au-dessus de vous",
     "description": "Levez votre téléphone vers le ciel quelques minutes. Unheard repère le faible bourdonnement d'un avion dans le bruit et vous dit lequel c'était, d'après les données de vol en direct.",
     "ogAlt": "Il y a un avion que vous n'entendez pas. Votre téléphone l'entend. Unheard le nomme. Une note ambrée lumineuse s'infléchit sur un spectrogramme bleu nuit, comme la hauteur du son d'un avion qui passe.",
-    "privacyTitle": "Ce qui est envoyé · Unheard"
+    "privacyTitle": "Ce qui est envoyé · Unheard",
+    "elsewhereTitle": "Ailleurs · Unheard",
+    "elsewhereDescription": "Faites croire que votre enregistrement a été fait dans une autre ville : Unheard glisse sous votre voix les vrais avions qui la survolent en ce moment, avec les courbes Doppler qu'un enquêteur comparerait aux données de vol."
   },
   "og": { "lines": ["Il y a un avion", "que vous n’entendez pas."], "sub": "Votre téléphone l’entend. Unheard le nomme.", "size": 84 },
   "nav": { "home": "Unheard, accueil", "language": "Langue" },
@@ -209,6 +211,71 @@
     "less": "En voir moins",
     "added": "Ajouté à vos avions sur ce téléphone ({n})."
   },
+  "elsewhere": {
+    "title": "Faites croire que votre enregistrement a été fait ailleurs.",
+    "lead": "Une vidéo a récemment localisé une caméra de surveillance grâce aux faibles courbes que les avions qui passent laissent dans son son, comparées aux données de vol. Unheard lit ces courbes. Ici, il les écrit : les vrais avions qui survolent une autre ville en ce moment, tels qu'on les entend depuis un point de cette ville, sous votre voix.",
+    "link": "Nouveau : faites croire qu'un enregistrement a été fait ailleurs",
+    "fromResult": "Faire croire qu'un enregistrement a été fait ailleurs",
+    "place": { "title": "Choisissez un lieu", "random": "N'importe où, au hasard", "coords": "Coordonnées", "coordsLabel": "Latitude et longitude", "coordsPlaceholder": "37.98, 23.73" },
+    "places": { "athens": "Athènes", "london": "Londres", "newYork": "New York", "paris": "Paris", "tokyo": "Tokyo", "saoPaulo": "São Paulo", "losAngeles": "Los Angeles", "mexicoCity": "Mexico", "lisbon": "Lisbonne", "sydney": "Sydney", "berlin": "Berlin", "rome": "Rome" },
+    "audio": {
+      "title": "Votre enregistrement",
+      "record": "Enregistrer un message vocal",
+      "file": "Choisir un fichier audio",
+      "stop": "Arrêter",
+      "voiceNote": "Message vocal",
+      "change": "Changer",
+      "note": "Il ne quitte jamais cette page. Trente secondes ou plus, c'est mieux : une courbe a besoin de temps pour s'infléchir.",
+      "trimmed": "Seules ses deux premières minutes sont utilisées."
+    },
+    "make": "Le faire sonner comme à {place}",
+    "makeRandom": "Le faire venir d'ailleurs",
+    "working": {
+      "searching": "Recherche d'une ville avec un avion assez bas : {place}",
+      "polls": "Demande des vols au-dessus de {place} ({i} sur {n})",
+      "plant": "Ajout de leurs courbes sous votre voix",
+      "check": "Vérification, comme le ferait un enquêteur"
+    },
+    "result": {
+      "chip": "Ailleurs",
+      "title": "Ces courbes désignent {place}, à {time} UTC.",
+      "spot": "Un point à {distance} {direction} centre, où {name} est passé à {range}, à {height} de haut.",
+      "conclusion": "Quiconque compare les courbes de ce fichier aux données de vol de cette minute, comme dans la vidéo, placerait le micro là.",
+      "map": "Voir le point sur une carte",
+      "listen": "Votre enregistrement, depuis {place}",
+      "listenText": "Vous ne devriez pas entendre les avions : ils sont {db} dB sous votre voix, comme un avion lointain.",
+      "plane": "L'avion ajouté, révélé",
+      "planeText": "Le même fichier {times} plus vite, filtré sur la bande de sa courbe : ce que voit l'analyse, rendu audible.",
+      "download": "Télécharger le WAV",
+      "curve": "Votre fichier, zoomé sur la bande où la note ajoutée s'infléchit. Les rails montrent la courbe que ce vol laisse, entendu depuis ce point.",
+      "proofTitle": "La preuve",
+      "proofStrong": "L'outil de comparaison d'Unheard lui-même, lancé sur ce fichier depuis ce point avec les données de vol de cette minute, répond : « {verdict} » Score {score}. La certitude commence à {strong}.",
+      "proofPossible": "L'outil de comparaison d'Unheard lui-même, lancé sur ce fichier depuis ce point avec les données de vol de cette minute, répond : « {verdict} » Score {score}, une trace faible : la certitude commence à {strong}.",
+      "proofNone": "L'outil de comparaison d'Unheard lui-même, lancé sur ce fichier depuis ce point, ne nomme clairement aucun avion (meilleur score {score}, la certitude commence à {strong}). Essayez un enregistrement plus long ou un autre lieu.",
+      "added": { "one": "{n} avion ajouté", "other": "{n} avions ajoutés" },
+      "pointed": "celui qu'elles désignent",
+      "limits": [
+        "Il ajoute des courbes. Il n'enlève pas celles des avions vraiment au-dessus de vous quand vous avez enregistré.",
+        "Entre les relevés, la trajectoire de chaque vol est prolongée à l'estime. Comparé aux vraies trajectoires de cette minute, l'avion ajouté reste nommé dans la plupart de nos scènes de test.",
+        "Vérifié là où vous avez vraiment enregistré, avec les avions de votre propre ciel, Unheard lui-même peut aussi se tromper : l'un d'eux peut emprunter une courbe ajoutée.",
+        "Tout se passe sur cette page : votre enregistrement n'est jamais envoyé."
+      ],
+      "again": "Un autre lieu",
+      "restart": "Recommencer"
+    },
+    "cardinals": ["N", "S", "E", "O"],
+    "compass": ["au nord du", "au nord-est du", "à l'est du", "au sud-est du", "au sud du", "au sud-ouest du", "à l'ouest du", "au nord-ouest du"],
+    "kinds": { "piston": "hélice", "turboprop": "turbopropulseur", "helicopter": "hélicoptère", "jet": "réacteur" },
+    "errors": {
+      "noPlane": "Aucun avion ne vole assez bas près du centre de {place} en ce moment. Essayez un autre lieu, ou n'importe où au hasard.",
+      "noPlaneAnywhere": "Aucun avion ne vole assez bas près du centre des villes essayées en ce moment. Réessayez dans quelques minutes.",
+      "flights": "Les données de vol n'ont pas répondu. Réessayez dans un instant.",
+      "decode": "Ce fichier n'a pas pu être lu comme du son. Essayez un fichier WAV, MP3 ou M4A.",
+      "microphone": "Le micro n'a pas pu s'ouvrir. Autorisez-le pour ce site, ou choisissez plutôt un fichier.",
+      "short": "Cet enregistrement est trop court : donnez-lui au moins 10 secondes.",
+      "coords": "Tapez les coordonnées sous la forme latitude, longitude, par exemple 37.98, 23.73."
+    }
+  },
   "follow": "Le suivre en direct",
   "footer": {
     "github": "Code ouvert sur GitHub",
@@ -223,7 +290,8 @@
         "body": [
           "Votre enregistrement est analysé sur votre téléphone et y reste. La page demande à notre serveur les avions autour de vous avec votre position arrondie à environ 10 km, puis l'altitude du sol et la température avec votre position arrondie à environ 100 m. Unheard ne garde ni l'une ni l'autre ; les journaux de requêtes de l'hébergeur les conservent peu de temps. Pour donner leur nom aux avions (compagnie, trajet, modèle), la page interroge adsbdb.com sur les avions autour de vous par leurs codes, jamais avec votre position, et le serveur d'Unheard demande à planespotters.net une photo de celui qu'il a trouvé, par son code aussi. Rien d'autre ne quitte votre téléphone.",
           "Les avions que vous avez trouvés sont gardés dans le stockage de ce navigateur pour afficher votre liste sur l'accueil. Rien n'en est envoyé, et « Effacer » la supprime.",
-          "La langue choisie dans le menu est gardée un an dans un cookie, pour que le site s'ouvre dans cette langue la fois suivante."
+          "La langue choisie dans le menu est gardée un an dans un cookie, pour que le site s'ouvre dans cette langue la fois suivante.",
+          "Sur Ailleurs, la page demande à notre serveur les avions au-dessus du lieu que vous choisissez, jamais avec votre propre position, et votre enregistrement reste sur la page."
         ]
       },
       {

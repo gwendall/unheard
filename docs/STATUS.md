@@ -53,6 +53,12 @@ What a visitor goes through, and where it lives:
   **Adding a language**: its `messages/<code>.json`, and a line in `LOCALES` and `LANGUAGES`
   (`lib/locales.ts`); the routes, the menu, the alternates and the check follow.
 - **Installable**: `app/manifest.ts`, generated icons (`app/icon.tsx`, `app/apple-icon.tsx`).
+- **Somewhere else** (`/somewhere-else`, `components/Elsewhere.tsx`, `lib/client/elsewhere.ts`):
+  a voice note or an audio file gets the hum of the real planes flying over another place right
+  now (one of 12 cities, one at random, or coordinates), as heard from a spot there, under the
+  voice. Three polls, 3 s apart. Then Unheard's own analysis reads the downloaded WAV back at
+  that spot and says how strongly it names the plane. Linked by one line under the home's
+  example and one under the result's buttons. The recording never leaves the phone.
 
 ## Results (2026-11-02)
 

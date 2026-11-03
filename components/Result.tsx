@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Analysis, Recording } from "@/lib/core/pipeline";
 import { candidatesOf } from "@/lib/core/pipeline";
@@ -8,6 +9,7 @@ import type { AircraftMeta } from "@/lib/adsb";
 import { stateAt } from "@/lib/core/track";
 import { norm } from "@/lib/core/geo";
 import type { Messages } from "@/lib/i18n";
+import { pathFor } from "@/lib/locales";
 import { useI18n } from "./I18n";
 import { identityOf, spoken } from "@/lib/client/names";
 import { photoOf, type Photo } from "@/lib/client/photo";
@@ -36,7 +38,7 @@ export function Result({
   onBundle: (() => void) | null;
   onAgain: () => void;
 }) {
-  const { m: all, f, fill, plural } = useI18n();
+  const { m: all, f, fill, plural, locale } = useI18n();
   const t = all.result;
   const { verdict } = analysis;
   const best = verdict.kind === "none" ? null : verdict.best;
@@ -228,6 +230,12 @@ export function Result({
           </button>
         )}
       </div>
+      <Link href={pathFor(locale, "/somewhere-else")} className="group w-fit text-sm text-pretty text-mute transition hover:text-ink" data-testid="elsewhere-link">
+        {all.elsewhere.fromResult}{" "}
+        <span aria-hidden className="inline-block text-amber-soft transition group-hover:translate-x-1">
+          →
+        </span>
+      </Link>
     </section>
   );
 }
