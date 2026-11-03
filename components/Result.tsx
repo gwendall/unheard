@@ -13,6 +13,7 @@ import { photoOf, type Photo } from "@/lib/client/photo";
 import { aircraftType, isTonal } from "@/lib/client/types";
 import type { Bundle } from "@/lib/bundle";
 import { Donate } from "./Donate";
+import { HearIt } from "./HearIt";
 import { Spectrum } from "./Spectrum";
 import { TrackPlot } from "./TrackPlot";
 
@@ -116,6 +117,8 @@ export function Result({
           {facts && <Facts best={best} facts={facts} />}
         </div>
       )}
+
+      <HearIt rec={rec} match={best} />
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
         <div className="flex flex-col gap-3">
