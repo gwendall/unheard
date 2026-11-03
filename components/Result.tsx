@@ -19,6 +19,7 @@ import { paintSpectrum, Spectrum } from "./Spectrum";
 import { Share } from "./Share";
 import { useIdentities } from "./SkyList";
 import { TrackPlot } from "./TrackPlot";
+import { record, useLogbook } from "./Logbook";
 
 export function Result({
   analysis,
@@ -74,6 +75,20 @@ export function Result({
     };
   }, [best, example]);
   const photo = shot && best && shot.hex === best.meta.hex ? shot.photo : null;
+
+  // A real find goes in the logbook on this phone; a better name found a moment later replaces
+  // the entry (same aircraft, same flyby).
+  const sure = verdict.kind === "strong";
+  const title = identity?.title ?? null;
+  const kind = identity?.kind ?? null;
+  const from = identity?.route?.from.city ?? null;
+  const to = identity?.route?.to.city ?? null;
+  const [savedAt] = useState(() => Date.now());
+  useEffect(() => {
+    if (example || !best || !facts || !title || !kind) return;
+    record({ at: savedAt, hex: best.meta.hex, title, kind, sure, range: facts.range, height: Math.max(0, facts.height), route: from && to ? { from, to } : null });
+  }, [example, best, facts, title, kind, sure, savedAt, from, to]);
+  const log = useLogbook();
   const name = identity ? spoken(identity, lang) : null;
   const detail = identity ? [identity.route ? all.route(identity.route.from.city, identity.route.to.city) : null, identity.detail || null].filter(Boolean).join(" · ") : "";
 
@@ -92,6 +107,14 @@ export function Result({
         {best && detail && (
           <p className="text-lg text-pretty text-mute" data-testid="identity">
             {detail}
+          </p>
+        )}
+        {best && !example && (
+          <p className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-faint">
+            <a href={`https://globe.adsb.lol/?icao=${best.meta.hex}`} target="_blank" rel="noreferrer" className="text-amber-soft underline-offset-4 hover:underline" data-testid="follow">
+              {all.follow} <span aria-hidden>→</span>
+            </a>
+            {log.some((e) => e.hex === best.meta.hex) && <span data-testid="logged">{all.logbook.added(log.length)}</span>}
           </p>
         )}
         {verdict.kind === "possible" && <p className="text-pretty text-faint">{t.guess}</p>}

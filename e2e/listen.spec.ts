@@ -64,6 +64,9 @@ test("finds the plane in a recording made through the real page", async ({ page 
   await expect(page.getByTestId("verdict")).toHaveText("It was a Cessna 172 Skyhawk.", { timeout: 150_000 });
   await expect(page.getByTestId("identity")).toHaveText("F-GDEM");
   await expect(page.getByTestId("facts")).toContainText("for its sound to reach you");
+  // Kept on this phone, and a way to see where it is now.
+  await expect(page.getByTestId("logged")).toHaveText("Added to your planes on this phone (1).");
+  await expect(page.getByTestId("follow")).toHaveAttribute("href", `https://globe.adsb.lol/?icao=${fixture().target}`);
 
   // Share: a desktop browser has no share sheet for files, so the picture is saved instead.
   const [download] = await Promise.all([page.waitForEvent("download"), page.getByTestId("share").click()]);
@@ -112,6 +115,11 @@ test("finds the plane in a recording made through the real page", async ({ page 
   expect(flightData).not.toContain(fixture().target);
   expect(flightData).not.toContain(callsign);
   expect(flightData).not.toContain("48.77");
+
+  // Back home, the find is in the list of this phone's planes.
+  await page.goto("/");
+  await expect(page.getByTestId("logbook")).toContainText("Your planes (1)");
+  await expect(page.getByTestId("logbook")).toContainText("Cessna 172 Skyhawk");
 });
 
 test("the sky says which plane to wait for, before the microphone", async ({ page }) => {
@@ -149,4 +157,9 @@ test("the example ends on a strong match", async ({ page }) => {
   await expect(page.getByTestId("hear-it")).toContainText("four times faster");
   await page.getByTestId("curve-toggle").click();
   await expect(page.getByTestId("curve-toggle")).toHaveText("Hide the curve");
+  // A simulated find is neither followed nor kept.
+  await expect(page.getByTestId("follow")).toHaveCount(0);
+  await page.goto("/");
+  await expect(page.getByTestId("listen")).toBeVisible();
+  await expect(page.getByTestId("logbook")).toHaveCount(0);
 });
