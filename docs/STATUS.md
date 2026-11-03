@@ -101,6 +101,12 @@ Thresholds: strong at score 9 and lead 2.5, possible at 6.5 and 1.5 (`lib/core/m
    open (Notification API: Android, computers, and iPhones with Unheard on the home screen); a
    result page with its own address to share as a link, beside the picture.
 
+8. Locate me (core only, no UI yet; draft PRs #29 and the one stacked on it): where the phone
+   was from the flyby and the tracks, without its GPS (`lib/core/trace.ts`, `lib/core/locate.ts`,
+   evals `trace` and `locate`). Loud single flybys land within 100 m (median 89 m); real clips:
+   4 of the 5 propeller and helicopter passes within 270 m, the four jets missed (their fan tones
+   sweep faster than the trace follower). An answer scoring 12 or more was within 1 km every time.
+
 ## Needs the founder
 
 - Commercial or not? AeroSonicDB (CC BY-NC), ADS-B Exchange samples and OpenSky restrict
