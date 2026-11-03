@@ -15,7 +15,7 @@ type Counts = {
 const EVALS: [string, string][] = [
   ["synthetic", "made-up flybys, faint on purpose, with clock error, wind and noisy ADS-B"],
   ["real-tracks", "real adsb.lol tracks (Phoenix), made-up sound"],
-  ["real-audio", "AeroSonicDB recordings (Adelaide), real sound and ADS-B; run locally, licensed data"],
+  ["real-audio", "AeroSonicDB (Adelaide) and phone recordings (Livermore, California), real sound and ADS-B; run locally, data not in git"],
 ];
 
 const START = "<!-- scoreboard:start -->";

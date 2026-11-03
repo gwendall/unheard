@@ -70,7 +70,7 @@ A good pull request shows:
 
 - what it changes and why, in a few lines;
 - the eval delta CI posts on the pull request (synthetic and real-tracks), and the real-audio
-  numbers if you have the cache (`node scripts/fetch-aerosonic.ts`);
+  numbers if you have the cache (`node scripts/fetch-aerosonic.ts`, `node scripts/fetch-livermore.ts`);
 - zero "strong but wrong" and zero "false strong" everywhere;
 - `evals/results.json` and the README scoreboard updated: the default `pnpm eval` writes the
   first, `pnpm scoreboard` the second; CI checks both;

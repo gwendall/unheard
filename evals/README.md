@@ -4,6 +4,8 @@ Every eval feeds scenarios through `analyze()` from `lib/core/pipeline.ts`, the 
 page runs, and scores the verdict. Reports land in `evals/reports/<name>.md` (not committed);
 `evals/baseline.json` is a ratchet: an eval fails when a metric falls below it. It holds the
 default corpus (what CI runs) minus one scenario of margin; raise it when a change lifts a metric.
+The real-audio corpus is whatever is in the cache: `real-audio` holds a floor that either set
+meets alone, and `real-audio-livermore` holds the Livermore set's own line when it is there.
 
 `evals/results.json` (committed) holds each eval's counts on its default corpus: a run with
 `SEEDS` or `PER_FILE` set does not write it. `pnpm scoreboard` turns it into the README's
@@ -46,6 +48,11 @@ request, CI posts this run's counts next to the base branch's (`scripts/eval-del
     snapshots (evaluation only, no redistribution): `node scripts/fetch-aerosonic.ts` fills
     `evals/.cache/` (not committed). Each clip also runs with its aircraft removed from the
     data. Sources and traps: `evals/DATASETS.md`.
+  - Livermore (Pathak 2026, CC BY 4.0): 40 phone recordings of aircraft over Livermore,
+    California, with each aircraft's ADS-B track: `node scripts/fetch-livermore.ts` fills
+    `evals/.cache/livermore/` (not committed). Every other passage's aircraft in the air nearby
+    is in a recording's data, and each runs again without its own aircraft. The microphone
+    position and the start time are recovered from the published data (`evals/lib/livermore.ts`).
   - Capture bundles: open the page with `?capture=1`, record, download the bundle, add
     `"truth": { "heard": "<hex or null>", "note": "how we know" }` and drop it in
     `evals/fixtures/real/`. These are the production-condition recordings: real phone, real

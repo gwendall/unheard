@@ -6,7 +6,7 @@ Surveyed 2026-11-02. Fields below were checked against the published metadata fi
 
 ## Audio sources
 
-### AeroSonicDB (YPAD-0523), Adelaide - the only usable one today
+### AeroSonicDB (YPAD-0523), Adelaide
 
 - Paper: Downward and Nordby 2023, https://arxiv.org/abs/2311.06368. Code: https://github.com/aerosonicdb/AeroSonicDB-YPAD0523 (MIT, code only).
 - Versions (Zenodo concept record 8000468):
@@ -22,6 +22,26 @@ Surveyed 2026-11-02. Fields below were checked against the published metadata fi
 - No track, no distance in the dataset: only the hex, so ADS-B must be fetched separately.
 - Content: 625 aircraft clips (18 to 60 s; 603 are 60 s) from 2022-12-08 to 2023-05-23. Subclasses: 36 piston, 114 turboprop, 470 turbofan, 5 rotorcraft. Location 0 (15.5 km NE of the runway, about 3,000 ft, 3 km trigger) holds 140 of the 150 piston/turboprop clips; locations 1 and 2 (500 to 950 m off the runway end, low and loud, windy) hold 31 clips.
 - **Fit: yes**, for a first real eval: second-level timestamps, a mic position, real prop and helicopter passes. Limits: non-commercial license, approximate mic position, local-time trap, ADS-B only freely available for 2023-03-01 (see below).
+
+### Livermore (Pathak 2026), California - 40 phone recordings with their tracks
+
+- Zenodo record 23424278, "Aeroplane data full analysis and raw files", 2026-10-16: https://zenodo.org/records/23424278. License **CC BY 4.0**. Accompanies the paper "Aircraft speed and height from Doppler-shifted sound and flight-track data" (Pathak 2026).
+- **Attribution**: Praveen Pathak, "Aeroplane data full analysis and raw files", Zenodo, 2026, https://doi.org/10.5281/zenodo.23424278, CC BY 4.0.
+- Fetch: `node scripts/fetch-livermore.ts` downloads the four `Raw data_*.zip` (23, 79, 10 and 21 MB) and `final_results_40_cases.csv` into `evals/.cache/livermore/downloads/`, checks each against the size and MD5 the Zenodo API gives, unpacks each zip into its own directory under `extracted/` (member paths that leave it are refused), and gets the hourly temperature of those days from Open-Meteo. The audio stays in `evals/.cache/` and never enters git: the license would allow it with the attribution above, but 130 MB of WAV has no place in the repository.
+- Per passage, `<category>/<registration>_R<nn>/`:
+  - `audio.wav`: 48 kHz mono 16-bit, 41 to 182 s, no metadata chunk.
+  - `frequency_vs_time_used.csv`: `time_utc,frequency_hz`, the author's ridge of one harmonic, a point every 0.17 s or so. UTC: the author's tool takes the recording's start from the phone's file name (to 1 s).
+  - `<registration>-track-EGM96.kml`: a `gx:Track` of the whole flight, `<when >` UTC and `<gx:coord >lon lat alt`, altitude in metres MSL (ADS-B geometric altitude brought to EGM96), `altitudeMode` absolute, ground points at 0. Positions only, a point every 3 to 20 s near the pass.
+  - `result_page.pdf`: the paper's page for that passage.
+- `final_results_40_cases.csv`: `case, category, received_start_utc, track_file, altitude_basis, L_ADSB_m` (horizontal distance from the recorder to the ADS-B ground track at closest approach), `H_ADSB_above_recorder_m, R_ADSB_m, V_ADSB_*, timing_difference_s` (not documented), the two methods' results (`MI_*`, `MII_*`) and `flags`. Categories: speed and height each constant or varying.
+- Aircraft are named by registration only (US N-numbers); the ICAO address follows from it (`nNumberToIcao` in `evals/lib/livermore.ts`, checked against adsbdb.com). Mostly light aircraft (Cessna 172, PA-28, TBM 930, an R44 helicopter), a few jets (Challenger 350, EMB-145) up to 5.7 km above; slant distance at closest approach 0.3 to 5.7 km.
+- Traps, and what `evals/lib/livermore.ts` does about them:
+  - **No microphone position.** Recovered from L: the one point whose horizontal distance to each track matches its L. 37 passages agree on one site to 2 m rms; the three of 2026-05-09 agree to 1 m on a second site about 6.6 km away. That is the position the author computed L from; the phone may be a few metres off it. The coordinates are not written in this repository (one of them may be a private address): the eval computes them from the cache. The recorder's height is the track's altitude at the pass minus H, MSL like the tracks.
+  - **No audio start time.** Sliding the UTC ridge over the recording's own spectrogram gives the first sample's time to about 0.1 s (34 of the 40 files are the ridge plus 5 s on each side). The phone clock's error, about a second, stays.
+  - **No velocities.** Ground speed, heading and climb come from the KML points at least 4 s away on each side; the page gets the broadcast velocity instead.
+  - **One aircraft per recording.** The set has no other traffic. The eval puts every other passage's aircraft flying within 40 km at the time into a recording's data (0 to 5 of them) and runs each recording again without its own aircraft. In R21 the Cessna 172 of R22 passes 1.1 km away and is audible too (`LIVERMORE_ALSO_AUDIBLE` in `evals/lib/real.ts`). The airport's other traffic is unknown: a day of adsb.lol `globe_history` (about 3 GB) would add it.
+- Also used by dopplerprint (https://github.com/Hexay/dopplerprint, MIT) to locate the recorder from the sound: right aircraft in 34/40, median error 207 m, with the start time known to 2 s. Its corpus builder (`tools/corpus/livermore.py`) recovers the recorder from L and aligns the ridge the same way.
+- **Fit: yes.** Real phone audio of light aircraft and jets from 0.3 to 6 km, exact tracks, open license. Limits: the microphone position is the author's, the clock is a file name, no background traffic.
 
 ### Other aircraft-audio sets
 

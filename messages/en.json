@@ -53,9 +53,9 @@
       "other": "wrong names when it says “It was”, over {tested} test recordings, {nothing} of them with no plane to find. When the trace is faint it says “probably”."
     },
     "realValue": "{hit} of {n}",
-    "real": "real recorded flybys, near Adelaide, named right: {strong} for sure, the others as “probably”.",
+    "real": "real recorded flybys, near Adelaide and over Livermore, California, named right: {strong} for sure, the others as “probably”.",
     "yoursValue": "Yours",
-    "yours": "Phone recordings are the next test. After a match you can give yours, with no place or time attached.",
+    "yours": "Recordings made on this page are the next test. After a match you can give yours, with no place or time attached.",
     "measured": "Last measured on {date}.",
     "scoreboard": "Every number and how it is measured"
   },
