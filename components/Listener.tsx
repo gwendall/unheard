@@ -12,6 +12,7 @@ import { buildExample } from "@/lib/client/example";
 import { outlook, type Outlook } from "@/lib/client/chance";
 import { clock, height, km } from "@/lib/client/format";
 import { Waterfall } from "./Waterfall";
+import { Hero } from "./Hero";
 import { Result } from "./Result";
 import { countdown, ranked, SkyList, titleOf, useIdentities } from "./SkyList";
 
@@ -390,66 +391,4 @@ export function Listener({ qr }: { qr: string }) {
 
 function Shell({ children }: { children: React.ReactNode }) {
   return <div className="mx-auto w-full max-w-6xl px-5 pt-14 pb-16 sm:px-8 sm:pt-24">{children}</div>;
-}
-
-function Hero({ onListen, onExample, error, qr }: { onListen: () => void; onExample: () => void; error: string | null; qr: string }) {
-  return (
-    <div className="relative isolate flex flex-col gap-6">
-      <HeroCurves />
-      <p className="font-mono text-sm tracking-[0.2em] text-amber uppercase">Unheard</p>
-      <h1 className="text-5xl leading-[1.02] font-semibold tracking-tight text-balance sm:text-6xl">There&apos;s a plane you can&apos;t hear.</h1>
-      <p className="max-w-prose text-lg text-pretty text-mute sm:text-xl">
-        Hold your phone up to the sky for a couple of minutes. Unheard finds the faint drone hiding in the background noise and tells you which plane made it.
-      </p>
-      {error && (
-        <p role="alert" className="max-w-prose rounded-2xl border border-amber/40 bg-amber/10 px-4 py-3 text-pretty text-amber-soft">
-          {error}
-        </p>
-      )}
-      <div className="flex flex-col gap-3 sm:flex-row">
-        <button type="button" onClick={onListen} className="rounded-full bg-amber px-7 py-3.5 text-lg font-medium text-night transition hover:bg-amber-soft" data-testid="listen">
-          Listen to the sky
-        </button>
-        <button type="button" onClick={onExample} className="rounded-full border border-line px-7 py-3.5 text-lg font-medium text-ink transition hover:border-mute" data-testid="example">
-          See an example
-        </button>
-      </div>
-      <p className="text-sm text-faint">Your recording stays on your phone unless you choose to give it.</p>
-      {/* On a computer (a mouse, no touch screen): the way to the phone, which is what listens outdoors. */}
-      <div className="hidden w-fit items-center gap-4 rounded-2xl border border-line bg-deep/70 p-4 pointer-fine:flex" data-testid="qr">
-        <div className="size-24 shrink-0 overflow-hidden rounded-lg bg-ink p-1.5 [&>svg]:size-full" aria-hidden dangerouslySetInnerHTML={{ __html: qr }} />
-        <p className="text-sm text-pretty text-mute">
-          <span className="block font-medium text-ink">Better on a phone, outdoors.</span>
-          Point your phone&apos;s camera here to open Unheard on it.
-        </p>
-      </div>
-    </div>
-  );
-}
-
-// Three harmonics of a Doppler curve, as a spectrum would show a plane passing: decoration only.
-const CURVES = [1, 2, 3].map((h) => {
-  const pts: string[] = [];
-  for (let x = 0; x <= 640; x += 8) {
-    const f = 1 + 0.16 * Math.tanh(-(x - 330) / 70);
-    pts.push(`${x},${(380 - h * 105 * f).toFixed(1)}`);
-  }
-  return { h, d: `M${pts.join(" L")}` };
-});
-
-function HeroCurves() {
-  return (
-    <svg aria-hidden viewBox="0 0 640 380" className="pointer-events-none absolute top-16 -right-4 -z-10 hidden w-[42%] opacity-50 lg:block" fill="none">
-      <defs>
-        <linearGradient id="hero-fade" x1="0" x2="1">
-          <stop offset="0" stopColor="#ffb547" stopOpacity="0" />
-          <stop offset="0.35" stopColor="#ffb547" stopOpacity="0.55" />
-          <stop offset="1" stopColor="#ffb547" stopOpacity="0.15" />
-        </linearGradient>
-      </defs>
-      {CURVES.map(({ h, d }) => (
-        <path key={h} d={d} stroke="url(#hero-fade)" strokeWidth={h === 1 ? 2.5 : 1.5} strokeOpacity={1 / h} strokeLinecap="round" />
-      ))}
-    </svg>
-  );
 }
