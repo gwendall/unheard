@@ -193,6 +193,18 @@ export const en = {
     sending: "Sending…",
     give: "Give this recording",
   },
+  logbook: {
+    title: (n: number) => `Your planes (${n})`,
+    note: "Kept on this phone only. Nothing of it is sent.",
+    clear: "Clear",
+    confirmClear: "Clear the list of your planes on this phone?",
+    probably: "probably",
+    away: (distance: string) => `${distance} away`,
+    more: (n: number) => `Show all ${n}`,
+    less: "Show fewer",
+    added: (n: number) => `Added to your planes on this phone (${n}).`,
+  },
+  follow: "Follow it live",
   footer: {
     github: "Open source on GitHub",
     privacy: "Privacy",
@@ -206,6 +218,7 @@ export const en = {
         title: "When you listen",
         body: [
           "Your recording is analysed on your phone and stays there. The page asks our server for the aircraft around you with your position rounded to about 10 km, and for the ground height and temperature with your position rounded to about 100 m. Unheard saves neither; the host's request logs keep them for a short time. To give the planes their names (airline, route, model), the page asks adsbdb.com about the aircraft around you by their codes, never with your position, and Unheard's server asks planespotters.net for a photo of the one it found, by its code too. Nothing else leaves your phone.",
+          "The planes you found are kept in this browser's storage to show your list on the home page. Nothing of it is sent, and Clear removes it.",
         ],
       },
       {

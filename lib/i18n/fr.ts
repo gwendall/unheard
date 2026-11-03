@@ -215,6 +215,18 @@ export const fr: Dict = spaced<Dict>({
     sending: "Envoi…",
     give: "Donner cet enregistrement",
   },
+  logbook: {
+    title: (n: number) => `Vos avions (${n})`,
+    note: "Gardés sur ce téléphone uniquement. Rien n'en est envoyé.",
+    clear: "Effacer",
+    confirmClear: "Effacer la liste de vos avions sur ce téléphone ?",
+    probably: "sans doute",
+    away: (distance: string) => `à ${distance}`,
+    more: (n: number) => `Voir les ${n}`,
+    less: "En voir moins",
+    added: (n: number) => `Ajouté à vos avions sur ce téléphone (${n}).`,
+  },
+  follow: "Le suivre en direct",
   footer: {
     github: "Code ouvert sur GitHub",
     privacy: "Confidentialité",
@@ -228,6 +240,7 @@ export const fr: Dict = spaced<Dict>({
         title: "Quand vous écoutez",
         body: [
           "Votre enregistrement est analysé sur votre téléphone et y reste. La page demande à notre serveur les avions autour de vous avec votre position arrondie à environ 10 km, puis l'altitude du sol et la température avec votre position arrondie à environ 100 m. Unheard ne garde ni l'une ni l'autre ; les journaux de requêtes de l'hébergeur les conservent peu de temps. Pour donner leur nom aux avions (compagnie, trajet, modèle), la page interroge adsbdb.com sur les avions autour de vous par leurs codes, jamais avec votre position, et le serveur d'Unheard demande à planespotters.net une photo de celui qu'il a trouvé, par son code aussi. Rien d'autre ne quitte votre téléphone.",
+          "Les avions que vous avez trouvés sont gardés dans le stockage de ce navigateur pour afficher votre liste sur l'accueil. Rien n'en est envoyé, et « Effacer » la supprime.",
         ],
       },
       {

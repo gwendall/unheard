@@ -3,6 +3,7 @@
 import { useSyncExternalStore } from "react";
 import { height, km, seconds } from "@/lib/client/format";
 import { useT } from "@/lib/i18n/client";
+import { Logbook } from "./Logbook";
 
 const noop = () => () => {};
 /** False on the server and while hydrating, true after: units follow the visitor's language only once on the client. */
@@ -48,6 +49,7 @@ export function Hero({ onListen, onExample, error, qr }: { onListen: () => void;
         </div>
         <ExampleCard onOpen={onExample} />
       </div>
+      <Logbook />
     </div>
   );
 }
@@ -82,7 +84,7 @@ function ExampleCard({ onOpen }: { onOpen: () => void }) {
       <span className="grid grid-cols-3 gap-4">
         {facts.map(([value, label]) => (
           <span key={label} className="flex flex-col gap-1">
-            <span className="font-mono text-xl font-semibold text-ink tabular-nums sm:text-2xl">{value}</span>
+            <span className="font-mono text-lg font-semibold whitespace-nowrap text-ink tabular-nums sm:text-2xl">{value}</span>
             <span className="text-sm text-pretty text-mute">{label}</span>
           </span>
         ))}
