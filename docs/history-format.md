@@ -125,11 +125,11 @@ manifest. The licence is the one above: ODbL 1.0, "© adsb.lol contributors".
 
 `scripts/history-job.ts` fills it, from a scheduled Fly Machine of the app `unheard-history`
 (`--schedule daily`, shared-cpu-4x, 4 GB, stops when done): yesterday's day if adsb.lol has published
-it, then older missing days going backwards to 2026-01-01, within a time budget (8 minutes on this
-Machine, about 4 days a run: every day uploaded costs about 0.02 USD, so the budget is what keeps
-the backfill under 5 USD a month). Tiles go first and the manifest last, so a day with a manifest is
-complete; a failed day leaves none and is tried again next run. To change the job, build the image
-and point the Machine at it:
+it, then older missing days going backwards to 2026-01-01, within a time budget (20 minutes by
+default, 40 on this Machine) and at most 3 days a run (`HISTORY_JOB_MAX_DAYS`: every day uploaded
+costs about 0.02 USD, so this is what keeps the backfill under 5 USD a month). Tiles go first and the manifest last, so a day with a
+manifest is complete; a failed day leaves none and is tried again next run. To change the job, build
+the image and point the Machine at it:
 
 ```
 fly deploy --build-only --push --config scripts/history-job.fly.toml -a unheard-history \

@@ -6,6 +6,8 @@
 //
 //   AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_ENDPOINT_URL_S3 AWS_REGION BUCKET_NAME
 //   HISTORY_JOB_BUDGET_MINUTES  no new day starts past this (default 20)
+//   HISTORY_JOB_MAX_DAYS        no new day starts past this many built (default no limit): a day
+//                               uploaded has a price, whatever the speed of the machine that day
 //   HISTORY_JOB_FIRST           days to build before the others (2026-09-08,2026-05-16)
 //   HISTORY_JOB_OLDEST          where going backwards stops (default 2026-01-01)
 //   HISTORY_JOB_SHARD           i/n, this machine's part of the list when several run at once
@@ -161,6 +163,7 @@ async function main() {
   const env = process.env;
   const started = Date.now();
   const budget = Number(env.HISTORY_JOB_BUDGET_MINUTES ?? 20) * 60_000;
+  const maxDays = Number(env.HISTORY_JOB_MAX_DAYS ?? Infinity);
   const shard = (env.HISTORY_JOB_SHARD ?? "0/1").split("/").map(Number) as [number, number];
   const first = (env.HISTORY_JOB_FIRST ?? "").split(",").filter(Boolean);
   const days = daysToBuild(new Date(), { first, oldest: env.HISTORY_JOB_OLDEST, shard });
@@ -171,7 +174,7 @@ async function main() {
   await store.allowAnyOrigin();
   const tally = { built: [] as string[], already: 0, noRelease: [] as string[], failed: [] as string[], left: 0 };
   for (const [i, day] of days.entries()) {
-    if (Date.now() - started >= budget) {
+    if (Date.now() - started >= budget || tally.built.length >= maxDays) {
       tally.left = days.length - i;
       break;
     }

@@ -124,7 +124,7 @@ machine with Node 22), reader `lib/history.ts` (takes a fetcher: the base URL is
   (none passed 5 MB, so none was split). The Bay Area is 6.7 MB a day.
 - Deterministic: the same day built twice gave byte-identical manifests (all 2,551 tile hashes).
 
-Online since 2026-11-03 at https://unheard-history.t3.tigrisbucket.io/ (public Tigris bucket, daily job on a scheduled Fly Machine, "Hosting" in `docs/history-format.md`): 2026 is backfilling at a pace that stays under 5 USD a month, done about late January 2027; at this rate storage alone brings the bill to 5 USD a month around December 2027.
+Online since 2026-11-03 at https://unheard-history.t3.tigrisbucket.io/ (public Tigris bucket, daily job on a scheduled Fly Machine, "Hosting" in `docs/history-format.md`): 2026 is backfilling at a pace that stays under 5 USD a month, done about early March 2027; at this rate storage alone brings the bill to 5 USD a month around December 2027.
 
 What the page still needs:
 
