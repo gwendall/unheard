@@ -98,7 +98,7 @@ export function Check({ elsewhere }: { elsewhere?: Route }) {
     const n = Math.round((100 * busy.done) / Math.max(1, busy.total));
     const text = busy.step === "open" ? t.steps.open : busy.step === "write" ? t.steps.write : fill(t.steps[busy.step], { n });
     return (
-      <p className="flex min-h-12 items-center gap-3 font-mono text-sm text-mute tabular-nums" role="status" data-testid="check-progress">
+      <p className="flex min-h-13 items-center gap-3 font-mono text-sm text-mute tabular-nums" role="status" data-testid="check-progress">
         <span aria-hidden className="size-2 shrink-0 animate-pulse rounded-full bg-amber" />
         {text}
       </p>
@@ -168,20 +168,21 @@ export function Check({ elsewhere }: { elsewhere?: Route }) {
               {plural(state.found.length, t.found)}
             </h2>
             <p className="max-w-prose text-lg text-pretty text-mute">{plural(state.found.length, t.foundText)}</p>
-            {state.busy ? (
-              progress(state.busy)
-            ) : (
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-6">
+            {/* While it works, the progress line takes the button's place, at its height. */}
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-6">
+              {state.busy ? (
+                progress(state.busy)
+              ) : (
                 <button type="button" onClick={cleanUp} className={button} data-testid="check-clean">
                   {plural(state.found.length, t.clean)}
                 </button>
-                {elsewhere && (
-                  <Link href={elsewhere} className={quiet}>
-                    {t.elsewhere} <span aria-hidden>→</span>
-                  </Link>
-                )}
-              </div>
-            )}
+              )}
+              {elsewhere && (
+                <Link href={elsewhere} className={quiet}>
+                  {t.elsewhere} <span aria-hidden>→</span>
+                </Link>
+              )}
+            </div>
           </header>
           {tones(state.found)}
         </div>
@@ -206,20 +207,20 @@ export function Check({ elsewhere }: { elsewhere?: Route }) {
               {state.left.length ? plural(state.left.length, t.left) : plural(state.cleaned.length, t.gone)}
             </h2>
             <p className="max-w-prose text-lg text-pretty text-mute">{state.left.length ? t.leftText : t.goneText}</p>
-            {state.busy ? (
-              progress(state.busy)
-            ) : (
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-6">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-6">
+              {state.busy ? (
+                progress(state.busy)
+              ) : (
                 <a href={state.url} download={`${name}-${t.suffix}.wav`} className={`${button} text-center`} data-testid="check-download">
                   {t.download}
                 </a>
-                {state.left.length > 0 && (
-                  <button type="button" onClick={cleanUp} className={quiet} data-testid="check-clean">
-                    {plural(state.left.length, t.clean)}
-                  </button>
-                )}
-              </div>
-            )}
+              )}
+              {state.left.length > 0 && (
+                <button type="button" onClick={cleanUp} disabled={!!state.busy} className={`${quiet} w-fit disabled:opacity-50`} data-testid="check-clean">
+                  {plural(state.left.length, t.clean)}
+                </button>
+              )}
+            </div>
             <p className="max-w-prose text-sm text-pretty text-faint">{t.remux}</p>
           </header>
           {tones([...state.left, ...state.cleaned])}
