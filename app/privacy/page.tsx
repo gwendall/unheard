@@ -7,7 +7,7 @@ const SECTIONS = [
   {
     title: "When you listen",
     body: [
-      "Your recording is analysed on your phone and stays there. The page asks our server for the aircraft around you with your position rounded to about 10 km, and for the ground height and temperature with your position rounded to about 100 m. Unheard saves neither; the host's request logs keep them for a short time. To give the planes their names (airline, route, model), the page asks adsbdb.com about the aircraft around you by their codes, never with your position. Nothing else leaves your phone.",
+      "Your recording is analysed on your phone and stays there. The page asks our server for the aircraft around you with your position rounded to about 10 km, and for the ground height and temperature with your position rounded to about 100 m. Unheard saves neither; the host's request logs keep them for a short time. To give the planes their names (airline, route, model), the page asks adsbdb.com about the aircraft around you by their codes, never with your position, and Unheard's server asks planespotters.net for a photo of the one it found, by its code too. Nothing else leaves your phone.",
     ],
   },
   {

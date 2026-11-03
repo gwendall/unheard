@@ -16,6 +16,8 @@ export type Route = { airline: string; flight: string; from: Place; to: Place };
 export type Airframe = { model: string; owner: string | null; registration: string | null };
 
 export type Identity = {
+  /** What the title is: a flight, the model of the aircraft, or only its callsign. */
+  kind: "flight" | "model" | "callsign";
   /** The headline name: "easyJet EC4586", "Cessna 172 Skyhawk", else the callsign. */
   title: string;
   /** What it is, without the headline: "Airbus A320neo, F-HBXA" or "F-GDEM, Aéroclub de Toussus". */
@@ -98,6 +100,7 @@ export function identityOf(meta: AircraftMeta, frame: Airframe | null, route: Ro
   if (route) {
     const airline = airlineName(route.airline);
     return {
+      kind: "flight",
       title: [airline, route.flight].filter(Boolean).join(" "),
       detail: [model, registration].filter(Boolean).join(", "),
       route,
@@ -105,13 +108,19 @@ export function identityOf(meta: AircraftMeta, frame: Airframe | null, route: Ro
   }
   if (model && !isAirlineCallsign(meta.callsign)) {
     const owner = frame?.owner && frame.owner !== registration ? frame.owner : null;
-    return { title: model, detail: [registration, owner].filter(Boolean).join(", "), route: null };
+    return { kind: "model", title: model, detail: [registration, owner].filter(Boolean).join(", "), route: null };
   }
-  return { title: nameOf(meta), detail: [model, registration !== nameOf(meta) ? registration : null].filter(Boolean).join(", "), route: null };
+  return { kind: "callsign", title: nameOf(meta), detail: [model, registration !== nameOf(meta) ? registration : null].filter(Boolean).join(", "), route: null };
 }
 
 /** Looks an aircraft up (both lookups at once) and returns its identity. Never throws. */
 export async function lookUp(meta: AircraftMeta, at: { lat: number; lon: number } | null): Promise<Identity> {
   const [frame, route] = await Promise.all([airframeOf(meta.hex), isAirlineCallsign(meta.callsign) ? routeOf(meta.callsign!) : Promise.resolve(null)]);
   return identityOf(meta, frame, route && (!at || routeFits(route, at)) ? route : null);
+}
+
+/** The identity as the end of a sentence: "a Cessna 172 Skyhawk", "an Airbus H135", "easyJet EC4586". */
+export function spoken(id: Identity): string {
+  if (id.kind !== "model") return id.title;
+  return `${/^[aeiou]/i.test(id.title) ? "an" : "a"} ${id.title}`;
 }
