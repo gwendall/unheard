@@ -340,7 +340,7 @@
     "none": "Aucun son d'avion trouvé.",
     "noneText": "Nous avons cherché le bourdonnement des avions et des hélicoptères, et aucun ne ressort. Cela ne rend pas le fichier sûr : voyez plus bas ce que nous ne vérifions pas.",
     "gone": { "one": "Le son a disparu.", "other": "Les sons ont disparu." },
-    "goneText": "Nous avons cherché de nouveau dans le son nettoyé : il n'y reste aucun son d'avion.",
+    "goneText": "Nous avons cherché de nouveau dans le son nettoyé : nous n'y trouvons plus de son d'avion.",
     "left": { "one": "Il reste un son.", "other": "Il reste {n} sons." },
     "leftText": "Retirer un son peut en faire apparaître un plus faible. Retirez-les encore : chaque passage en laisse moins.",
     "download": "Télécharger le son nettoyé",
