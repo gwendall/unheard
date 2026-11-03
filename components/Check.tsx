@@ -5,6 +5,7 @@ import type { Route } from "next";
 import { useEffect, useRef, useState, type DragEvent } from "react";
 import { useI18n } from "@/components/I18n";
 import { TonePicture } from "@/components/TonePicture";
+import { decode } from "@/lib/client/decode";
 import { clock } from "@/lib/client/format";
 import type { CheckEvent, CheckRequest, Found, Step } from "@/lib/client/check.worker";
 import type { Picture } from "@/lib/core/leak";
@@ -23,14 +24,6 @@ type State =
 
 /** Decoding happens at the rate of video sound; a file at another rate is resampled to it. */
 const RATE = 48_000;
-
-async function decode(file: File): Promise<{ channels: Float32Array[]; sampleRate: number }> {
-  const bytes = await file.arrayBuffer();
-  const buffer = await new OfflineAudioContext(1, 1, RATE).decodeAudioData(bytes);
-  // Two channels at most: the cleaned file goes back under a video, left and right.
-  const channels = Array.from({ length: Math.min(2, buffer.numberOfChannels) }, (_, c) => buffer.getChannelData(c).slice());
-  return { channels, sampleRate: buffer.sampleRate };
-}
 
 /** m:ss, or h:mm:ss past an hour. */
 const at = (s: number) => (s < 3600 ? clock(s) : `${Math.floor(s / 3600)}:${clock(s % 3600).padStart(5, "0")}`);
@@ -67,7 +60,7 @@ export function Check({ elsewhere }: { elsewhere?: Route }) {
     setState({ kind: "open", busy: { step: "open", done: 0, total: 1 } });
     let audio: Awaited<ReturnType<typeof decode>>;
     try {
-      audio = await decode(file);
+      audio = await decode(file, RATE);
     } catch {
       setState({ kind: "idle", error: t.errors.open });
       return;

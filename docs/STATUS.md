@@ -75,6 +75,41 @@ What a visitor goes through, and where it lives:
   downloaded as a WAV. Nothing leaves the device. Linked from the home and the footer. Measured
   by `evals/leak.eval.ts`: on AeroSonicDB, tones found in 9 of 9 clips, 6 named before, none after.
 
+- **Where was this recorded?** (`/where`, `components/Where.tsx`, `components/SpotPlot.tsx`,
+  `lib/client/where.ts`, `lib/client/where.worker.ts`): a video or sound file in, a spot and a start
+  time out, in the browser. It reads the file's own tags first (`lib/client/metadata.ts`): a GPS
+  position is said first and big, a date fills in the day and hour with where it came from. It asks
+  only what is missing: the day, the hour if known (better answers than a whole day, the page says so), and
+  roughly where (a name through Open-Meteo's geocoder, or coordinates: a 100 km square). The sound
+  is decoded at the analysis rate, then a worker finds the tones, fetches that day's tiles for the
+  area, and runs `whereWhen`. "Probably here" only under the confidence flag, else "Best guess" and
+  up to two more answers; the plot, the start in UTC and local time, each plane with its registration
+  (the history keeps no callsign), type, distance and passing time, its spectrum with the curve.
+  Local time comes from the place's zone (geocoder) or, for typed coordinates, the longitude.
+  - **The flight archive is one setting**, `NEXT_PUBLIC_HISTORY_URL` (`lib/archive.ts`, read at
+    build time): without it the page says the archive is not connected, shows only what a file says
+    about itself, is `noindex`, and is linked from nowhere. With it, the home and `/check` link to
+    the page. On production it is `https://unheard-history.t3.tigrisbucket.io` (no trailing slash;
+    see "Hosting" in `docs/history-format.md`). The day is picked among those in the archive's
+    `days.json`, and the page says it is still filling: each day's flights arrive the next day,
+    older days a few at a time, back to `OLDEST_DAY` (`lib/client/where.ts`, the job's `OLDEST`).
+    A file's date that is not covered is said, with the days there are; before `OLDEST_DAY` it is
+    told the archive will not reach it.
+  - **Sure or not**: "Probably here" only on `whereWhen`'s flag, which in practice never rises (0
+    of 42 searches at MARGIN 8), so the usual result is "Best guess". It leads with the spot, the
+    start, the flyovers it explains and which planes, then the next distinct answers and how far
+    off they are (the lead stays on the best guess while they are looked through). Every word
+    stays a guess ("Would have started", "Guess" on the plot), even when it is the right spot:
+    colsto's hour window found the spot within 55 m with the flag down. The one honest line,
+    `where.result.honest`, quotes the eval (8 of 20 pairs with the hour, 6 of 20 with the day):
+    update it with the eval.
+  - **Terrain**: AWS's open terrain tiles allow browsers (`access-control-allow-origin: *`, checked
+    03/11), so the search uses real ground height, and falls back to flat if a tile fails.
+  - **Development**: `next dev` defaults to `/dev-history` (`app/dev-history`, 404 in production),
+    which serves `e2e/history` or `DEV_HISTORY_DIR` (say `evals/.cache/history`). `e2e/where.spec.ts`
+    runs a made-up recording over one committed tile: 70 minutes of real adsb.lol flights (ODbL)
+    around a spot `scripts/make-where-fixture.ts` picked, one aircraft in eight plus those heard.
+
 ## Results (2026-11-02)
 
 See the latest reports in `evals/reports/` (regenerate with `pnpm eval`). Numbers below are
@@ -134,8 +169,9 @@ Online since 2026-11-03 at https://unheard-history.t3.tigrisbucket.io/ (public T
 What the page still needs:
 
 - Reads: a search of one day over a 100 km square fetches 4 tiles, about 7 MB (the Bay Area).
-- In the page, one setting (say `NEXT_PUBLIC_HISTORY_URL`: the bucket above, a folder served in
-  development, or anyone's mirror) handed to `httpFetcher`.
+- In the page, one setting, `NEXT_PUBLIC_HISTORY_URL` (the bucket above, a folder served in
+  development, or anyone's mirror), handed to `httpFetcher`: built, see "Where was this recorded?"
+  above.
 
 ## Where and when: the search (2026-11-03)
 

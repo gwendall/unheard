@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { Check } from "@/components/Check";
+import { ARCHIVE_SET } from "@/lib/archive";
 import { alternates, LANGUAGES, messages, pathFor, type Locale } from "@/lib/i18n";
 
 // Does a video give away where it was made? The faint tone of a plane in its sound,
@@ -21,7 +23,8 @@ export async function generateMetadata({ params }: PageProps<"/[lang]/check">): 
 
 export default async function CheckPage({ params }: PageProps<"/[lang]/check">) {
   const lang = (await params).lang as Locale;
-  const t = (await messages(lang)).check;
+  const all = await messages(lang);
+  const t = all.check;
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-6xl flex-col gap-8 px-5 pt-12 pb-16 sm:px-8 sm:pt-16">
       <header className="flex flex-col gap-4">
@@ -33,6 +36,11 @@ export default async function CheckPage({ params }: PageProps<"/[lang]/check">) 
         </p>
       </header>
       <Check elsewhere={pathFor(lang, "/somewhere-else")} />
+      {ARCHIVE_SET && (
+        <Link href={pathFor(lang, "/where")} className="w-fit text-pretty text-mute transition hover:text-ink" data-testid="where-link">
+          {all.where.fromCheck} <span aria-hidden>→</span>
+        </Link>
+      )}
       <section className="flex flex-col gap-3" aria-labelledby="scope">
         <h2 id="scope" className="text-sm font-medium tracking-wide text-mute uppercase">
           {t.scope.title}

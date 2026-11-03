@@ -7,6 +7,8 @@
     "privacyTitle": "What is sent · Unheard",
     "checkTitle": "Check a video · Unheard",
     "checkDescription": "The faint hum of a plane in the background of a video can place it on flight data. Look for those tones in a video or a sound file and take them out, in your browser: the file never leaves your device.",
+    "whereTitle": "Where was this recorded? · Unheard",
+    "whereDescription": "The hum of the planes in a video or a sound file, matched to a flight archive, can say where and when it was recorded. Search your own file, in your browser: it never leaves your device.",
     "elsewhereTitle": "Somewhere else · Unheard",
     "elsewhereDescription": "Make your recording sound like it was made in another city: Unheard puts under your voice the real planes flying over it right now, with the Doppler curves an investigator would match to flight data."
   },
@@ -305,7 +307,8 @@
           "Your recording is analysed on your phone and stays there. The page asks our server for the aircraft around you with your position rounded to about 10 km, and for the ground height and temperature with your position rounded to about 100 m. Unheard saves neither; the host's request logs keep them for a short time. To give the planes their names (airline, route, model), the page asks adsbdb.com about the aircraft around you by their codes, never with your position, and Unheard's server asks planespotters.net for a photo of the one it found, by its code too. Nothing else leaves your phone.",
           "The planes you found are kept in this browser's storage to show your list on the home page. Nothing of it is sent, and Clear removes it.",
           "The language you pick in the menu is kept in a cookie for a year, so the site opens in it next time.",
-          "On Somewhere else, the page asks our server for the aircraft over the place you pick, never with your own position, and your recording stays on the page."
+          "On Somewhere else, the page asks our server for the aircraft over the place you pick, never with your own position, and your recording stays on the page.",
+        "On Where was this recorded?, your file stays on the page and is never sent. To search, the page requests the flight tiles of the day and area you search, and tiles of the ground's height for that area from Amazon's open terrain data. A place name you type goes to Open-Meteo to find it on the map, and only that name."
         ]
       },
       {
@@ -370,5 +373,96 @@
       "no": "We do not look for a tone above 400 Hz on its own, for the hum of the power grid (ENF), which can date a recording, or for anything else a video shows or says."
     },
     "link": "New: check whether your video gives away where you are"
+  },
+  "where": {
+    "title": "Where was this recorded?",
+    "link": "New: find where a video was recorded",
+    "fromCheck": "Curious what a file gives away? Find where it was recorded.",
+    "lead": "The planes in the background of a video or a sound file leave a tone that falls as they pass. Matched to an archive of flights, those tones can tell where and when it was recorded.",
+    "private": "Your file stays in this browser: it is opened and searched here, nothing of it is sent, and nothing is stored.",
+    "offline": "The flight archive is not connected yet, so the search is not offered. You can still see what a file says about itself.",
+    "choose": "Choose a file",
+    "drop": "or drop it here",
+    "formats": "Most videos and sound files: MP4, MOV, WebM, M4A, MP3, WAV.",
+    "another": "Choose another file",
+    "gps": {
+      "title": "This file already says where it was filmed: {place}",
+      "still": "That is what its own tags say, and anyone can edit them. You can still check it against the planes in its sound.",
+      "made": "It gives a date: {when} ({source}).",
+      "nothing": "This file says nothing about where it was filmed."
+    },
+    "fromFile": {
+      "zoned": "Day and hour filled in from the file's creation date, which gives its time zone ({source}).",
+      "utc": "Day and hour filled in from the file's creation time, in UTC ({source}). An edited file may show the time of the export instead.",
+      "clock": "Day and hour filled in from the file's clock, which gives no time zone ({source}), so we take it as local time.",
+      "day": "Day filled in from the file's date ({source}), which gives no hour."
+    },
+    "day": "Day",
+    "dayPick": "Pick a day",
+    "daysHeld": "The flight archive is still filling and holds {days} so far: each day's flights arrive the next day, older days a few at a time.",
+    "dayAbsent": "This file's date, {day}, is not in the flight archive yet. It is still filling and holds {days} so far: each day's flights arrive the next day, older days a few at a time.",
+    "dayBefore": "This file's date, {day}, is before the flight archive starts, on {oldest}. It holds {days} so far.",
+    "daysRange": "{n} days between {first} and {last}",
+    "noDays": "The flight archive holds no day yet, so there is nothing to search.",
+    "hour": "Hour, if you know it",
+    "zone": "Time zone of the hour",
+    "zones": {
+      "local": "Local time",
+      "utc": "UTC"
+    },
+    "hourWhy": "An hour or so gives better answers than a whole day.",
+    "place": "Roughly where",
+    "placePlaceholder": "A town, or coordinates: 48.85, 2.35",
+    "placeHint": "We search a 100 km square around it. A name you type goes to Open-Meteo to find it, and only the name.",
+    "placeChosen": "{place}: we search a 100 km square around it.",
+    "noPlace": "No place by that name. Try a town nearby, or coordinates.",
+    "search": "Search",
+    "window": "Start between {from} and {to} UTC",
+    "steps": {
+      "open": "Opening the file...",
+      "find": "1 of 4: listening for aircraft tones...",
+      "flights": "2 of 4: loading the flights of that day and area...",
+      "search": "3 of 4: searching, {n} %",
+      "refine": "4 of 4: refining the best answers, {n} %"
+    },
+    "result": {
+      "sure": "Probably here",
+      "sureText": "Planes heard in the file passed this spot at that moment, and no other answer comes close.",
+      "best": "Best guess",
+      "honest": "This search finds the right spot in about 8 of 20 of our test recordings when the hour is known, fewer with the day only.",
+      "dayHint": "You searched a whole day. Give the hour, even roughly, and search again: the answers get better.",
+      "none": "No aircraft tone found.",
+      "noneText": "We looked for the hum of planes and helicopters and found none that stands out. Without one, there is nothing to match to the flights.",
+      "onePass": "We only hear one plane passing, and one pass fits many spots: it takes two, at different moments, to settle on one.",
+      "nothing": "No flight fits these tones.",
+      "nothingText": "We found aircraft tones, but no plane in the archive fits them in that area at that time. Check the day, the hour and the place.",
+      "missing": "The archive has no flights for {day}.",
+      "missingText": "It is still filling: each day's flights arrive the next day, older days a few at a time. Try another day.",
+      "guesses": "Answers",
+      "first": "Best guess: {place}",
+      "next": "Next answer: {place}, {distance} off",
+      "later": "Answer {n}: {place}, {distance} off",
+      "explains": { "one": "Explains {n} flyover: {planes}.", "other": "Explains {n} flyovers: {planes}." },
+      "started": "Started on {day} at {utc} UTC, {local} local time",
+      "startedGuess": "Would have started on {day} at {utc} UTC, {local} local time",
+      "about": "(about, from the longitude)",
+      "osm": "Open in OpenStreetMap",
+      "mirror": "Or its mirror across the plane's path, {place}: the sound alone cannot tell the two apart.",
+      "here": "Here",
+      "hereGuess": "Guess",
+      "mirrorLabel": "Mirror",
+      "planes": "The planes heard",
+      "planesGuess": "The planes that would explain the tones",
+      "plane": "{type}, {distance} away, passed at {time} UTC",
+      "noType": "type unknown",
+      "again": "Change the search",
+      "check": "Is this your video? Take the tones out.",
+      "credit": "Flight data © adsb.lol contributors (ODbL). Nothing is stored.",
+      "stored": "Nothing is stored."
+    },
+    "errors": {
+      "open": "This browser could not open the sound of this file. Try another browser, or the sound alone as M4A, MP3 or WAV.",
+      "failed": "Something went wrong while searching: {message}"
+    }
   }
 }

@@ -123,6 +123,24 @@ export async function readManifest(fetcher: Fetcher, day: string): Promise<Manif
   return bytes ? (JSON.parse(new TextDecoder().decode(bytes)) as Manifest) : null;
 }
 
+/**
+ * The days an archive holds, from the days.json at its root, oldest first: a list of days, or of
+ * `{ day }`, bare or under `days`. Null when it has none, or none a reader can trust.
+ */
+export async function readDays(fetcher: Fetcher): Promise<string[] | null> {
+  try {
+    const bytes = await fetcher("days.json");
+    if (!bytes) return null;
+    const parsed = JSON.parse(new TextDecoder().decode(bytes)) as unknown;
+    const list = Array.isArray(parsed) ? parsed : (parsed as { days?: unknown } | null)?.days;
+    if (!Array.isArray(list)) return null;
+    const days = list.map((d: unknown) => (typeof d === "string" ? d : (d as { day?: unknown } | null)?.day)).filter((d): d is string => typeof d === "string" && /^\d{4}-\d{2}-\d{2}$/.test(d));
+    return [...new Set(days)].sort();
+  } catch {
+    return null;
+  }
+}
+
 /** The flights of some days around a square, merged per aircraft across tiles; and the bytes fetched. */
 export async function loadFlights(fetcher: Fetcher, days: string[], area: { lat: number; lon: number; side: number }, margin = 15_000): Promise<{ flights: Flight[]; bytes: number; tiles: number; missing: string[] }> {
   const tiles: Tile[] = [];
