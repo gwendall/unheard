@@ -1,13 +1,16 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { Analysis, Recording } from "@/lib/core/pipeline";
 import { candidatesOf } from "@/lib/core/pipeline";
-import { STRONG } from "@/lib/core/match";
+import { STRONG, type Match } from "@/lib/core/match";
+import type { AircraftMeta } from "@/lib/adsb";
 import { stateAt } from "@/lib/core/track";
 import { norm } from "@/lib/core/geo";
 import { describe, height, km, nameOf, seconds, speed } from "@/lib/client/format";
-import { isTonal } from "@/lib/client/types";
+import { identityOf, lookUp, spoken, type Identity } from "@/lib/client/names";
+import { photoOf, type Photo } from "@/lib/client/photo";
+import { aircraftType, isTonal } from "@/lib/client/types";
 import type { Bundle } from "@/lib/bundle";
 import { Donate } from "./Donate";
 import { Spectrum } from "./Spectrum";
@@ -45,8 +48,24 @@ export function Result({
     return { emitted, height: s.p[2], speed: norm([s.v[0], s.v[1], 0]), range: best.closest.range, delay: best.closest.delay };
   }, [best, candidates, rec]);
 
-  const name = best ? nameOf(best.meta) : null;
-  const kindText = best ? describe(best.meta) : "";
+  // The name people use, then its photo: looked up from the phone, never for the simulated
+  // example (its made-up codes belong to real aircraft).
+  const [found, setFound] = useState<{ hex: string; id: Identity | null; photo: Photo | null } | null>(null);
+  useEffect(() => {
+    if (!best || example) return;
+    let live = true;
+    const hex = best.meta.hex;
+    void lookUp(best.meta, rec.listener).then((id) => live && setFound((f) => ({ hex, id, photo: f?.hex === hex ? f.photo : null })));
+    void photoOf(hex).then((photo) => live && setFound((f) => ({ hex, id: f?.hex === hex ? f.id : null, photo })));
+    return () => {
+      live = false;
+    };
+  }, [best, example, rec.listener]);
+  const looked = found && best && found.hex === best.meta.hex ? found : null;
+  const identity = best ? (looked?.id ?? identityOf(best.meta, null, null)) : null;
+  const photo = looked?.photo ?? null;
+  const name = identity ? spoken(identity) : null;
+  const detail = identity ? [identity.route ? `${identity.route.from.city} to ${identity.route.to.city}` : null, identity.detail || null].filter(Boolean).join(" · ") : "";
 
   return (
     <section className="flex flex-col gap-8" aria-live="polite">
@@ -60,19 +79,43 @@ export function Result({
           {verdict.kind === "possible" && <>Probably {name}.</>}
           {verdict.kind === "none" && <>No plane matched.</>}
         </h2>
-        {best && facts && (
-          <p className="max-w-prose text-lg text-pretty text-mute">
-            {kindText ? `${kindText}, ` : ""}
-            {height(Math.max(0, facts.height))} above you and {km(facts.range)} away at its closest, flying at {speed(facts.speed)}. The sound you heard then had left it {seconds(facts.delay)} earlier.
-            {verdict.kind === "possible" && " The trace is faint, so take it as a good guess."}
+        {best && detail && (
+          <p className="text-lg text-pretty text-mute" data-testid="identity">
+            {detail}
           </p>
         )}
+        {verdict.kind === "possible" && <p className="text-pretty text-faint">The trace is faint, so take it as a good guess.</p>}
         {verdict.kind === "none" && (
           <p className="max-w-prose text-lg text-pretty text-mute">
-            We compared your recording with {analysis.seen} {analysis.seen === 1 ? "plane" : "planes"} around you. None left a clear trace. Try again when one passes within a few kilometers, ideally a propeller plane or a helicopter.
+            We compared your recording with {analysis.seen} {analysis.seen === 1 ? "plane" : "planes"} around you. None left a clear trace. Try again when one passes within a few kilometers, ideally a propeller plane or a helicopter: the sky screen tells you when.
           </p>
         )}
       </header>
+
+      {best && (facts || photo) && (
+        <div className={`grid gap-6 ${photo ? "lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] lg:items-start" : ""}`}>
+          {photo && (
+            <figure className="flex flex-col gap-1.5 lg:order-2">
+              {/* eslint-disable-next-line @next/next/no-img-element -- a remote photo, shown as planespotters serves it */}
+              <img
+                src={photo.src}
+                width={photo.width}
+                height={photo.height}
+                alt={identity ? `${identity.title}, photographed` : "The aircraft"}
+                className="h-auto w-full rounded-2xl border border-line bg-deep object-cover opacity-0 transition-opacity duration-500 data-[loaded]:opacity-100"
+                onLoad={(e) => e.currentTarget.setAttribute("data-loaded", "")}
+              />
+              <figcaption className="text-xs text-faint">
+                Photo{" "}
+                <a href={photo.link} target="_blank" rel="noreferrer" className="underline-offset-4 hover:text-mute hover:underline">
+                  {photo.photographer}, planespotters.net
+                </a>
+              </figcaption>
+            </figure>
+          )}
+          {facts && <Facts best={best} facts={facts} />}
+        </div>
+      )}
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
         <div className="flex flex-col gap-3">
@@ -92,9 +135,11 @@ export function Result({
       </div>
 
       {verdict.ranked.length > 0 && (
-        <div className="flex flex-col gap-3">
-          <h3 className="text-sm font-medium tracking-wide text-mute uppercase">Every plane we checked</h3>
-          <ol className="flex flex-col divide-y divide-line overflow-hidden rounded-2xl border border-line bg-deep">
+        <details className="group flex flex-col gap-3" open={verdict.kind === "none"}>
+          <summary className="cursor-pointer text-sm font-medium tracking-wide text-mute uppercase marker:text-faint">
+            Every plane we checked ({Math.min(8, verdict.ranked.length)})
+          </summary>
+          <ol className="mt-3 flex flex-col divide-y divide-line overflow-hidden rounded-2xl border border-line bg-deep">
             {verdict.ranked.slice(0, 8).map((m) => {
               const tonal = isTonal(m.meta.type, m.meta.category);
               const top = m.id === best?.id;
@@ -116,8 +161,8 @@ export function Result({
               );
             })}
           </ol>
-          <p className="text-sm text-pretty text-faint">The score says how far each plane&apos;s curve stands above chance in your recording. With no plane to find, no score has reached {STRONG.score} in our tests.</p>
-        </div>
+          <p className="mt-3 text-sm text-pretty text-faint">The score says how far each plane&apos;s curve stands above chance in your recording. With no plane to find, no score has reached {STRONG.score} in our tests.</p>
+        </details>
       )}
 
       {!example && <Donate rec={rec} analysis={analysis} device={device} />}
@@ -133,5 +178,46 @@ export function Result({
         )}
       </div>
     </section>
+  );
+}
+
+type Facts = { emitted: number; height: number; speed: number; range: number; delay: number };
+
+/** What its hum is, by kind of aircraft. */
+function humOf(type?: string): string {
+  const kind = aircraftType(type)?.kind;
+  if (kind === "piston" || kind === "turboprop") return "the pitch of its propeller's hum";
+  if (kind === "helicopter") return "the pitch of its rotor's beat";
+  if (kind === "jet") return "the pitch of its engines' hum";
+  return "the pitch of its hum";
+}
+
+/** The numbers worth telling a friend, each in a word or two. */
+function Facts({ best, facts }: { best: Match<AircraftMeta>; facts: Facts }) {
+  let lo = Infinity;
+  let hi = -Infinity;
+  for (const f of best.factor) {
+    if (!Number.isFinite(f)) continue;
+    lo = Math.min(lo, f);
+    hi = Math.max(hi, f);
+  }
+  const fall = Number.isFinite(lo) && hi > 0 ? Math.round((1 - lo / hi) * 100) : 0;
+  const items: [string, string][] = [
+    [km(facts.range), "from you at its closest"],
+    [height(Math.max(0, facts.height)), "above you"],
+    [speed(facts.speed), "its speed"],
+    [seconds(facts.delay), "for its sound to reach you"],
+    [`${Math.round(best.f0)} Hz`, humOf(best.meta.type)],
+  ];
+  if (fall >= 1) items.push([`${fall} %`, "lower as it flew away: the Doppler effect"]);
+  return (
+    <dl className="grid grid-cols-2 gap-x-6 gap-y-5 sm:grid-cols-3" data-testid="facts">
+      {items.map(([value, label]) => (
+        <div key={label} className="flex flex-col gap-1">
+          <dt className="order-2 text-sm text-pretty text-mute">{label}</dt>
+          <dd className="order-1 font-mono text-2xl font-semibold tabular-nums text-ink sm:text-3xl">{value}</dd>
+        </div>
+      ))}
+    </dl>
   );
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { airlineName, identityOf, isAirlineCallsign, routeFits, type Route } from "./names";
+import { airlineName, identityOf, isAirlineCallsign, routeFits, spoken, type Route } from "./names";
 
 const paris = { city: "Paris", code: "CDG", lat: 49.0097, lon: 2.5479 };
 const nice = { city: "Nice", code: "NCE", lat: 43.6584, lon: 7.2159 };
@@ -26,12 +26,19 @@ describe("names", () => {
   });
 
   it("names an airliner by its flight, a light aircraft by its model, else by its callsign", () => {
-    expect(identityOf({ hex: "39ab12", callsign: "AFR7700", type: "A320" }, null, route)).toEqual({ title: "Air France AF7700", detail: "Airbus A320", route });
+    expect(identityOf({ hex: "39ab12", callsign: "AFR7700", type: "A320" }, null, route)).toEqual({ kind: "flight", title: "Air France AF7700", detail: "Airbus A320", route });
     expect(identityOf({ hex: "39ab13", callsign: "FGDEM", registration: "F-GDEM", type: "C172" }, { model: "Cessna 172S", owner: "Aeroclub de Toussus", registration: "F-GDEM" }, null)).toEqual({
+      kind: "model",
       title: "Cessna 172 Skyhawk",
       detail: "F-GDEM, Aeroclub de Toussus",
       route: null,
     });
     expect(identityOf({ hex: "4ca7d2", callsign: "RYR88TK", type: "B738" }, null, null).title).toBe("RYR88TK");
+  });
+
+  it("says a model with its article, a flight or a callsign as it is", () => {
+    expect(spoken(identityOf({ hex: "a", type: "C172", callsign: "FGDEM" }, null, null))).toBe("a Cessna 172 Skyhawk");
+    expect(spoken(identityOf({ hex: "b", type: "EC35", callsign: "SAMU31" }, null, null))).toBe("an Airbus H135");
+    expect(spoken(identityOf({ hex: "c", type: "A320", callsign: "AFR7700" }, null, route))).toBe("Air France AF7700");
   });
 });

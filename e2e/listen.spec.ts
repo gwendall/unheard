@@ -30,8 +30,13 @@ test("finds the plane in a recording made through the real page", async ({ page 
     };
   });
   await page.route("**/api/weather*", (route) => route.fulfill({ json: { elevation: 160, temperatureC: 15 } }));
-  // The names service answers nothing: the page must still name planes from the flight data alone.
+  // The names and photo services answer nothing: the page must still name planes from the flight data alone.
   await page.route("https://api.adsbdb.com/**", (route) => route.fulfill({ status: 404, json: { response: "unknown" } }));
+  // No photo, except for screenshots (SHOTS), where a real one shows the layout with a photo.
+  const photo = process.env.SHOTS
+    ? { src: "https://t.plnspttrs.net/08020/1984890_68b722e151_280.jpg", width: 498, height: 280, link: "https://www.planespotters.net/photo/1984890", photographer: "Liu" }
+    : null;
+  await page.route("**/api/photo*", (route) => route.fulfill({ json: { photo } }));
   await page.route("**/api/aircraft*", async (route) => {
     const micAt = await page.evaluate(() => (window as unknown as { __micAt?: number }).__micAt);
     if (!micAt) return route.fulfill({ json: { now: Date.now(), aircraft: [] } });
@@ -56,7 +61,9 @@ test("finds the plane in a recording made through the real page", async ({ page 
     await page.screenshot({ path: `${process.env.SHOTS}/recording-phone.jpg`, quality: 70, scale: "css", fullPage: true });
     await page.setViewportSize({ width: 1440, height: 900 });
   }
-  await expect(page.getByTestId("verdict")).toHaveText(`It was ${callsign}.`, { timeout: 150_000 });
+  await expect(page.getByTestId("verdict")).toHaveText("It was a Cessna 172 Skyhawk.", { timeout: 150_000 });
+  await expect(page.getByTestId("identity")).toHaveText("F-GDEM");
+  await expect(page.getByTestId("facts")).toContainText("for its sound to reach you");
 
   // Give it to the dataset. The Blob store is mocked: what matters is what leaves the page.
   let sent = "";
@@ -71,6 +78,12 @@ test("finds the plane in a recording made through the real page", async ({ page 
   await expect(page.getByTestId("donate-heard")).toHaveValue(fixture().target);
   // SHOTS=<dir>: the real result with its donation form, at desktop and phone widths.
   if (process.env.SHOTS) {
+    await page.locator("figure img[data-loaded]").waitFor({ timeout: 15_000 });
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.screenshot({ path: `${process.env.SHOTS}/found-desktop.jpg`, quality: 70, scale: "css" });
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.screenshot({ path: `${process.env.SHOTS}/found-phone.jpg`, quality: 70, scale: "css" });
+    await page.setViewportSize({ width: 1440, height: 900 });
     await page.getByTestId("donate").scrollIntoViewIfNeeded();
     await page.screenshot({ path: `${process.env.SHOTS}/donate-desktop.jpg`, quality: 70, scale: "css", fullPage: true });
     await page.setViewportSize({ width: 390, height: 844 });
@@ -120,7 +133,8 @@ test("the sky says which plane to wait for, before the microphone", async ({ pag
 test("the example ends on a strong match", async ({ page }) => {
   await page.goto("/");
   await page.getByTestId("example").click();
-  await expect(page.getByTestId("verdict")).toHaveText("It was FGDEMO.", { timeout: 60_000 });
+  await expect(page.getByTestId("verdict")).toHaveText("It was a Cessna 172 Skyhawk.", { timeout: 60_000 });
+  await expect(page.getByTestId("facts")).toContainText("the Doppler effect");
   await page.getByTestId("curve-toggle").click();
   await expect(page.getByTestId("curve-toggle")).toHaveText("Hide the curve");
 });
