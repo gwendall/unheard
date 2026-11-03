@@ -3,7 +3,7 @@ import { heardAt, STANDARD_AIR } from "./doppler";
 import type { Listener } from "./geo";
 import { buildStack } from "./spectrogram";
 import { flybyFixes, synthesize, type Flyby, type Source } from "./synth";
-import { findTraces, traceFit, type Trace } from "./trace";
+import { findTraces, strongestStretch, traceFit, type Trace } from "./trace";
 import { buildTrack } from "./track";
 
 const listener: Listener = { lat: 48.85, lon: 2.35, elevation: 40 };
@@ -13,7 +13,7 @@ const RATE = 8000;
 
 const trackOf = (f: Flyby) => buildTrack(flybyFixes(listener, f, START - 60, START + DURATION + 4, 2), listener)!;
 
-function stackOf(sources: Source[], seed: number) {
+function stackOf(sources: Source[], seed: number, chirps = [{ at: 20, duration: 4, from: 300, to: 240, level: 0.05 }]) {
   const samples = synthesize({
     start: START,
     duration: DURATION,
@@ -23,7 +23,7 @@ function stackOf(sources: Source[], seed: number) {
     noise: 1,
     rumble: 1,
     hum: [{ freq: 50, level: 0.5 }],
-    chirps: [{ at: 20, duration: 4, from: 300, to: 240, level: 0.05 }],
+    chirps,
     seed,
   });
   return buildStack(samples, RATE);
@@ -69,6 +69,12 @@ describe("findTraces", () => {
     expect(following(traces, factorOf(stack, helicopter))).toBeDefined();
   });
 
+  it("never takes a rising tone for a pass", () => {
+    // An engine spooling up for 40 s: a clear ridge, but it ends higher than it began.
+    const stack = stackOf([], 11, [{ at: 20, duration: 40, from: 180, to: 188, level: 0.4 }]);
+    expect(findTraces(stack).traces.map((t) => `${t.freq[t.from].toFixed(0)} -> ${t.freq[t.to].toFixed(0)} Hz`)).toEqual([]);
+  });
+
   it("finds nothing in noise, hum and a passing car", () => {
     for (const seed of [11, 12, 13]) {
       const { traces, null: nul } = findTraces(stackOf([], seed));
@@ -88,5 +94,17 @@ describe("traceFit", () => {
     expect(fit.f0).toBeCloseTo(192, 1);
     expect(fit.misfit).toBeLessThan(1e-6);
     expect(fit.covered).toBe(1);
+  });
+});
+
+
+describe("strongestStretch", () => {
+  it("cuts a loud ridge back to its strong stretch, and keeps a faint one whole", () => {
+    const ridge = (core: number) => [...Array(20).fill(1.5), ...Array(40).fill(core), ...Array(20).fill(1.5)];
+    // A jet's fan tone, then the follower drifting on along weaker cells once it has faded.
+    expect(strongestStretch(ridge(5), 1.6, 0.5, 4)).toEqual([20, 59]);
+    // A faint tone all along: nothing to cut.
+    expect(strongestStretch(ridge(2.5), 1.6, 0.5, 4)).toEqual([0, 79]);
+    expect(strongestStretch(ridge(5), 1.6, 0, 4)).toEqual([0, 79]);
   });
 });

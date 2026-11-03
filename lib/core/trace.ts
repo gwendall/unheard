@@ -34,6 +34,13 @@ export type TraceOptions = {
   minFall?: number;
   /** Traces below this confidence are dropped. */
   minConfidence?: number;
+  /**
+   * A loud ridge is cut back to its stretch above `trimShare` of its strong frames (their
+   * evidence averaged over 2 s): past where its tone fades it drifts on along the noise or a
+   * neighbouring tone nearly for free. Loud: that floor reaches `trim`. trimShare 0: no cut.
+   */
+  trim?: number;
+  trimShare?: number;
   /** Scrambled copies searched for the null, and the frames each scrambled block keeps together. */
   nulls?: number;
   block?: number;
@@ -78,6 +85,8 @@ const DEFAULTS: Required<TraceOptions> = {
   maxRatio: 2.2,
   minFall: 1.03,
   minConfidence: 4,
+  trim: 1.4,
+  trimShare: 0.6,
   nulls: 4,
   block: 8,
 };
@@ -235,6 +244,45 @@ function bestPath(g: Grid, o: Required<TraceOptions>, mask: Uint8Array, shift: I
   return { score: best, from: k, to: bestK, bins: Int32Array.from(bins), gains: Float32Array.from(gains) };
 }
 
+/**
+ * The stretch of a loud ridge worth keeping, as [first, last] indices into its per-frame evidence:
+ * the stretch that most exceeds a floor at `share` of its strong frames (the 90th percentile of its
+ * evidence averaged over `half` frames either side), by the same local alignment as the search.
+ * A loud tone that fades (a jet's fan once it has passed) leaves the follower drifting on along
+ * weaker cells nearly for free. A ridge whose floor stays under `least` is not loud: kept whole.
+ */
+export function strongestStretch(gains: ArrayLike<number>, least: number, share: number, half: number): [number, number] {
+  const n = gains.length;
+  const g = Float64Array.from(gains, (x) => (Number.isFinite(x) ? x : 0));
+  if (share <= 0 || n === 0) return [0, n - 1];
+  const sums = new Float64Array(n + 1);
+  for (let i = 0; i < n; i++) sums[i + 1] = sums[i] + g[i];
+  const means = Array.from({ length: n }, (_, i) => {
+    const a = Math.max(0, i - half);
+    const b = Math.min(n, i + half + 1);
+    return (sums[b] - sums[a]) / (b - a);
+  }).sort((x, y) => x - y);
+  const floor = share * means[Math.floor(0.9 * (n - 1))];
+  if (floor < least) return [0, n - 1];
+  let best = 0;
+  let run = 0;
+  let start = 0;
+  let first = 0;
+  let last = -1;
+  for (let i = 0; i < n; i++) {
+    if (run <= 0) [run, start] = [0, i];
+    run += g[i] - floor;
+    if (run > best) [best, first, last] = [run, start, i];
+  }
+  return [first, last];
+}
+
+function trimmed(path: Path, least: number, share: number, half: number): Path {
+  const [a, b] = strongestStretch(path.gains, least, share, half);
+  if (a === 0 && b === path.bins.length - 1) return path;
+  return { ...path, from: path.from + a, to: path.from + b, bins: path.bins.slice(a, b + 1), gains: path.gains.slice(a, b + 1) };
+}
+
 /** A small deterministic generator for the scrambles: the same recording gives the same null. */
 function scrambles(K: number, B: number, n: number, block: number): Int32Array[] {
   let a = 0x9e3779b9;
@@ -312,10 +360,13 @@ export function findTraces(stack: Stack, options: TraceOptions = {}): Traces {
   const standing = found.filter((p) => (p.score - nul.mid) / nul.spread >= STAND);
   if (standing.length) nul = nullWith(maskOf(standing));
 
+  const half = Math.round(1 / hop);
   const traces: Trace[] = [];
-  for (const path of found) {
-    const confidence = (path.score - nul.mid) / nul.spread;
-    if (confidence < o.minConfidence || path.bins.length < minFrames) continue;
+  for (const ridge of found) {
+    const confidence = (ridge.score - nul.mid) / nul.spread;
+    if (confidence < o.minConfidence) continue;
+    const path = trimmed(ridge, o.trim, o.trimShare, half);
+    if (path.bins.length < minFrames) continue;
     let top = 0;
     let low = Infinity;
     for (const b of path.bins) {
@@ -326,13 +377,16 @@ export function findTraces(stack: Stack, options: TraceOptions = {}): Traces {
     if (top / low > o.maxRatio) continue;
     // A tone that barely moves says nothing of where it was heard from, and the noise makes those.
     if (top / low < o.minFall) continue;
+    // And a pass ends lower than it began: of 184 right traces in the evals of 2026-11-03, none
+    // ended within 3 % of its start or above it; of 391 others, 92 did.
+    const fall = freqs[path.bins[0]] / freqs[path.bins[path.bins.length - 1]];
+    if (fall < o.minFall) continue;
     const freq = new Float32Array(K).fill(NaN);
     const strength = new Float32Array(K).fill(NaN);
     for (let i = 0; i < path.bins.length; i++) {
       freq[path.from + i] = freqs[path.bins[i]];
       strength[path.from + i] = path.gains[i];
     }
-    const fall = freqs[path.bins[0]] / freqs[path.bins[path.bins.length - 1]];
     traces.push({ from: path.from, to: path.to, freq, strength, score: path.score, confidence, seconds: (path.to - path.from + 1) * hop, fall });
     if (traces.length === o.maxTraces) break;
   }

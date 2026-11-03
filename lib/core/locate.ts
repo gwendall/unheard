@@ -80,7 +80,8 @@ const DEFAULTS = {
   clockPrior: 0.02,
   maxRange: 10_000,
   spots: 5,
-  traces: { fMin: 40, fMax: 2000 } as TraceOptions,
+  // Up to 3.4 kHz: a jet's fan tones sit above 2 kHz while it comes in (evals/trace).
+  traces: { fMin: 40, fMax: 3400 } as TraceOptions,
 };
 
 /**

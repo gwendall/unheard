@@ -36,8 +36,9 @@ function run(s: Scenario): Outcome {
   const real = s.id.startsWith("asdb");
   const stack = buildStack(s.recording.samples, s.recording.sampleRate);
   const t0 = performance.now();
-  // Jets hum at 1 to 2 kHz: the real clips are searched up to 2 kHz.
-  const { traces } = findTraces(stack, real ? { fMax: 2000 } : {});
+  // Jets hum at 1 to 3 kHz, their fan tones above 2 kHz while they come in: the real clips are
+  // searched up to 3.4 kHz, as locate does.
+  const { traces } = findTraces(stack, real ? { fMax: 3400 } : {});
   const ms = Math.round(performance.now() - t0);
   const times = stack.base.times;
   const answers = [s.truth.heard, ...(s.truth.alsoHeard ?? [])];
@@ -98,7 +99,7 @@ it("blind traces", () => {
   const lines = [
     "# Eval trace",
     "",
-    `${new Date().toISOString()}, ${outcomes.length} scenarios, median ${summary.msMedian} ms per search (synthetic 40 to 400 Hz over 120 s, real 40 to 2000 Hz over 60 s).`,
+    `${new Date().toISOString()}, ${outcomes.length} scenarios, median ${summary.msMedian} ms per search (synthetic 40 to 400 Hz over 120 s, real 40 to 3400 Hz over 60 s).`,
     "- Right: the trace follows the true curve times a tone in closed form, median distance under 0.5 % (synthetic, exact curve) or 0.8 % (real: ADS-B at the approximate microphone, clock within 3 s), over half its frames, where the curve falls by 2 % or more.",
     "- Synthetic: heard, missing (heard, not in the data: the same for a blind search), two (only the first aircraft's curve is known: the second one's trace counts as following nothing), noise (hum, rumble, passing cars, bursts, no aircraft). Oracle: how findable the sound was with a perfect model.",
     "- Real: a trace the labelled aircraft does not explain may be a real tone all the same (another aircraft, a vehicle, an engine on the ground).",
@@ -124,8 +125,10 @@ it("blind traces", () => {
   writeFileSync(new URL("trace.json", dir), JSON.stringify({ summary, outcomes }, null, 2));
   console.log(JSON.stringify(summary));
   // Guards on the default corpus, a margin under the run of 2026-11-03 (13 of 21 findable, 1 of
-  // 30 noise): a change that loses the traces of loud flybys, or finds them in noise, fails here.
+  // 30 noise; 7 of the 9 real clips): a change that loses the traces of loud flybys or jets, or
+  // finds them in noise, fails here. The real clips only run where AeroSonicDB is cached.
   if (process.env.SEEDS !== undefined) return;
   expect(summary.findable.found / Math.max(1, summary.findable.n)).toBeGreaterThanOrEqual(0.5);
   expect(summary.empty.falseTrace / Math.max(1, summary.empty.n)).toBeLessThanOrEqual(0.1);
+  if (summary.real.n > 0) expect(summary.real.found / summary.real.n).toBeGreaterThanOrEqual(0.6);
 });

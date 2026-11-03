@@ -131,9 +131,12 @@ Thresholds: strong at score 9 and lead 2.5, possible at 6.5 and 1.5 (`lib/core/m
 
 8. Locate me (core only, no UI yet; draft PRs #29 and #30): where the phone
    was from the flyby and the tracks, without its GPS (`lib/core/trace.ts`, `lib/core/locate.ts`,
-   evals `trace` and `locate`). Loud single flybys land within 100 m (median 89 m); real clips:
-   4 of the 5 propeller and helicopter passes within 270 m, the four jets missed (their fan tones
-   sweep faster than the trace follower). An answer scoring 12 or more was within 1 km every time.
+   evals `trace` and `locate`). Loud single flybys land within 250 m 5 times in 6 (median
+   123 m); real clips: 6 of 10 within 1 km (median 840 m), 2 of the 4 jets within 70 m now that
+   their fan tones above 2 kHz are searched and a loud trace stops where its tone fades. An
+   answer scoring 12 or more was within 1 km every time. Medium-loud synthetic flybys (oracle 6
+   to 10) still give a right trace 2 times in 10: a slower, longer-integrating search did not
+   find more without false traces in noise.
 
 ## Needs the founder
 
