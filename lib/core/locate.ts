@@ -16,7 +16,7 @@ import { fromLocal, toLocal, type Listener } from "./geo";
 import { curveScore } from "./match";
 import type { Recording } from "./pipeline";
 import { buildStack, type Stack } from "./spectrogram";
-import { findTraces, type Trace, type TraceOptions } from "./trace";
+import { findTraces, REAL_RANGE, type Trace, type TraceOptions } from "./trace";
 import { buildTrack, type Track } from "./track";
 
 const R = 6_371_008.8;
@@ -82,8 +82,7 @@ const DEFAULTS = {
   clockPrior: 0.02,
   maxRange: 10_000,
   spots: 5,
-  // Up to 3.4 kHz: a jet's fan tones sit above 2 kHz while it comes in (evals/trace).
-  traces: { fMin: 40, fMax: 3400 } as TraceOptions,
+  traces: REAL_RANGE,
 };
 
 /**

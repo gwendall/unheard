@@ -42,7 +42,16 @@ export type Truth = {
 /** The exact sound that was heard, to measure how findable it was with a perfect model. */
 export type Oracle = { truth: Track; air: Air; f0: number; harmonics: number[]; start: number };
 
-export type Scenario = { id: string; kind: "heard" | "noise" | "missing" | "two"; recording: Recording; truth: Truth; oracle?: Oracle; tags: Record<string, string | number> };
+export type Scenario = {
+  id: string;
+  kind: "heard" | "noise" | "missing" | "two";
+  recording: Recording;
+  truth: Truth;
+  oracle?: Oracle;
+  tags: Record<string, string | number>;
+  /** The sound at the file's own rate, when it had one before the analysis rate (real clips). */
+  native?: { samples: Float32Array; sampleRate: number };
+};
 
 const R = 6_371_008.8;
 const FT = 0.3048;
