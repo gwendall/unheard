@@ -112,16 +112,19 @@ async function check(name: string, title: string, scenarios: Scenario[]) {
 }
 
 // One test per corpus, each with its own report: `pnpm eval evals/leak -t livermore` runs one.
-it("synthetic", async () => {
+// Each with two hours: on a loaded Mac the 9 AeroSonicDB clips took 28 minutes.
+const BUDGET = { timeout: 7_200_000 };
+
+it("synthetic", BUDGET, async () => {
   const plan: [Scenario["kind"], number, number][] = [["heard", 0, N], ["noise", 1000, N], ["missing", 2000, Math.ceil(N / 2)], ["two", 3000, Math.ceil(N / 5)]];
   await check("synthetic", `synthetic (SEEDS=${N})`, plan.flatMap(([kind, base, n]) => Array.from({ length: n }, (_, i) => syntheticScenario(base + i, kind))));
 });
 
-it("aerosonic", async () => {
+it("aerosonic", BUDGET, async () => {
   await check("aerosonic", "AeroSonicDB (Adelaide, 60 s clips at 22 kHz)", aerosonicScenarios().filter((x) => !x.id.startsWith("asdb-missing")));
 });
 
 // 40 phone recordings at 48 kHz, cleaned at that rate: the longest corpus.
-it("livermore", { timeout: 7_200_000 }, async () => {
+it("livermore", BUDGET, async () => {
   await check("livermore", "phones at Livermore (48 kHz, 41 to 182 s)", livermoreScenarios().filter((x) => !x.id.startsWith("lvk-missing")));
 });
