@@ -127,14 +127,23 @@ manifest. The licence is the one above: ODbL 1.0, "© adsb.lol contributors".
 (`--schedule daily`, shared-cpu-4x, 4 GB, stops when done): yesterday's day if adsb.lol has published
 it, then older missing days going backwards to 2026-01-01, within a time budget (20 minutes by
 default, 40 on this Machine) and at most 3 days a run (`HISTORY_JOB_MAX_DAYS`: every day uploaded
-costs about 0.02 USD, so this is what keeps the backfill under 5 USD a month). Tiles go first and the manifest last, so a day with a
-manifest is complete; a failed day leaves none and is tried again next run. To change the job, build
-the image and point the Machine at it:
+costs about 0.02 USD, mostly PUTs). Tiles go first and the manifest last, so a day with a manifest
+is complete; a failed day leaves none and is tried again next run. To change the job, build the
+image and point the Machine at it:
 
 ```
 fly deploy --build-only --push --config scripts/history-job.fly.toml -a unheard-history \
   --dockerfile scripts/history-job.Dockerfile --ignorefile scripts/history-job.dockerignore --image-label history-job-N .
 fly machine update <id> -a unheard-history --image registry.fly.io/unheard-history:history-job-N
+```
+
+To fill many days at once, run one Machine per day: a fresh shared-cpu-4x took 4 to 6 minutes a day,
+one on its second day 18 to 24, once its CPU burst was spent. Each builds its day and removes itself:
+
+```
+fly machine run registry.fly.io/unheard-history:history-job-N -a unheard-history --vm-size shared-cpu-4x \
+  --vm-memory 4096 --swap-size 1024 --restart no --rm --skip-dns-registration \
+  -e HISTORY_JOB_FIRST=<day> -e HISTORY_JOB_OLDEST=2099-01-01 -e HISTORY_JOB_MAX_DAYS=1
 ```
 
 To mirror it, copy the files over plain HTTP, or run the same job against your own S3 bucket
