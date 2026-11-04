@@ -6,7 +6,7 @@ import { areaQuery, FRESH_FOR, RADIUS_NM, snap, STALE_FOR } from "@/lib/area";
 // not collapse a burst on a function, so this file keeps its own short memory of each area too.
 
 const SHARED = `public, s-maxage=${FRESH_FOR}, stale-if-error=${STALE_FOR}`;
-/** Any other spelling of an area, a cache-buster included, costs a redirect and no upstream request. */
+/** A position off the grid (a page older than it, or a script) costs a redirect and no upstream request. */
 const REDIRECT = "public, s-maxage=86400";
 
 /** adsb.lol and adsb.fi limit each address: after a 429 this instance leaves that one alone for a while. */
@@ -63,7 +63,7 @@ export async function GET(request: Request) {
     return Response.json({ error: "lat and lon are required" }, { status: 400 });
   }
   const area = areaQuery(lat, lon);
-  if (url.search !== area) {
+  if (url.searchParams.get("lat") !== String(snap(lat)) || url.searchParams.get("lon") !== String(snap(lon))) {
     return new Response(null, { status: 308, headers: { Location: `/api/aircraft${area}`, "Cache-Control": REDIRECT } });
   }
   const poll = await pollOf(area, snap(lat), snap(lon));

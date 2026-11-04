@@ -131,10 +131,10 @@ describe("/api/aircraft", () => {
     expect(upstream).toHaveBeenCalledTimes(3);
   });
 
-  it("sends any other spelling of an area to its one address without asking upstream", async () => {
+  it("sends a position off the grid to its square without asking upstream", async () => {
     const upstream = stubUpstream();
     const GET = await route();
-    for (const query of ["?lat=48.8&lon=2.3", "?lon=2.25&lat=48.75", `${AREA}&x=1`, "?lat=48.750&lon=2.25"]) {
+    for (const query of ["?lat=48.8&lon=2.3", "?lat=48.750&lon=2.25", "?lat=48.75&lon=2.2"]) {
       const res = await GET(request(query));
       expect(res.status).toBe(308);
       expect(res.headers.get("Location")).toBe(`/api/aircraft${AREA}`);
@@ -143,6 +143,13 @@ describe("/api/aircraft", () => {
     expect((await GET(request("?lat=48.75"))).status).toBe(400);
     expect((await GET(request("?lat=91&lon=2.25"))).status).toBe(400);
     expect(upstream).not.toHaveBeenCalled();
+  });
+
+  it("counts a cache-buster as the same area: it costs no second upstream request", async () => {
+    const upstream = stubUpstream();
+    const GET = await route();
+    for (const query of [AREA, `${AREA}&x=1`, "?lon=2.25&lat=48.75"]) expect((await GET(request(query))).status).toBe(200);
+    expect(upstream).toHaveBeenCalledTimes(1);
   });
 
   it("goes to the fallback after a 429 and leaves the service that refused alone for 10 s", async () => {
