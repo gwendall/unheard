@@ -5,10 +5,11 @@
 import { toneOf, pictureOf, readerOf, viewOf, type Picture, type Reader, type Tone } from "../core/leak";
 import { toLocal, norm, type Listener } from "../core/geo";
 import { ANALYSIS_RATE } from "../core/pipeline";
-import { findSegments, flybys, whereWhen, type Answer } from "../core/wherewhen";
+import { estimator, stagesOf, type Estimate } from "../core/progress";
+import { findSegments, flybys, whereWhen, type Answer, type BestSoFar } from "../core/wherewhen";
 import { httpFetcher, loadFlights, type Flight } from "../history";
 import { groundOf, httpTiles } from "../terrain";
-import { daysOf, distinctAnswers, passesOf } from "./where";
+import { daysOf, distinctAnswers, partsOf, passesOf, type WherePart } from "./where";
 
 export type WhereRequest = {
   channels: Float32Array[];
@@ -17,6 +18,8 @@ export type WhereRequest = {
   history: string;
   window: [number, number];
   area: { lat: number; lon: number; side: number };
+  /** Also send what appears before the end: each tone as it is found, the best guess so far. */
+  partial?: boolean;
 };
 
 export type WhereStep = "find" | "flights" | "search" | "refine";
@@ -35,11 +38,21 @@ export type WhereResult =
   /** `passes`: how many separate passes the tones make. An empty `guesses`: no flight fits. */
   | { kind: "found"; passes: number; tones: number; confident: boolean; guesses: Guess[]; views: Record<number, ToneView> };
 
-export type WhereEvent = { type: "progress"; step: WhereStep; done: number; total: number } | { type: "result"; result: WhereResult } | { type: "error"; message: string };
+export type WhereEvent =
+  /** `done` of `total` within the step; `fraction` and `secondsLeft` for the whole job (lib/core/progress.ts). */
+  | ({ type: "progress"; step: WhereStep; done: number; total: number } & Estimate)
+  /** With `partial`: every tone found so far. */
+  | { type: "tones"; tones: Tone[] }
+  /** With `partial`: the best guess so far, which the search may still drop. */
+  | { type: "best"; best: BestSoFar }
+  | { type: "result"; result: WhereResult } | { type: "error"; message: string };
 
 // The worker's own global, typed by what this file uses of it (the DOM and webworker libs clash).
 const scope = self as unknown as { postMessage: (event: WhereEvent) => void; onmessage: ((e: MessageEvent<WhereRequest>) => void) | null };
 const post = (event: WhereEvent) => scope.postMessage(event);
+
+/** The first and the last of the job's parts each step covers. */
+const STEP_PARTS: Record<WhereStep, [WherePart, WherePart]> = { find: ["find", "find"], flights: ["flights", "flights"], search: ["shape", "joint"], refine: ["fine", "fine"] };
 
 /** Guesses shown, and tones drawn under each. */
 const GUESSES = 3;
@@ -101,12 +114,30 @@ function viewsOf(guesses: Guess[], tones: Tone[], read: Reader, length: number, 
   return views;
 }
 
-async function search({ channels, sampleRate, history, window, area }: WhereRequest): Promise<WhereResult> {
-  post({ type: "progress", step: "find", done: 0, total: 1 });
+async function search({ channels, sampleRate, history, window, area, partial }: WhereRequest): Promise<WhereResult> {
   const { read, length } = readerOf({ channels, sampleRate });
-  const samples = read(0, length);
   const duration = length / ANALYSIS_RATE;
-  const { segments, searched } = findSegments(samples, ANALYSIS_RATE);
+  const estimate = estimator(() => performance.now() / 1000);
+  const fractionOf = stagesOf(partsOf(duration));
+  /** Where the job stands: how far into the step, and the whole job's bar and time left. */
+  const report = (step: WhereStep, part: WherePart, share: number) => {
+    const fraction = fractionOf(part, share);
+    const [first, last] = STEP_PARTS[step];
+    const from = fractionOf(first, 0);
+    const done = Math.round((100 * (fraction - from)) / (fractionOf(last, 1) - from));
+    post({ type: "progress", step, done, total: 100, ...estimate(fraction) });
+  };
+  report("find", "find", 0);
+  const samples = read(0, length);
+  const so: Tone[] = [];
+  const { segments, searched } = findSegments(samples, ANALYSIS_RATE, undefined, undefined, {
+    onProgress: (share) => report("find", "find", share),
+    onSegment: (g) => {
+      if (!partial) return;
+      so.push(...g.traces.map((t) => toneOf(t, g.stack.base.times, g.offset)));
+      post({ type: "tones", tones: so });
+    },
+  });
   // In the order wherewhen numbers them: Explained.trace is an index into this list.
   const tones = segments.flatMap((g) => g.traces.map((t) => toneOf(t, g.stack.base.times, g.offset)));
   if (!tones.length) return { kind: "none" };
@@ -114,24 +145,21 @@ async function search({ channels, sampleRate, history, window, area }: WhereRequ
   const low = heard.filter((h) => h.f0 <= REPORTED_HZ);
   const passes = passesOf((low.length ? low : heard).map((h) => h.closest));
 
-  post({ type: "progress", step: "flights", done: 0, total: 1 });
+  report("flights", "flights", 0);
   const days = daysOf(window, duration);
   const { flights, missing } = await loadFlights(httpFetcher(history), days, area);
   if (missing.length === days.length) return { kind: "missing", day: missing[0] };
   // The ground's height from the open terrain tiles (they allow browsers); flat if they fail.
   const ground = await groundOf((z, x, y) => httpTiles(z, x, y).catch(() => null), area.lat, area.lon, area.side);
 
-  post({ type: "progress", step: "search", done: 0, total: 100 });
+  report("search", "shape", 0);
   const found = await whereWhen(segments, flights, {
     window,
     area,
     ground,
     searched,
-    onProgress: (stage: string, done: number, total: number) => {
-      const share = done / Math.max(1, total);
-      if (stage === "fine") post({ type: "progress", step: "refine", done: Math.round(share * 100), total: 100 });
-      else post({ type: "progress", step: "search", done: Math.round((stage === "joint" ? 0.8 + 0.2 * share : 0.8 * share) * 100), total: 100 });
-    },
+    onProgress: (stage, done, total) => report(stage === "fine" ? "refine" : "search", stage, done / Math.max(1, total)),
+    onBest: partial ? (best) => post({ type: "best", best }) : undefined,
   });
   // Only lines above the propellers' range, and nothing that convinces: no tone to speak of.
   if (!low.length && !found.confident) return { kind: "none" };

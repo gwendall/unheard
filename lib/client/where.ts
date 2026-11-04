@@ -123,3 +123,26 @@ export async function geocode(name: string, language: string, signal?: AbortSign
   const { results } = (await res.json()) as { results?: { name: string; admin1?: string; country?: string; latitude: number; longitude: number; timezone?: string }[] };
   return (results ?? []).map((r) => ({ name: [r.name, r.admin1, r.country].filter((x, i, all) => x && all.indexOf(x) === i).join(", "), lat: r.latitude, lon: r.longitude, zone: r.timezone }));
 }
+
+/** The where page's stages, each step of the worker with the search's own. */
+export type WherePart = "find" | "flights" | "shape" | "smooth" | "candidates" | "coarse" | "joint" | "fine";
+
+/**
+ * Shares of the page's job for a file this long, seconds: finding the tones follows the file's
+ * length, the rest what the window and the area hold. From colsto's hour (`pnpm speed where`):
+ * tones 85 s of CPU, then 60 s of search, as these stages share it.
+ */
+export function partsOf(seconds: number): readonly (readonly [WherePart, number])[] {
+  const find = seconds / (seconds + 2600);
+  const rest = 1 - find;
+  return [
+    ["find", find],
+    ["flights", 0.03 * rest],
+    ["shape", 0.2 * rest],
+    ["smooth", 0.17 * rest],
+    ["candidates", 0.45 * rest],
+    ["coarse", 0.06 * rest],
+    ["joint", 0.03 * rest],
+    ["fine", 0.06 * rest],
+  ];
+}

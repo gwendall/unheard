@@ -180,17 +180,31 @@ export type Stack = { base: Spectrogram; evidence: Float32Array; layers: Layer[]
 
 export const WINDOWS = [2, 1, 0.5, 0.25];
 
-export type StackOptions = { windows?: number[]; hopSeconds?: number; minHz?: number; maxHz?: number; toleranceHz?: number; tolerance?: number; pad?: number };
+export type StackOptions = {
+  windows?: number[];
+  hopSeconds?: number;
+  minHz?: number;
+  maxHz?: number;
+  toleranceHz?: number;
+  tolerance?: number;
+  pad?: number;
+  /** How far the stack has got, 0 to 1, after each window (a window costs its length). */
+  onProgress?: (share: number) => void;
+};
 
 export function buildStack(samples: Float32Array, sampleRate: number, options: StackOptions = {}): Stack {
   // Up to 3.8 kHz: propellers and rotors sit below 500 Hz, but jet fans hum around 1 to 2 kHz
   // (evals/real-audio: the three 737s were found at 0.9 to 1.9 kHz, none below 1 kHz).
-  const { windows = WINDOWS, hopSeconds = 0.25, minHz = 20, maxHz = 3800, toleranceHz = 0.5, tolerance = 0.0015, pad = 1 } = options;
+  const { windows = WINDOWS, hopSeconds = 0.25, minHz = 20, maxHz = 3800, toleranceHz = 0.5, tolerance = 0.0015, pad = 1, onProgress } = options;
   for (let i = 1; i < windows.length; i++) if (Math.abs(windows[i] * 2 - windows[i - 1]) > 1e-9) throw new Error("each window must halve the one before");
   const layers: Layer[] = [];
+  const cost = windows.reduce((a, w) => a + w, 0);
+  let done = 0;
   for (const window of windows) {
     const spec = computeSpectrogram(samples, sampleRate, { windowSeconds: window, hopSeconds, minHz, maxHz, pad });
     layers.push({ window, spec, evidence: evidenceMap(spec, toleranceHz, tolerance), index: new Int32Array(0) });
+    done += window;
+    onProgress?.(done / cost);
   }
   const base = layers[0].spec;
   const hop = Math.max(1, Math.round(hopSeconds * sampleRate)) / sampleRate;

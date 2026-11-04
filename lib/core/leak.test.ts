@@ -84,6 +84,23 @@ describe("toneOf and curveOf", () => {
   });
 });
 
+describe("watching the search", () => {
+  it("tells how far it has got and each tone as it is found, and finds the same", () => {
+    const { samples } = flyby(60, 30, 11);
+    const { read, length } = readerOf({ channels: [samples], sampleRate: RATE });
+    const plain = findTones(read, chunksOf(length));
+    const fractions: number[] = [];
+    const partial: Tone[][] = [];
+    const watched = findTones(read, chunksOf(length), RATE, { onProgress: (f) => fractions.push(f), onTones: (t) => partial.push(t) });
+    expect(fractions.length).toBeGreaterThan(5);
+    expect(fractions[fractions.length - 1]).toBe(1);
+    for (let i = 1; i < fractions.length; i++) expect(fractions[i]).toBeGreaterThanOrEqual(fractions[i - 1]);
+    expect(partial.length).toBeGreaterThan(0);
+    expect(partial[partial.length - 1].map((t) => t.confidence)).toEqual(plain.map((t) => t.confidence));
+    expect(watched.map((t) => [t.confidence, t.beside?.length ?? 0, t.times[0]])).toEqual(plain.map((t) => [t.confidence, t.beside?.length ?? 0, t.times[0]]));
+  }, 120_000);
+});
+
 describe("mergeTones", () => {
   const falling = (from: number, n: number, f0: number) => Array.from({ length: n }, (_, i) => f0 * Math.exp(-0.002 * (from * 4 + i)));
 
