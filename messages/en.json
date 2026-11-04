@@ -25,7 +25,7 @@
   "example": {
     "label": "See an example result: a Cessna 172 Skyhawk found in a simulated recording",
     "chip": "Simulated example",
-    "file": "simulated-recording.wav",
+    "file": "simulated.wav",
     "note": "Simulated: real planes, made-up sound, mixed to show a clean case. None of our real test recordings got a place: they get \"Can't tell\".",
     "own": "Try your own file",
     "failed": "The example did not load. Try again, or use your own file.",
@@ -547,6 +547,9 @@
     "around": "{date}, around {time}",
     "plane": "{tail}, {distance} away, at {time}",
     "planeUnknown": "Plane of unknown type",
+    "hear": "Hear {plane}",
+    "pause": "Pause {plane}",
+    "soundNote": "Each button plays this file's own sound around that plane, faster and filtered so you can hear its hum.",
     "another": "Another file",
     "mapNote": "The map and the place name come from our own storage, and your file is never sent. Our host sees which area was asked for: a few dozen km across, down to about a kilometre if you zoom in.",
     "why": {

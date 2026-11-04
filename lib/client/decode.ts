@@ -37,10 +37,15 @@ async function read(file: File): Promise<Decoded> {
  * what it is given.
  */
 export async function soundOf(file: File): Promise<Decoded> {
+  const { channels, sampleRate } = await soundToRead(file);
+  return { channels: channels.map((c) => c.slice()), sampleRate };
+}
+
+/** The same sound, not a copy: to read in the page, never to give away. */
+export function soundToRead(file: File): Promise<Decoded> {
   let sound = sounds.get(file);
   if (!sound) sounds.set(file, (sound = read(file)));
-  const { channels, sampleRate } = await sound;
-  return { channels: channels.map((c) => c.slice()), sampleRate };
+  return sound;
 }
 
 /** What to tell the visitor about a file that would not decode: too big for memory, or no sound the browser can read. */
