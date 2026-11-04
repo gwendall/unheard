@@ -30,8 +30,8 @@ async function open(folder: string, name: string): Promise<{ file: SyncFile; acc
 const bytesOf = (a: Float32Array) => new Uint8Array(a.buffer, a.byteOffset, a.byteLength);
 
 /** The sound at the analysis rate: on disk when it can be, in memory when not. */
-export async function openStore(folder: string): Promise<SoundStore> {
-  const opened = await open(folder, "sound.f32");
+export async function openStore(folder: string, name = "sound.f32"): Promise<SoundStore> {
+  const opened = await open(folder, name);
   if (!opened) return memoryStore();
   const { access } = opened;
   return {

@@ -75,6 +75,11 @@ export function memoryStore(): SoundStore {
   };
 }
 
+/** The sound as it is, into another store. */
+export function copySound(from: SoundStore, to: SoundStore, length: number) {
+  for (let at = 0; at < length; at += PAGE) to.write(at, from.read(at, Math.min(PAGE, length - at)));
+}
+
 /** A stretch of the recording in seconds: [start, end]. */
 export type Stretch = { start: number; end: number };
 

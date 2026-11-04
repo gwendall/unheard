@@ -3,11 +3,11 @@
 // look again, and write the cleaned file. The file's sound stays here and on this device, and never
 // leaves it.
 
-import { chunksOf, cleanOut, curvesOf, findTonesWith, pictureOf, viewOf, type Picture, type Tone, type View } from "../core/leak";
+import { chunksOf, cleanOut, curvesOf, findTonesWith, pictureOf, viewOf, type Picture, type Reader, type Tone, type View } from "../core/leak";
 import { ANALYSIS_RATE } from "../core/rate";
 import { estimator, stagesOf, type Estimate } from "../core/progress";
 import type { Curve } from "../core/scrub";
-import { memorySource, readInto, storedSound, takeOutOfFile, type SoundSource, type SoundStore } from "../core/stream";
+import { copySound, memorySource, readInto, storedSound, takeOutOfFile, type SoundSource, type SoundStore } from "../core/stream";
 import { openSink, openStore } from "./disk";
 import { sweep } from "./folder";
 import { openMedia, type MediaFile } from "./media";
@@ -19,12 +19,14 @@ export type CheckRequest =
   | { type: "open"; file: File; folder: string; partial?: boolean }
   /** The sound of a file this worker could not read, decoded by the page (Web Audio). */
   | { type: "sound"; channels: Float32Array[]; sampleRate: number }
-  | { type: "clean" };
+  | { type: "clean" }
+  /** The page shows this tone: its pictures. Nothing else waits for them. */
+  | { type: "draw"; id: number };
 
 export type Step = "open" | "find" | "clean" | "again" | "write";
 
-/** A tone the page shows: where it is, how it looks, and how it looks once taken out. */
-export type Found = { tone: Tone; view: View; before: Picture };
+/** A tone the page can show, and where it lies. `gone`: it was taken out, so it has a picture of after as well. */
+export type Found = { id: number; tone: Tone; view: View; gone?: boolean };
 
 /** What comes before the end when the request asks (`partial`): the tones so far, strongest first, and where each lies. */
 export type CheckPartial = { type: "tones"; duration: number; tones: { tone: Tone; view: View }[] };
@@ -38,12 +40,14 @@ export type CheckEvent =
   /** The worker cannot read this file: the page decodes it, at the rate its container says if it says one. */
   | { type: "decode-here"; sampleRate?: number }
   | { type: "found"; duration: number; found: Found[] }
-  | ({ type: "cleaned"; cleaned: (Found & { after: Picture })[]; left: Found[] } & Written)
+  | ({ type: "cleaned"; cleaned: Found[]; left: Found[] } & Written)
+  /** How a tone looks, and how it looks once taken out. */
+  | { type: "drawn"; id: number; before: Picture; after?: Picture }
   | { type: "error"; message: string };
 
 // The worker's own global, typed by what this file uses of it (the DOM and webworker libs clash).
-const scope = self as unknown as { postMessage: (event: CheckEvent | CheckPartial) => void; onmessage: ((e: MessageEvent<CheckRequest>) => void) | null };
-const post = (event: CheckEvent | CheckPartial) => scope.postMessage(event);
+const scope = self as unknown as { postMessage: (event: CheckEvent | CheckPartial, transfer?: Transferable[]) => void; onmessage: ((e: MessageEvent<CheckRequest>) => void) | null };
+const post = (event: CheckEvent | CheckPartial, transfer: Transferable[] = []) => scope.postMessage(event, transfer);
 
 const clock = () => performance.now() / 1000;
 
@@ -82,15 +86,42 @@ type Session = {
   rounds: Curve[][];
   current: Found[];
   writes: number;
+  /** Every tone told to the page, by id, and the sound its pictures read. */
+  drawable: Drawable[];
 };
+
+/** Where a tone's pictures are read: the sound as it is, or as it was before tones were taken out of it. */
+type Drawable = { view: View; before: Reader; after?: Reader };
 
 let session: Session | null = null;
 
-function show(s: Session, tones: Tone[]): Found[] {
+/** Tones as the page is told of them. Their pictures are drawn when it asks: a real hour holds dozens, and it shows three. */
+function told(s: Session, tones: Tone[], before: Reader, after?: Reader): Found[] {
   return tones.map((tone) => {
     const view = viewOf(tone, s.duration);
-    return { tone, view, before: pictureOf(s.store.read, s.length, view) };
+    const id = s.drawable.push({ view, before, after }) - 1;
+    return after ? { id, tone, view, gone: true } : { id, tone, view };
   });
+}
+
+const asked: number[] = [];
+let drawing = false;
+
+/** The pictures asked for, one at a time and back to the queue between them, so that "Take them out" never waits for them. */
+async function drawAsked() {
+  if (drawing) return;
+  drawing = true;
+  while (asked.length && session) {
+    const id = asked.shift()!;
+    const f = session.drawable[id];
+    if (f) {
+      const before = pictureOf(f.before, session.length, f.view);
+      const after = f.after && pictureOf(f.after, session.length, f.view);
+      post({ type: "drawn", id, before, after }, after ? [before.cells.buffer, after.cells.buffer] : [before.cells.buffer]);
+    }
+    await new Promise((go) => setTimeout(go));
+  }
+  drawing = false;
 }
 
 async function find(s: Session, source: SoundSource) {
@@ -107,14 +138,14 @@ async function find(s: Session, source: SoundSource) {
       onTones: s.partial ? (found) => post({ type: "tones", duration: s.duration, tones: found.map((tone) => ({ tone, view: viewOf(tone, s.duration) })) }) : undefined,
     }),
   );
-  s.current = show(s, tones);
+  s.current = told(s, tones, s.store.read);
   post({ type: "found", duration: s.duration, found: s.current });
 }
 
 async function open(file: File, folder: string, partial: boolean) {
   void sweep().catch(() => {});
   const media = await openMedia(file);
-  session = { folder, media, source: null, store: await openStore(folder), partial, length: 0, duration: 0, rounds: [], current: [], writes: 0 };
+  session = { folder, media, source: null, store: await openStore(folder), partial, length: 0, duration: 0, rounds: [], current: [], writes: 0, drawable: [] };
   if (media?.source) {
     try {
       await find(session, media.source);
@@ -146,9 +177,15 @@ async function writeWav(s: Session, source: SoundSource, onDone: (consume: (bloc
 async function cleanUp(s: Session) {
   const source = s.source;
   if (!source) return;
-  // Every tone taken out, with how it looked just before its round.
-  const shown = new Map<Tone, Found>(s.current.map((f) => [f.tone, f]));
   const job = jobOf(CLEANING);
+  // The store is about to change: what the page shows, or may yet ask to see, reads the sound as it was.
+  const now = s.store.read;
+  const was = await openStore(s.folder, `before-${s.writes + 1}.f32`);
+  copySound(s.store, was, s.length);
+  for (const f of s.drawable) {
+    if (f.before === now) f.before = was.read;
+    if (f.after === now) f.after = was.read;
+  }
   const { cleaned, left, written } = await withPieces(async (pieces) => {
     const { cleaned } = await cleanOut(
       storedSound(s.store, s.length, ANALYSIS_RATE, pieces),
@@ -158,10 +195,7 @@ async function cleanUp(s: Session) {
         onWindow: (done, total) => job.count("clean", done, total),
         find: { onChunk: (done, total) => job.count("again", done, total) },
         onProgress: (part) => job.share(part, "clean"),
-        onRound: (round, tones) => {
-          s.rounds.push(curvesOf(tones));
-          if (round) for (const f of show(s, tones)) shown.set(f.tone, f);
-        },
+        onRound: (_, tones) => void s.rounds.push(curvesOf(tones)),
       },
     );
     job.reach("write", 0, 1);
@@ -175,13 +209,9 @@ async function cleanUp(s: Session) {
     );
     return { cleaned, left, written };
   });
-  const after = cleaned.map((tone) => {
-    const f = shown.get(tone)!;
-    return { ...f, after: pictureOf(s.store.read, s.length, f.view) };
-  });
-  s.current = show(s, left);
+  s.current = told(s, left, now);
   job.share(1, "again");
-  post({ type: "cleaned", cleaned: after, left: s.current, ...written });
+  post({ type: "cleaned", cleaned: told(s, cleaned, was.read, now), left: s.current, ...written });
 }
 
 async function handle(e: MessageEvent<CheckRequest>) {
@@ -193,5 +223,10 @@ async function handle(e: MessageEvent<CheckRequest>) {
 }
 
 scope.onmessage = (e: MessageEvent<CheckRequest>) => {
+  if (e.data.type === "draw") {
+    asked.push(e.data.id);
+    void drawAsked().catch((err) => post({ type: "error", message: err instanceof Error ? err.message : String(err) }));
+    return;
+  }
   handle(e).catch((err) => post({ type: "error", message: err instanceof Error ? err.message : String(err) }));
 };

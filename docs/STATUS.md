@@ -94,6 +94,9 @@ What a visitor goes through, and where it lives:
   (scrub, the emptied band filled with noise at its neighbours' level), then takes every curve out of
   the file's own sound in one more pass, 20 s at a time, and searches what comes out again: that is
   what is shown before and after and downloaded as a WAV, written to the private files as it goes.
+  The verdict and the tones go to the page as soon as they are known; a tone's pictures are drawn
+  when the page shows it (the three strongest, the others when opened), the "before" from a copy of
+  the sound made when taking out starts, so nothing waits for them.
   Nothing leaves the device; those files go when the visitor moves on, or on a later visit if a tab
   died. Measured by `evals/leak.eval.ts`, which runs that same path: on AeroSonicDB, tones found in
   9 of 9 clips, 6 named before, none after.
@@ -180,11 +183,15 @@ Thresholds: strong at score 9 and lead 2.5, possible at 6.5 and 1.5 (`lib/core/m
   R50 (an EMB-145 5 km up), R51. Two false "possible" in 28 runs without the aircraft. The
   microphone is recovered from the published offsets (2 m rms), the start from the UTC ridge.
 - Speed: median 0.7 s (real audio, 60 s clips) to 2.1 s (synthetic, 120 s) per analysis in
-  Node on this Mac, before the line check of 2026-11-03, which about doubles it (Next #5).
-  Measured with `pnpm speed` (Node, CPU time, golden comparison of results) and `pnpm
-  speed:browser` (real Chromium: time to the verdict, memory, first load). Baseline 2026-11-04,
-  main at d7d87c5: an 85 s file checked in 5.4 s CPU, a 10 minute file in 42.7 s (536 MB of JS
-  heap), a real 60 s 22 kHz clip with 11 curves in 50 s, of which taking them out is 74 %.
+  Node on this Mac, before the line check of 2026-11-03; the hot loops of 2026-11-04 (#64) brought
+  16 clips from 2.70 s to 1.68 s of CPU, about where they were before it, with every answer the
+  same. Measured with `pnpm speed` (Node, CPU time, golden comparison of results) and `pnpm
+  speed:browser` (real Chromium: time to the verdict, memory, first load). Since then the check and
+  the search split over a small pool of workers (`lib/client/pool.ts`: the cores less one, six at
+  most, two on 4 GB or less; #77, #81), the cleaned sound the same to the last byte. On the page,
+  production build, an 18-core Mac under load: a 10 minute file's tones in 3.3 s (was 15.3 s), out
+  of it in 14.5 s (was 39.8 s), colsto's real hour searched in 28 s (was 64 s). A phone is not
+  measured yet.
 - Somewhere else (2026-11-03, `evals/somewhere-else`, CI corpus: 15 made-up skies and 15 real
   Phoenix skies, voice notes of 30 to 60 s). The page's own check names the planted plane
   strongly in 0.90 of scenes, and never a plane it did not plant. With the true tracks of that
@@ -392,10 +399,10 @@ plane that clears the score and the lead now reads "possible": one comparison in
 4. Two aircraft heard at once (two helicopters at Adelaide, a jet and a Cessna in Livermore
    R21): say both when both curves stand out and do not overlap, instead of "none" for want of
    a lead.
-5. Speed: the wide band costs about 4x, and the line search of the check (blind traces up to
-   2 kHz) about twice the evidence stack (16 clips under load: stack 1.2 s, matcher 0.9 s, lines
-   2.3 s, check 0.2 s); coarse-to-fine tone search, or lines only near the candidates' tones, if
-   a phone takes more than a few seconds.
+5. Speed: what is left in `analyze()` is tight loops, each under 10 % (stopped there, #64); `locate`
+   and the join stay on one thread, whose stacks and flights would have to be copied. Next, if a
+   phone takes more than a few seconds: coarse-to-fine tone search, or lines only near the
+   candidates' tones. Both would change results, so they need a measured table.
 6. adsb.lol rate limit (about one request every 2 s per address): the API route must share one
    upstream poll per area across users (the site is public now; Vercel Hobby allows a single
    rate-limit rule, spent on `/api/donate`); ask adsb.lol for a key.
