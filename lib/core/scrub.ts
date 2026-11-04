@@ -2,9 +2,12 @@
 // leaves everything else. colsto's video shows why a high-pass filter is not enough: the tones sit
 // where voices are, and boosting the filtered file brings the curve back. Here the tone itself is
 // measured and subtracted: each harmonic is brought down to 0 Hz by following the curve's phase,
-// smoothed to the band the curve may wander in, and taken away. The band is then filled with noise
-// at the level of the sound beside it, or its hollow would trace the same curve. What a boost then
-// finds is the recording's own noise.
+// smoothed to the band the curve may wander in, and taken away. What that empties is then given back
+// as noise at the level of the sound beside it, or its hollow would trace the same curve. What a
+// boost then finds is the recording's own noise.
+
+import { fft, realFft } from "./fft";
+import { median } from "./spectrogram";
 
 /** A tone to take out: its heard fundamental, Hz, at `times` (seconds from the first sample). NaN where it is not heard. */
 export type Curve = {
@@ -28,10 +31,10 @@ export type ScrubOptions = {
    */
   passes?: number;
   /**
-   * Fill each emptied band with the sound just beside it, moved onto the curve. Taking a tone out
-   * takes the noise under it too, and the hole follows the curve: the evidence map compares each
-   * frequency with itself over the whole file, so the rest of a hollowed band then stands out, and
-   * a new line appears where the old one ran.
+   * Give back the power the passes took, as new noise. Taking a tone out takes the noise under it
+   * too, and the hole follows the curve: the evidence map compares each frequency with itself over
+   * the whole file, so the rest of a hollowed band then stands out, and a new line appears where the
+   * old one ran.
    */
   fill?: boolean;
   /** Called as the work goes: a step per curve, then another per curve's fill. */
@@ -75,11 +78,7 @@ const emptyBuffers = () => ({
   re: NO_DATA,
   im: NO_DATA,
   weight: NO_DATA,
-  accRe: NO_DATA,
-  accIm: NO_DATA,
-  level: NO_DATA,
   on: new Uint8Array(0),
-  cleaned: new Float32Array(0),
 });
 let buffers = emptyBuffers();
 
@@ -97,11 +96,7 @@ function room(n: number) {
     re: doubles(),
     im: doubles(),
     weight: doubles(),
-    accRe: doubles(),
-    accIm: doubles(),
-    level: doubles(),
     on: new Uint8Array(n),
-    cleaned: new Float32Array(n),
   };
 }
 
@@ -284,178 +279,252 @@ function rotation(f: Float64Array, rate: number, first: number, last: number) {
   }
 }
 
-/** Samples a steady rotation is carried from the last before it is worked out again: the error stays far under what the sound keeps. */
-const RESYNC = 1024;
+/** Seconds of the fill's window, and how many of them a frame moves on: fine enough for a band 8 Hz wide, short enough to follow a gust. */
+const FILL_SECONDS = 1;
+const FILL_OVERLAP = 4;
+/** What a cell must keep of its power to be read as the sound beside. */
+const GOOD = 0.8;
+/** Cells either side a level is read over: about 30 Hz, wide enough that a line there does not move its median. */
+const FLOOR_CELLS = 32;
+/** Cells apart that are no longer the same side of a hollow, and the fewest a level is read from. */
+const GAP = 8;
+const FEWEST = 12;
+/** Decibels between neighbouring frames that are no gust but the sound stopping or starting. */
+const JUMP = 6;
+/** The level of a cell nobody could read, or of digital silence: decibels of power. */
+const SILENT = -250;
+/** Below this the sound's level is not read: a recording's first hertz are often filtered out. */
+const LOWEST_HZ = 15;
+/** How far a notch reaches, in widths of its smoothing: past this it takes less than 5 % of the power. */
+const NOTCH_REACH = 3;
+const NOTCH_STEPS = 100;
+/** Around the middle of a frame: where the curve is read, and how much each counts (the window squared). */
+const FILL_POINTS = [-2, -1, 0, 1, 2].map((d) => ({ at: d / 8, weight: Math.sin(Math.PI * (0.5 + d / 8)) ** 4 }));
+const FILL_TOTAL = FILL_POINTS.reduce((a, p) => a + p.weight, 0);
 
-/**
- * Each emptied band filled with noise of its own, at the level of the bands three widths beside
- * it, through the passes' own response (1 - (1 - H)^3, H one smoothing) 1.3 times wider: what is
- * left plus what is added keeps the band's power within about 1.3 dB across its whole width,
- * shoulders included. New noise rather than a copy of what is beside: a band scrubbed again along
- * nearly the same curve adds its powers instead of doubling the same sound. The level is read once
- * every tone is out, so no tone taken out comes back from beside; a band an earlier curve's
- * harmonic already fills (two curves a hertz apart, a harmonic of a subharmonic) is filled once.
- */
-function fill(out: Float64Array, n: number, rate: number, curves: Curve[], o: Required<ScrubOptions>) {
-  const { re, im, weight, accRe, accIm, level, on, cos, sin, cos1, sin1, cleaned } = buffers;
-  // Each is free again at the point it serves here: the share becomes one over it, and the noise's input its output's power.
-  const gain = weight;
-  const own = re;
-  cleaned.set(out.subarray(0, n));
-  // The noise's seed comes from the sound: the same file gives the same result, another round other
-  // noise. Rounded well above what a float's last bits can move, so they do not make another draw.
-  let seed = 0x9e3779b9;
-  for (let i = 0; i < n; i += 97) seed = Math.imul(seed ^ Math.round(cleaned[i] * 1e5), 0x85ebca6b) >>> 0;
-  // Over half a second the level follows the sound beside, a gust or the plane's own roar.
-  const span = Math.max(3, Math.round(rate / 4));
-  // Earlier curves' frequencies every BLOCK samples: enough to tell whose band it is.
-  const BLOCK = 64;
-  const blocks = Math.ceil(n / BLOCK);
-  const earlier: Float32Array[] = [];
-  const taken = new Uint8Array(blocks);
-  for (const [index, curve] of curves.entries()) {
-    o.onStep(curves.length + index, 2 * curves.length);
-    const f = perSample(curve, n, rate, buffers.f);
-    const coarse = new Float32Array(blocks);
-    for (let j = 0; j < blocks; j++) coarse[j] = f[Math.min(n - 1, j * BLOCK + (BLOCK >> 1))];
-    const [first, last] = supportOf(f, n);
-    if (first === last) {
-      earlier.push(coarse);
-      continue;
-    }
-    const width = curve.width ?? o.width;
-    rotation(f, rate, first, last);
-    for (let h = 1; h <= o.harmonics; h++) {
-      if (h > 1) nextHarmonic(cos, sin, cos1, sin1, first, last);
-      const len = Math.max(3, Math.round(lengthOf(rate, width, h) / 1.3));
-      const away = 3 * width * h;
-      for (let j = 0; j < blocks; j++) {
-        const mine = h * coarse[j];
-        let near = 0;
-        for (const other of earlier) {
-          const k = Math.min(o.harmonics, Math.max(1, Math.round(mine / other[j])));
-          if (Math.abs(mine - k * other[j]) < width * Math.max(h, k)) {
-            near = 1;
-            break;
-          }
-        }
-        taken[j] = near;
-      }
-      // Everything below reads only near where this harmonic is on: shape's smoothing, then the level's.
-      const reach = reachOf(len) + reachOf(span);
-      const lo = Math.max(0, first - reach);
-      const hi = Math.min(n, last + reach);
-      re.fill(0, lo, hi);
-      im.fill(0, lo, hi);
-      weight.fill(0, lo, hi);
-      on.fill(0, lo, hi);
-      // At 0 Hz: what is beside, on both sides when it can (independent noise adds its powers).
-      let any = false;
-      // The band beside turns steadily: from one sample to the next by the same step.
-      const turn = (2 * Math.PI * away) / rate;
-      const stepCos = Math.cos(turn);
-      const stepSin = Math.sin(turn);
-      let cs = 0;
-      let ss = 0;
-      for (let i = first; i < last; i++) {
-        if ((i - first) % RESYNC === 0) {
-          cs = Math.cos(turn * i);
-          ss = Math.sin(turn * i);
-        } else {
-          const next = cs * stepCos - ss * stepSin;
-          ss = ss * stepCos + cs * stepSin;
-          cs = next;
-        }
-        if (taken[(i / BLOCK) | 0] || !within(f[i], h, width, 0, rate)) continue;
-        const below = within(f[i], h, width, -away, rate);
-        const above = within(f[i], h, width, away, rate);
-        if (!below && !above) continue;
-        const ca = cos[i];
-        const sa = sin[i];
-        let x: number;
-        let y: number;
-        if (below && above) {
-          // cos(a - s) + cos(a + s) and sin(a - s) + sin(a + s), with one cosine to work out.
-          x = Math.SQRT2 * ca * cs;
-          y = -(Math.SQRT2 * sa * cs);
-        } else {
-          // On one side alone: a - s below, a + s above.
-          const sign = below ? 1 : -1;
-          x = ca * cs + sign * sa * ss;
-          y = -(sa * cs - sign * ca * ss);
-        }
-        re[i] = cleaned[i] * x;
-        im[i] = cleaned[i] * y;
-        weight[i] = 1;
-        on[i] = 1;
-        any = true;
-      }
-      if (!any) continue;
-      smooth(weight, len, n, lo, hi);
-      for (let i = lo; i < hi; i++) gain[i] = weight[i] >= 0.25 ? 1 / weight[i] : 0;
-      // The power a copy of what is beside would bring, then noise of the same shape brought to it.
-      shape(re, im, accRe, accIm, gain, on, len, n, lo, hi);
-      for (let i = lo; i < hi; i++) level[i] = accRe[i] * accRe[i] + accIm[i] * accIm[i];
-      for (let i = lo; i < hi; i++) {
-        if (!on[i]) {
-          re[i] = 0;
-          im[i] = 0;
-          continue;
-        }
-        seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
-        const u1 = (seed + 0.5) / TWO_32;
-        seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
-        re[i] = Math.sqrt(-2 * Math.log(u1)) * Math.cos((TWO_PI * seed) / TWO_32);
-        seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
-        const u2 = (seed + 0.5) / TWO_32;
-        seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
-        im[i] = Math.sqrt(-2 * Math.log(u2)) * Math.cos((TWO_PI * seed) / TWO_32);
-      }
-      shape(re, im, accRe, accIm, gain, on, len, n, lo, hi);
-      for (let i = lo; i < hi; i++) own[i] = accRe[i] * accRe[i] + accIm[i] * accIm[i];
-      smooth(level, span, n, lo, hi);
-      smooth(own, span, n, lo, hi);
-      for (let i = first; i < last; i++) {
-        // Running sums can leave a hair below zero where the sound is silent: no noise there.
-        if (!on[i] || own[i] < 1e-12 || level[i] <= 0) continue;
-        const scale = Math.sqrt(level[i] / own[i]);
-        out[i] += 2 * scale * (accRe[i] * cos[i] - accIm[i] * sin[i]);
-      }
-    }
-    earlier.push(coarse);
+/** The power a harmonic's passes leave a distance x from it (x: in widths of the smoothing), every 1 / NOTCH_STEPS. */
+function notchTable(passes: number): Float64Array {
+  const table = new Float64Array(NOTCH_REACH * NOTCH_STEPS + 2);
+  for (let i = 0; i < table.length; i++) {
+    const x = (Math.PI * i) / NOTCH_STEPS;
+    const d = i ? Math.sin(x) / x : 1;
+    table[i] = (1 - d * d) ** (2 * passes);
   }
+  return table;
+}
+
+/** A cell that has lost less than this gets nothing back. */
+const LOST_ENOUGH = 0.003;
+
+type Plane = {
+  /** Samples of the window, and of the transform (a power of two, the rest zeros). */
+  span: number;
+  size: number;
+  hop: number;
+  /** Where frame 0 starts, in samples; it may be before the first. */
+  start: number;
+  frames: number;
+  /** Cells per frame, from 0 Hz. */
+  bins: number;
+  /** Per frame and bin, the share of its power a cell still has. */
+  left: Float32Array;
+  /** Per frame, whether any of its cells lost something. */
+  emptied: Uint8Array;
+};
+
+/** How much of its power each cell keeps once `curves` are taken out: the passes' response around each harmonic, multiplied over them all. Null when no curve is ever known. */
+function planeOf(n: number, rate: number, curves: Curve[], o: Required<ScrubOptions>): Plane | null {
+  const span = Math.max(8, 2 * Math.round((FILL_SECONDS * rate) / 2));
+  const size = 2 ** Math.ceil(Math.log2(span));
+  const hop = Math.max(1, Math.round(span / FILL_OVERLAP));
+  const binHz = rate / size;
+  // The curves on a grid an eighth of the window apart.
+  const step = span / 8;
+  const grid = Math.ceil(n / step) + 1;
+  const known = curves.flatMap((curve) => {
+    const f = perSample(curve, n, rate, buffers.f);
+    const [first, last] = supportOf(f, n);
+    if (first === last) return [];
+    const coarse = new Float32Array(grid);
+    let highest = 0;
+    for (let g = 0; g < grid; g++) {
+      coarse[g] = f[Math.min(n - 1, Math.round(g * step))];
+      if (coarse[g] > highest) highest = coarse[g];
+    }
+    return [{ coarse, first, last, highest, width: curve.width ?? o.width }];
+  });
+  if (!known.length) return null;
+  const notches = known.flatMap((c) =>
+    Array.from({ length: o.harmonics }, (_, i) => {
+      const h = i + 1;
+      // One smoothing's length (`smooth`): a reach of x means x / perHz hertz.
+      const perHz = (2 * Math.max(1, Math.floor(lengthOf(rate, c.width, h) / 2)) + 1) / rate;
+      return { c, h, perHz, reach: NOTCH_REACH / perHz / binHz, scale: binHz * perHz * NOTCH_STEPS };
+    }),
+  );
+  const top = notches.reduce((most, { c, h, reach }) => Math.max(most, Math.ceil((h * c.highest) / binHz + reach)), 0);
+  // Enough above the highest band to read a level there.
+  const bins = Math.min((size >> 1) + 1, top + 2 * FLOOR_CELLS + 1);
+  // The first frame starts a window before the curves: every sample gets all its frames.
+  const first = known.reduce((a, c) => Math.min(a, c.first), n);
+  const last = known.reduce((a, c) => Math.max(a, c.last), 0);
+  const start = first - span;
+  const frames = Math.ceil((last - first + 2 * span) / hop) + 1;
+  const table = notchTable(o.passes);
+  const left = new Float32Array(frames * bins).fill(1);
+  const emptied = new Uint8Array(frames);
+  const here = new Float64Array(bins);
+  for (let m = 0; m < frames; m++) {
+    const middle = start + m * hop + span / 2;
+    const row = m * bins;
+    for (const { at, weight } of FILL_POINTS) {
+      const g = Math.round((middle + at * span) / step);
+      if (g < 0 || g >= grid) continue;
+      here.fill(1);
+      for (const { c, h, reach, scale } of notches) {
+        const f = c.coarse[g];
+        if (!within(f, h, c.width, 0, rate)) continue;
+        const centre = (h * f) / binHz;
+        const b0 = Math.max(0, Math.ceil(centre - reach));
+        const b1 = Math.min(bins - 1, Math.floor(centre + reach));
+        for (let b = b0; b <= b1; b++) here[b] *= table[(Math.abs(b - centre) * scale + 0.5) | 0];
+      }
+      const share = weight / FILL_TOTAL;
+      for (let b = 0; b < bins; b++) left[row + b] += share * (here[b] - 1);
+    }
+    for (let b = 0; b < bins; b++) {
+      if (left[row + b] < 1 - LOST_ENOUGH) {
+        emptied[m] = 1;
+        break;
+      }
+    }
+  }
+  return { span, size, hop, start, frames, bins, left, emptied };
 }
 
 /**
- * (re, im) through 3 H - 3 H^2 + H^3 into (outRe, outIm), each smoothing divided by the share of
- * known samples (`gain`, one over the smoothed share, zero where too little is known), as the
- * passes do. (re, im) are used up.
+ * The level of the sound at each cell, in decibels of power, from the cells that lost little: their
+ * median over FLOOR_CELLS either side, each given back what it lost, and straight across a hollow.
+ * Frames no emptied frame touches are left SILENT.
  */
-function shape(re: Float64Array, im: Float64Array, outRe: Float64Array, outIm: Float64Array, gain: Float64Array, on: Uint8Array, len: number, n: number, lo: number, hi: number) {
-  smooth(re, len, n, lo, hi);
-  smooth(im, len, n, lo, hi);
-  for (let i = lo; i < hi; i++) {
-    const a = re[i] * gain[i];
-    const b = im[i] * gain[i];
-    outRe[i] = 3 * a;
-    outIm[i] = 3 * b;
-    re[i] = on[i] ? a : 0;
-    im[i] = on[i] ? b : 0;
+function levelsOf(out: Float64Array, n: number, rate: number, plane: Plane, window: Float64Array): Float32Array {
+  const { span, size, hop, start, frames, bins, left, emptied } = plane;
+  const levels = new Float32Array(frames * bins).fill(SILENT);
+  const low = Math.max(1, Math.round((LOWEST_HZ * size) / rate));
+  const x = new Float64Array(size);
+  const re = new Float64Array((size >> 1) + 1);
+  const im = new Float64Array((size >> 1) + 1);
+  const goodBin = new Int32Array(bins);
+  const goodPower = new Float32Array(bins);
+  const every = FLOOR_CELLS >> 1;
+  for (let m = 0; m < frames; m++) {
+    if (!emptied[m] && !emptied[m - 1] && !emptied[m + 1]) continue;
+    const row = m * bins;
+    const at = start + m * hop;
+    for (let i = 0; i < span; i++) {
+      const j = at + i;
+      x[i] = j >= 0 && j < n ? out[j] * window[i] : 0;
+    }
+    realFft(x, re, im);
+    let count = 0;
+    for (let b = low; b < bins; b++) {
+      if (left[row + b] < GOOD) continue;
+      goodBin[count] = b;
+      goodPower[count] = (re[b] * re[b] + im[b] * im[b]) / left[row + b];
+      count++;
+    }
+    let lastBin = -1;
+    let lastDb = SILENT;
+    const put = (bin: number, db: number) => {
+      if (lastBin < 0) for (let b = 0; b <= bin; b++) levels[row + b] = db;
+      else for (let b = lastBin + 1; b <= bin; b++) levels[row + b] = lastDb + ((db - lastDb) * (b - lastBin)) / (bin - lastBin);
+      lastBin = bin;
+      lastDb = db;
+    };
+    // Never a median across a hollow: half the sound from each side of it would read as neither.
+    for (let from = 0; from < count; ) {
+      let to = from + 1;
+      while (to < count && goodBin[to] - goodBin[to - 1] <= GAP) to++;
+      if (to - from >= FEWEST) {
+        for (let j = from; ; j = Math.min(to - 1, j + every)) {
+          const part = goodPower.subarray(Math.max(from, j - FLOOR_CELLS), Math.min(to, j + FLOOR_CELLS + 1));
+          // The median of a noise's power is ln 2 of its mean.
+          put(goodBin[j], Math.max(SILENT, 10 * Math.log10(median(part) / Math.LN2 + 1e-30)));
+          if (j === to - 1) break;
+        }
+      }
+      from = to;
+    }
+    for (let b = lastBin + 1; b < bins; b++) levels[row + b] = lastDb;
   }
-  smooth(re, len, n, lo, hi);
-  smooth(im, len, n, lo, hi);
-  for (let i = lo; i < hi; i++) {
-    const a = re[i] * gain[i];
-    const b = im[i] * gain[i];
-    outRe[i] -= 3 * a;
-    outIm[i] -= 3 * b;
-    re[i] = on[i] ? a : 0;
-    im[i] = on[i] ? b : 0;
-  }
-  smooth(re, len, n, lo, hi);
-  smooth(im, len, n, lo, hi);
-  for (let i = lo; i < hi; i++) {
-    outRe[i] += re[i] * gain[i];
-    outIm[i] += im[i] * gain[i];
+  return levels;
+}
+
+/**
+ * Each emptied cell of the sound's time and frequency plane given back its power, as new noise. Why
+ * not a band of noise along each harmonic: bands overlap, and two curves a hertz apart or a hum's
+ * six harmonics hollow whatever lies between them, so the sound "beside" a band is often another
+ * band. On a 50 Hz hum of 85 s the bands from 170 to 340 Hz read each other and came out 10 to 20 dB
+ * low, and the frequencies left between them stood out as lines, stronger than the tones taken out.
+ *
+ * Here how much each cell lost follows from the curves alone (planeOf), so overlaps count once
+ * however wide the hollow, and its level comes from cells that lost little, however far away
+ * (levelsOf): read after the passes, so no tone taken out comes back; a median, so a line left there
+ * does not raise it. New noise each time: a band scrubbed again along nearly the same curve loses
+ * what the last round gave and gets it back.
+ */
+function fill(out: Float64Array, n: number, rate: number, curves: Curve[], o: Required<ScrubOptions>) {
+  const plane = planeOf(n, rate, curves, o);
+  if (!plane) return;
+  const { span, size, hop, start, frames, bins, left, emptied } = plane;
+  // The noise's seed comes from the sound: the same file gives the same result, another round other
+  // noise. Rounded well above what a float's last bits can move, so they do not make another draw.
+  let seed = 0x9e3779b9;
+  for (let i = 0; i < n; i += 97) seed = Math.imul(seed ^ Math.round(out[i] * 1e5), 0x85ebca6b) >>> 0;
+  const window = new Float64Array(span);
+  for (let i = 0; i < span; i++) window[i] = 0.5 - 0.5 * Math.cos((TWO_PI * i) / span);
+  const levels = levelsOf(out, n, rate, plane, window);
+  // A cell's power through this window is what a frame's noise brings, over all the frames that reach it.
+  const energy = window.reduce((a, w) => a + w * w, 0);
+  const norm = (2 * Math.sqrt(hop / size)) / energy;
+  const zr = new Float64Array(size);
+  const zi = new Float64Array(size);
+  for (let m = 0; m < frames; m++) {
+    o.onStep(curves.length + Math.floor((m * curves.length) / frames), 2 * curves.length);
+    if (!emptied[m]) continue;
+    const row = m * bins;
+    const before = m > 0 ? row - bins : row;
+    const after = m + 1 < frames ? row + bins : row;
+    zr.fill(0);
+    zi.fill(0);
+    let some = false;
+    for (let b = 1; b < bins; b++) {
+      const lost = 1 - left[row + b];
+      if (lost < LOST_ENOUGH) continue;
+      // The level over three frames, a median; where it jumps, the quietest: a window that reaches
+      // into a loud stretch must not carry its level into the silence after it.
+      const p = levels[before + b];
+      const q = levels[row + b];
+      const r = levels[after + b];
+      const lowest = Math.min(p, q, r);
+      const db = Math.max(p, q, r) - lowest > JUMP ? lowest : Math.max(Math.min(p, q), Math.min(Math.max(p, q), r));
+      // Silence stays silence.
+      if (db <= SILENT) continue;
+      seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+      const u = (seed + 0.5) / TWO_32;
+      seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+      const angle = (TWO_PI * seed) / TWO_32;
+      // Two independent Gaussians of power `lost` times the level between them.
+      const amp = Math.sqrt(-lost * 10 ** (db / 10) * Math.log(u));
+      zr[b] = amp * Math.cos(angle);
+      zi[b] = amp * Math.sin(angle);
+      some = true;
+    }
+    if (!some) continue;
+    fft(zr, zi);
+    const at = start + m * hop;
+    const i0 = Math.max(0, -at);
+    const i1 = Math.min(span, n - at);
+    for (let i = i0; i < i1; i++) out[at + i] += norm * window[i] * zr[i];
   }
 }

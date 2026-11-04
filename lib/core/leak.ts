@@ -3,7 +3,7 @@
 // with them taken out (scrub). Both run in pieces so a two-hour stream fits in a phone's memory:
 // findTraces keeps a back-pointer per frame, bin and slope (about 5 MB per 90 s) and the evidence
 // stack about 0.5 MB per second, so the search reads overlapping chunks of three minutes and
-// joins what they find; scrub keeps 48 bytes per sample, so it cleans windows of 20 s.
+// joins what they find; scrub keeps about 80 bytes per sample, so it cleans windows of 20 s.
 
 import { inParallel } from "./parallel";
 import { ANALYSIS_RATE } from "./pipeline";
@@ -208,6 +208,9 @@ const CHUNK_SHARES = { stack: 0.45, trace: 0.1, along: 0.45 };
  */
 export const CHECK_TRACE: TraceOptions = { trimShare: 0 };
 
+/** The confidence of a tone the page reports. */
+const TONE_CONFIDENCE = 4;
+
 /**
  * Where the check also looks once a chunk holds a tone: up to 3.4 kHz (REAL_RANGE, what Locate me
  * reads). A line found there is taken out with the tones and never reported on its own: alone,
@@ -235,7 +238,7 @@ export function findChunk(samples: Float32Array, start: number, rate: number, op
   const trace = { ...CHECK_TRACE, ...options.trace };
   const along = options.along === undefined ? ALONG : options.along;
   const { stack: inStack, trace: inTrace, along: inAlong } = CHUNK_SHARES;
-  const stack = buildStack(samples, rate, { ...options.stack, onProgress: (s) => onShare?.(inStack * s) });
+  const stack = buildStack(samples, rate, { levels: true, ...options.stack, onProgress: (s) => onShare?.(inStack * s) });
   const here = findTraces(stack, trace, (s) => onShare?.(inStack + inTrace * s)).traces;
   const found = here.map((t) => toneOf(t, stack.base.times, start / rate));
   const wide = along && here.length ? findTraces(stack, along, (s) => onShare?.(inStack + inTrace + inAlong * s)).traces.map((t) => toneOf(t, stack.base.times, start / rate)) : [];
@@ -304,6 +307,58 @@ export type Pieces = {
   chunk: (samples: Float32Array, start: number, rate: number, options: ChunkOptions, onShare: (share: number) => void) => Promise<ChunkFound>;
   takeOut: (job: TakeOutJob, onShare: (share: number) => void) => Promise<Float32Array[]>;
 };
+
+/** Below this share of the main axis's power, the other axis of two channels holds nothing to clean. */
+const NOTHING_ELSE = 1e-12;
+
+/**
+ * Every channel of a stretch taken out over `pieces`, each a piece. Returns them cleaned. Two
+ * channels go along their main axes: what they share, and what is left of each. Noise of its own in
+ * each channel adds up 3 dB too low in their mix wherever they share their sound, as a phone's two
+ * microphones do: a hollow along the curve for whoever reads the mix. Noise of its own on each axis,
+ * at that axis's level, keeps each channel's level and the mix's, and a silent channel stays silent.
+ * Taking the tones out is the same either way, being linear. A sample nothing touched comes back
+ * exactly.
+ */
+export async function takeOutChannels(pieces: Pieces, job: TakeOutJob): Promise<Float32Array[]> {
+  const alone = async (ch: Float32Array) => (await pieces.takeOut({ ...job, channels: [ch] }, () => {}))[0];
+  if (job.channels.length !== 2) return Promise.all(job.channels.map(alone));
+  const [left, right] = job.channels;
+  const n = left.length;
+  let ll = 0;
+  let rr = 0;
+  let lr = 0;
+  for (let i = 0; i < n; i++) {
+    ll += left[i] * left[i];
+    rr += right[i] * right[i];
+    lr += left[i] * right[i];
+  }
+  const angle = 0.5 * Math.atan2(2 * lr, ll - rr);
+  const c = Math.cos(angle);
+  const s = Math.sin(angle);
+  const main = new Float32Array(n);
+  const other = new Float32Array(n);
+  let mains = 0;
+  let others = 0;
+  for (let i = 0; i < n; i++) {
+    main[i] = c * left[i] + s * right[i];
+    other[i] = c * right[i] - s * left[i];
+    mains += main[i] * main[i];
+    others += other[i] * other[i];
+  }
+  const both = others > NOTHING_ELSE * mains;
+  const [a, b] = await Promise.all([alone(main), both ? alone(other) : other]);
+  for (let i = 0; i < n; i++) {
+    const l = left[i];
+    const r = right[i];
+    // What the pieces changed, on the same rounding as what they were given: nothing, exactly, where they changed nothing.
+    const da = a[i] - Math.fround(c * l + s * r);
+    const db = both ? b[i] - Math.fround(c * r - s * l) : 0;
+    left[i] = l + c * da - s * db;
+    right[i] = r + s * da + c * db;
+  }
+  return [left, right];
+}
 
 /** The pieces run here, one at a time: a device with no workers to spare, one piece of work, and the evals. */
 export const inline: Pieces = {
@@ -457,6 +512,15 @@ export function clean(audio: Audio, curves: Curve[], options: CleanOptions = {})
 /** Rounds of take out and look again: on real recordings, taking the loud tones out brings fainter ones to light. */
 export const ROUNDS = 6;
 
+/**
+ * The gate of the look again, below the one of a tone the page reports. A plane is known to be here,
+ * and its other lines stand out less than the first once it is out: they come in pieces. A comb of 8
+ * lines on Livermore's N2933A R08 stopped at confidence 4 with some still there, enough for analyze()
+ * to name it with the flight data (possible, 8.2). Taking out a line of noise costs nothing, leaving
+ * a real one costs the recording. What only this gate lets through goes out and is never reported.
+ */
+export const LOOK_AGAIN_CONFIDENCE = 2;
+
 export type CleanOutOptions = CleanOptions & {
   find?: FindOptions;
   rounds?: number;
@@ -491,6 +555,7 @@ export async function cleanOut(sound: Audio | Sound, tones: Tone[], options: Cle
   const { read, length, clean: takeOut }: Sound = "channels" in sound ? { ...readerOf(sound), clean: (curves, o) => clean(sound, curves, o) } : sound;
   const chunks = chunksOf(length);
   const cleaned: Tone[] = [];
+  const told = (found: Tone[]) => found.filter((t) => t.confidence >= (options.find?.trace?.minConfidence ?? TONE_CONFIDENCE));
   let current = tones;
   for (let round = 0; round < rounds && current.length; round++) {
     options.onRound?.(round, current);
@@ -502,12 +567,13 @@ export async function cleanOut(sound: Audio | Sound, tones: Tone[], options: Cle
         inRound(CLEAN_SHARE * s);
       },
     });
-    cleaned.push(...current);
+    cleaned.push(...told(current));
     // The chunks whose sound changed: those that reach a tone just taken out, its curve's ends included.
     const touched = current.flatMap(ridgesOf).map((t) => ({ start: t.times[0] - EXTEND - 1, end: t.times[t.times.length - 1] + EXTEND + 1 }));
     const changed = chunks.filter((c) => touched.some((s) => s.start * ANALYSIS_RATE <= c.end && s.end * ANALYSIS_RATE >= c.start));
     current = await findTonesWith(pieces, read, changed, ANALYSIS_RATE, {
       ...options.find,
+      trace: { minConfidence: LOOK_AGAIN_CONFIDENCE, ...options.find?.trace },
       onProgress: (s) => {
         options.find?.onProgress?.(s);
         inRound(CLEAN_SHARE + (1 - CLEAN_SHARE) * s);
@@ -515,7 +581,7 @@ export async function cleanOut(sound: Audio | Sound, tones: Tone[], options: Cle
     });
   }
   options.onProgress?.(1);
-  return { cleaned, left: current };
+  return { cleaned, left: told(current) };
 }
 
 /** What the page draws for a tone: a stretch of the file, a band of frequencies. */
