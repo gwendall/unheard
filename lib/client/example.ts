@@ -40,7 +40,7 @@ export function buildExample(now = Date.now() / 1000): Recording {
     hum: [{ freq: 50, level: 0.4 }],
     seed: 42,
   });
-  // The page polls every 2 s from a little before the recording starts.
+  // Polls every 2 s, from a little before the recording starts.
   const polls = fabricatePolls(listener, actors, start - 10, start + duration, 2);
   return { samples, sampleRate: ANALYSIS_RATE, start, listener, air: STANDARD_AIR, polls };
 }

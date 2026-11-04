@@ -7,8 +7,8 @@ Updated 2026-11-04.
 - Public since 2026-11-03: repository `gwendall/unheard` (MIT), site https://unheard.gwendall.com
   (Vercel, project `unheard`, production follows `main`). Web app (Next.js 16, React 19,
   Tailwind 4), analysis entirely in the browser (`lib/core`), three small API routes
-  (`/api/aircraft`: adsb.lol with adsb.fi fallback, location rounded to 0.1°; `/api/weather`:
-  Open-Meteo elevation and temperature; `/api/donate`: upload tokens for donated recordings,
+  (`/api/aircraft`: adsb.lol with adsb.fi fallback, one shared poll per 0.25° square,
+  `lib/area.ts`; `/api/weather`: Open-Meteo elevation and temperature; `/api/donate`: upload tokens for donated recordings,
   rate-limited by the Vercel Firewall at 10 per address per 10 minutes).
 - Pipeline: RTS-smoothed ADS-B tracks, emission-time Doppler model (temperature lapse, wind
   supported but unknown in production), four-window evidence stack (2 s to 0.25 s, 20 Hz to
@@ -630,9 +630,10 @@ Waits for 10 to 20 phone recordings through `?capture=1`, with GPS and a clock i
    and the join stay on one thread, whose stacks and flights would have to be copied. Next, if a
    phone takes more than a few seconds: coarse-to-fine tone search, or lines only near the
    candidates' tones. Both would change results, so they need a measured table.
-6. adsb.lol rate limit (about one request every 2 s per address): the API route must share one
-   upstream poll per area across users (the site is public now; Vercel Hobby allows a single
-   rate-limit rule, spent on `/api/donate`); ask adsb.lol for a key.
+6. adsb.lol rate limit (about one request every 2 s per address): listeners of a 0.25° square
+   share one upstream poll, at most one every 2 s, but the limit is per address and every active
+   square adds its own requests (Vercel Hobby allows a single rate-limit rule, spent on
+   `/api/donate`): ask adsb.lol for a key.
 7. Product, next: a notification when a plane is about to pass close while the sky screen is
    open (Notification API: Android, computers, and iPhones with Unheard on the home screen); a
    result page with its own address to share as a link, beside the picture.

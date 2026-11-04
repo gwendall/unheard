@@ -83,10 +83,10 @@ function report(r: Rng, listener: Listener, hex: string, truth: Track, t: number
 }
 
 /**
- * The polls the page makes: every ~2 s from 6 s before the start to the end, some lost, each
+ * The polls the page makes: every ~3 s from 6 s before the start to the end, some lost, each
  * aircraft reported with its own lag and noise.
  */
-export function pollsFrom(r: Rng, listener: Listener, aircraft: { hex: string; truth: Track; meta: Partial<PolledAircraft> }[], from: number, to: number, every = 2, drop = 0.05): Poll[] {
+export function pollsFrom(r: Rng, listener: Listener, aircraft: { hex: string; truth: Track; meta: Partial<PolledAircraft> }[], from: number, to: number, every = 3, drop = 0.05): Poll[] {
   const polls: Poll[] = [];
   for (let t = from; t <= to; t += every + r.uniform(-0.3, 0.3)) {
     if (r.next() < drop) continue;
