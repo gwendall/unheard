@@ -1,6 +1,6 @@
 import { statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 
 // Taking the tones out, end to end in a real Chromium: a file picked, its sound decoded by Web Audio,
 // the tones found in the worker, taken out, looked for again, and the cleaned WAV downloaded.
@@ -17,14 +17,28 @@ async function shoot(page: Page, name: string) {
   await page.setViewportSize({ width: 1440, height: 900 });
 }
 
+/** Colours on a canvas: a tone's picture has about ten thousand, the dark one that waits for it, with the curve's rails, some hundreds. */
+const coloursOf = (canvas: Locator) =>
+  canvas.evaluate((c: HTMLCanvasElement) => {
+    const { data } = c.getContext("2d")!.getImageData(0, 0, c.width, c.height);
+    const seen = new Set<number>();
+    for (let i = 0; i < data.length; i += 4) seen.add((data[i] << 16) | (data[i + 1] << 8) | data[i + 2]);
+    return seen.size;
+  });
+const MANY = 2000;
+
 test("finds the plane's tone in a file, takes it out, and hands back the cleaned sound", async ({ page }) => {
   await page.goto("/where");
   await page.getByTestId("where-file").setInputFiles(FLYBY);
   await expect(page.getByTestId("check-verdict")).toHaveText(/^(An aircraft tone|\d+ aircraft tones) that could place this file\.$/, { timeout: 90_000 });
-  await expect(page.getByTestId("check-tones").locator("li").first()).toContainText(/\d:\d\d to \d:\d\d in the file, \d+ to \d+ Hz/);
+  const first = page.getByTestId("check-tones").locator("li").first();
+  await expect(first).toContainText(/\d:\d\d to \d:\d\d in the file, \d+ to \d+ Hz/);
+  // The verdict does not wait for the pictures: they come after it, without being asked twice.
+  await expect.poll(() => coloursOf(first.locator("canvas").first()), { timeout: 30_000 }).toBeGreaterThan(MANY);
 
   await page.getByTestId("check-clean").click();
   await expect(page.getByTestId("check-verdict")).toHaveText(/^The tones? (is|are) gone\.$/, { timeout: 120_000 });
+  for (const picture of [first.locator("canvas").first(), first.locator("canvas").last()]) await expect.poll(() => coloursOf(picture), { timeout: 30_000 }).toBeGreaterThan(MANY);
   await shoot(page, "check-cleaned");
 
   const [download] = await Promise.all([page.waitForEvent("download"), page.getByTestId("check-download").click()]);
