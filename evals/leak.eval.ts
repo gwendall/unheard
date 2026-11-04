@@ -47,7 +47,7 @@ async function run(s: Scenario): Promise<Outcome> {
     // What "Take them out" does: rounds of take out and look again on the store, then their curves
     // out of the sound at its own rate, which is what comes out of the page.
     const rounds: Curve[][] = [];
-    const out = cleanOut(storedSound(store, stored), tones, { onRound: (_, found) => rounds.push(curvesOf(found)) });
+    const out = await cleanOut(storedSound(store, stored), tones, { onRound: (_, found) => rounds.push(curvesOf(found)) });
     cleaned = out.cleaned.length;
     const blocks: Float32Array[] = [];
     await takeOutOfFile(source, rounds, store, stored, (block) => void blocks.push(block[0].slice()));

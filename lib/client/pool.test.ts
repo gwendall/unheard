@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { poolOf, poolSize, type Piece, type PieceReply, type PoolWorker } from "./pool";
+import { checkPiecesOf, poolOf, poolSize, type Piece, type PieceReply, type PoolWorker } from "./pool";
+import type { PieceInput, PieceOutput } from "./piece.worker";
 
 /** Workers the test answers by hand, in the order it likes. */
 function workers() {
@@ -124,5 +125,20 @@ describe("poolOf", () => {
     pool.close();
     await expect(pieces[0]).rejects.toThrow("closed");
     await expect(pieces[1]).rejects.toThrow("closed");
+  });
+});
+
+describe("checkPiecesOf", () => {
+  it("does here the piece of a worker that dies, from sound the worker never touched", async () => {
+    const { make, made } = workers();
+    const pool = poolOf<PieceInput, PieceOutput>(make, 2);
+    const samples = Float32Array.from({ length: 8000 }, (_, i) => Math.sin((2 * Math.PI * 100 * i) / 8000));
+    const curve = { times: Float64Array.of(0, 1), freq: Float64Array.of(100, 100) };
+    const piece = checkPiecesOf(pool).takeOut({ channels: [samples], rate: 8000, rounds: [[curve]], scrub: { fill: false } }, () => {});
+    made[0].onerror?.(death("no room"));
+    const [out] = await piece;
+    const peak = (a: Float32Array) => a.reduce((m, x) => Math.max(m, Math.abs(x)), 0);
+    expect(peak(out.subarray(2000, 6000))).toBeLessThan(0.1);
+    pool.close();
   });
 });

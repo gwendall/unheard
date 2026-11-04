@@ -3,21 +3,25 @@
 //
 //   pnpm speed analyze [--clips 16] [--runs 3]    CPU per stage of analyze() on synthetic clips
 //   pnpm speed tones <file.wav> [--runs 3]        findTones, as the check page's worker runs it
-//   pnpm speed check <file.wav> [--rate 8000]     the whole check: find, take out, look again
+//   pnpm speed check <file.wav> [--rate 8000] [--stereo] [--parts 5]  the whole check as the page's
+//                                                 worker runs it, phase by phase, and cut for that many workers
 //   pnpm speed where [--window hour|day]          whereWhen on colsto's hour (evals/.cache)
-//   pnpm speed golden <out.json>                  every answer of the CI corpus, the check and where
+//   pnpm speed golden <out.json> [--real <wav>] [--parts 5]  every answer of the CI corpus, the check and where
 //   pnpm speed compare <before.json> <after.json> what changed, and by how much
 //   pnpm speed profile <file.cpuprofile> [--top 25] where the time went, by function
 //
 // A profile of any of them: node --cpu-prof --cpu-prof-dir=<dir> --import tsx scripts/speed-core.ts ...
 
+import { createHash } from "node:crypto";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { decodeWav } from "../lib/bundle";
 import { explainLines, ghostsOf, linesOf } from "../lib/core/explain";
-import { chunksOf, cleanOut, findTones, readerOf, ridgesOf, type Tone } from "../lib/core/leak";
+import { chunksOf, cleanOut, curvesOf, findChunk, findTones, findTonesWith, inline, readerOf, takeOutOf, type Audio, type Pieces, type Tone } from "../lib/core/leak";
 import { matchAll } from "../lib/core/match";
 import { ANALYSIS_RATE, analyze, candidatesOf, type Recording } from "../lib/core/pipeline";
 import { resample } from "../lib/core/resample";
+import type { Curve } from "../lib/core/scrub";
+import { memorySource, memoryStore, readInto, storedSound, takeOutOfFile } from "../lib/core/stream";
 import { buildStack } from "../lib/core/spectrogram";
 import { shapeOf } from "../lib/core/flyby";
 import { scanPart } from "../lib/core/tracks";
@@ -121,47 +125,126 @@ async function benchTones() {
   console.log(JSON.stringify({ file: positional[1], seconds: Math.round(length / ANALYSIS_RATE), cpu: Number(fixed(best, 3)), tones, peakMB: peakMB() }));
 }
 
+/** The check as the page's worker runs it: the file into a store, find, the rounds, then the file's own sound. */
+async function checkAsThePage(file: Audio, pieces: Pieces, mark: (phase: string) => void = () => {}) {
+  const source = memorySource(file);
+  const store = memoryStore();
+  mark("read");
+  const { length } = await readInto(source, store);
+  mark("find");
+  const tones = await findTonesWith(pieces, store.read, chunksOf(length));
+  const rounds: Curve[][] = [];
+  const { cleaned } = await cleanOut(storedSound(store, length, ANALYSIS_RATE, pieces), tones, {
+    pieces,
+    onRound: (round, current) => {
+      rounds.push(curvesOf(current));
+      mark(`take out ${round}`);
+    },
+    onWindow: (done, total) => {
+      if (done === total) mark(`look again ${rounds.length - 1}`);
+    },
+  });
+  mark("write");
+  const sound = createHash("sha256");
+  const every: number[] = [];
+  let energy = 0;
+  let frames = 0;
+  const left = await takeOutOfFile(source, rounds, store, length, (block) => {
+    for (const ch of block) sound.update(new Uint8Array(ch.buffer, ch.byteOffset, ch.byteLength));
+    for (let i = 0; i < block[0].length; i++, frames++) {
+      energy += block[0][i] * block[0][i];
+      if (frames % 20_000 === 0) every.push(block[0][i]);
+    }
+  }, { pieces, find: { onChunk: (done) => void (done === 0 && mark("look again last")) } });
+  mark("end");
+  return {
+    tones: tones.map(toneOfGolden),
+    rounds: rounds.map((r) => r.length),
+    cleaned: cleaned.map(toneOfGolden),
+    left: left.map(toneOfGolden),
+    frames,
+    energy,
+    every,
+    sound: sound.digest("hex"),
+    store: createHash("sha256").update(new Uint8Array(store.read(0, length).buffer)).digest("hex"),
+  };
+}
+
 /**
- * The check as the page runs it, stage by stage: what the first search costs, what each round's
- * taking out and looking again cost, and how many curves and chunks each round handled. With
- * --rate, the file brought to that rate first, to see whether the cost follows it.
+ * The check's pieces cut as the page's workers cut them, run here. With `shuffle`, those that could
+ * run together do so back to front: their order must not matter.
  */
-async function benchCheck() {
-  const file = readWav(positional[1]);
+function checkParts(size: number, shuffle: boolean) {
+  const costs: number[] = [];
+  let asked = 0;
+  const run = async <T>(work: () => T): Promise<T> => {
+    if (shuffle) for (let wait = 2 * (size - asked++ % size); wait > 0; wait--) await null;
+    const from = process.cpuUsage();
+    const out = work();
+    costs.push(cpuSince(from));
+    return out;
+  };
+  const pieces: Pieces = {
+    size,
+    chunk: (samples, start, rate, options, onShare) => run(() => findChunk(samples, start, rate, options, onShare)),
+    takeOut: (job, onShare) => run(() => takeOutOf(job, onShare)),
+  };
+  return { pieces, costs };
+}
+
+/** How long pieces take over `workers`, each to the first one free. */
+function overWorkers(costs: number[], workers: number) {
+  const free = new Array<number>(workers).fill(0);
+  for (const cost of costs) free[free.indexOf(Math.min(...free))] += cost;
+  return Math.max(0, ...free);
+}
+
+const bandOf = (file: { channels: Float32Array[]; sampleRate: number }): Audio => {
   const rate = Number(flag("rate") ?? file.sampleRate);
-  const channels = rate === file.sampleRate ? file.channels : file.channels.map((c) => resample(c, file.sampleRate, rate));
+  const mono = rate === file.sampleRate ? file.channels : file.channels.map((c) => resample(c, file.sampleRate, rate));
+  // Two channels that are not the same sound: each costs its own taking out.
+  return { channels: args.includes("--stereo") ? [mono[0], Float32Array.from(mono[0], (x, i) => 0.5 * x + 0.5 * (mono[0][i + 1] ?? 0))] : mono, sampleRate: rate };
+};
+
+/** What each phase of the page's check costs, in one thread and cut for `--parts` workers. */
+async function benchCheck() {
+  const file = bandOf(readWav(positional[1]));
+  const workers = Number(flag("parts") ?? 5);
   let best: Record<string, unknown> | null = null;
   let bestCpu = Infinity;
   for (let run = 0; run < runs; run++) {
-    const audio = { channels: channels.map((c) => c.slice()), sampleRate: rate };
-    const { read, length } = readerOf(audio);
+    const { pieces, costs } = checkParts(workers, false);
+    const phases: { phase: string; cpu: number; pieces: number[] }[] = [];
     const from = process.cpuUsage();
-    const tones = findTones(read, chunksOf(length));
-    const find = cpuSince(from);
-    const rounds: { curves: number; clean: number; again: number; chunks: number }[] = [];
     let mark = process.cpuUsage();
-    let chunks = 0;
-    const out = cleanOut(audio, tones, {
-      onRound: (_, current) => {
-        if (rounds.length) rounds[rounds.length - 1].again = cpuSince(mark);
-        rounds.push({ curves: current.flatMap(ridgesOf).length, clean: 0, again: 0, chunks: 0 });
-        mark = process.cpuUsage();
-      },
-      onWindow: (done, total) => {
-        if (done < total) return;
-        rounds[rounds.length - 1].clean = cpuSince(mark);
-        mark = process.cpuUsage();
-        chunks = 0;
-      },
-      find: { onChunk: (done, total) => void (chunks = total, done === total && rounds.length && (rounds[rounds.length - 1].chunks = chunks)) },
+    const close = () => {
+      const last = phases.at(-1);
+      if (last) {
+        last.cpu = cpuSince(mark);
+        last.pieces = costs.splice(0);
+      }
+      mark = process.cpuUsage();
+    };
+    const out = await checkAsThePage({ channels: file.channels.map((c) => c.slice()), sampleRate: file.sampleRate }, pieces, (phase) => {
+      close();
+      phases.push({ phase, cpu: 0, pieces: [] });
     });
-    if (rounds.length) rounds[rounds.length - 1].again = cpuSince(mark);
+    close();
     const total = cpuSince(from);
-    const row = { find: Number(fixed(find)), clean: Number(fixed(rounds.reduce((a, r) => a + r.clean, 0))), again: Number(fixed(rounds.reduce((a, r) => a + r.again, 0))), total: Number(fixed(total)), curves: rounds.reduce((a, r) => a + r.curves, 0), rounds: rounds.map((r) => ({ ...r, clean: Number(fixed(r.clean)), again: Number(fixed(r.again)) })), cleaned: out.cleaned.length, left: out.left.length };
-    console.log(`run ${run + 1}: ${JSON.stringify(row)}`);
+    // A phase's own work besides its pieces stays on the job's thread; its pieces go over the workers.
+    const cut = phases.reduce((sum, p) => sum + Math.max(0, p.cpu - p.pieces.reduce((a, x) => a + x, 0)) + overWorkers(p.pieces, workers), 0);
+    const row = {
+      oneThread: Number(fixed(total)),
+      overWorkers: Number(fixed(cut)),
+      workers,
+      phases: phases.filter((p) => p.cpu > 0.01).map((p) => `${p.phase} ${fixed(p.cpu)}${p.pieces.length ? ` (${p.pieces.length} pieces, slowest ${fixed(Math.max(...p.pieces))})` : ""}`),
+      rounds: out.rounds,
+      left: out.left.length,
+    };
+    console.log(`run ${run + 1}: ${row.oneThread} s`);
     if (total < bestCpu) [best, bestCpu] = [row, total];
   }
-  console.log(JSON.stringify({ file: positional[1].split("/").slice(-2).join("/"), rate, seconds: Math.round(channels[0].length / rate), channels: channels.length, ...best, peakMB: peakMB() }));
+  console.log(JSON.stringify({ file: positional[1].split("/").slice(-2).join("/"), rate: file.sampleRate, channels: file.channels.length, seconds: Math.round(file.channels[0].length / file.sampleRate), ...best, peakMB: peakMB() }));
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -289,20 +372,8 @@ async function golden() {
   }
   const real = flag("real");
   if (real) {
-    const file = readWav(real);
-    const audio = { channels: file.channels, sampleRate: file.sampleRate };
-    const { read, length } = readerOf(audio);
-    const tones = findTones(read, chunksOf(length));
-    const rounds: number[] = [];
-    const { cleaned, left } = cleanOut(audio, tones, { onRound: (_, current) => rounds.push(current.flatMap(ridgesOf).length) });
-    const samples = audio.channels[0];
-    let energy = 0;
-    const every: number[] = [];
-    for (let i = 0; i < samples.length; i++) {
-      energy += samples[i] * samples[i];
-      if (i % 20_000 === 0) every.push(samples[i]);
-    }
-    out.real = { tones: tones.map(toneOfGolden), rounds, cleaned: cleaned.map(toneOfGolden), left: left.map(toneOfGolden), energy, every };
+    const parts = flag("parts");
+    out.real = await checkAsThePage(bandOf(readWav(real)), parts ? checkParts(Number(parts), true).pieces : inline);
     console.log("real");
   }
   if (hasColsto() && !args.includes("--no-where")) {

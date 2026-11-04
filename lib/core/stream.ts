@@ -7,7 +7,8 @@
 //
 // What holds the sound is a SoundSource: a decoder over a file (lib/client/media.ts), or memory.
 
-import { clean, chunksOf, findTones, spanOf, type Audio, type CleanOptions, type FindOptions, type Reader, type Sound, type Tone } from "./leak";
+import { chunksOf, findTonesWith, inline, spanOf, type Audio, type CleanOptions, type FindOptions, type Pieces, type Reader, type Sound, type Tone } from "./leak";
+import { inOrder } from "./parallel";
 import { ANALYSIS_RATE } from "./rate";
 import { RESAMPLE_REACH, resampleAt } from "./resample";
 import type { Curve, ScrubOptions } from "./scrub";
@@ -134,12 +135,12 @@ const STORED_MARGIN = 4;
 
 const shifted = (c: Curve, by: number): Curve => ({ ...c, times: Float64Array.from(c.times as ArrayLike<number>, (t) => t - by) });
 
-/** A stored recording as the rounds of take out and look again work on it (cleanOut). */
-export function storedSound(store: SoundStore, length: number, rate = ANALYSIS_RATE): Sound {
+/** A stored recording as the rounds of take out and look again work on it (cleanOut). `workers`: where its pieces can run. */
+export function storedSound(store: SoundStore, length: number, rate = ANALYSIS_RATE, workers: Pieces = inline): Sound {
   return {
     read: store.read,
     length,
-    clean(curves: Curve[], options: CleanOptions = {}) {
+    async clean(curves: Curve[], options: CleanOptions = {}) {
       const known = curves.flatMap((c) => {
         const span = spanOf(c);
         return span ? [{ c, span }] : [];
@@ -152,18 +153,22 @@ export function storedSound(store: SoundStore, length: number, rate = ANALYSIS_R
         const here = known.filter(({ span }) => span.end * rate >= a - margin && span.start * rate <= b + margin);
         if (here.length) pieces.push({ a, b, here });
       }
+      // One piece is as well done here: no worker to start, nothing to copy.
+      const runner = pieces.length > 1 ? workers : inline;
+      const shares = new Float64Array(pieces.length);
       // A piece's result is written once the next piece has read: each reads the sound as it was.
-      let pending: { at: number; data: Float32Array } | null = null;
-      for (const [i, { a, b, here }] of pieces.entries()) {
+      const results = inOrder(pieces.entries(), runner.size, async ([i, { a, b, here }]) => {
         options.onWindow?.(i, pieces.length);
         const s0 = Math.max(0, a - margin);
         const s1 = Math.min(length, b + margin);
-        const local: Audio = { channels: [store.read(s0, s1 - s0)], sampleRate: rate };
-        if (pending) store.write(pending.at, pending.data);
-        clean(local, here.map(({ c }) => shifted(c, s0 / rate)), { scrub: options.scrub, window: Infinity, onShare: (s) => options.onShare?.((i + s) / pieces.length) });
-        pending = { at: a, data: local.channels[0].subarray(a - s0, b - s0) };
-      }
-      if (pending) store.write(pending.at, pending.data);
+        const job = { channels: [store.read(s0, s1 - s0)], rate, rounds: [here.map(({ c }) => shifted(c, s0 / rate))], scrub: options.scrub };
+        const [out] = await runner.takeOut(job, (s) => {
+          shares[i] = s;
+          options.onShare?.(shares.reduce((x, y) => x + y, 0) / pieces.length);
+        });
+        return { at: a, data: out.subarray(a - s0, b - s0) };
+      });
+      for await (const { at, data } of results) store.write(at, data);
       options.onWindow?.(pieces.length, pieces.length);
     },
   };
@@ -224,10 +229,11 @@ export function reachOf(rounds: Curve[][]): Stretch[] {
 
 /**
  * The source with every round's curves taken out, round after round as they were found, in blocks.
- * Nothing but the window being cleaned is held; where no curve is known the sound comes through as
- * it was.
+ * Only the blocks being cleaned are held; where no curve is known the sound comes through as it was.
+ * Over `pieces` several blocks are cleaned at a time, each from its own copy of the sound, and they
+ * come out in order.
  */
-export async function* cleanedBlocks(source: SoundSource, rounds: Curve[][], options: { block?: number; scrub?: ScrubOptions } = {}): AsyncGenerator<Float32Array[]> {
+export async function* cleanedBlocks(source: SoundSource, rounds: Curve[][], options: { block?: number; scrub?: ScrubOptions; pieces?: Pieces } = {}): AsyncGenerator<Float32Array[]> {
   const rate = source.sampleRate;
   const size = Math.round((options.block ?? BLOCK_SECONDS) * rate);
   const margin = Math.round(marginFor(rounds.length) * rate);
@@ -237,8 +243,11 @@ export async function* cleanedBlocks(source: SoundSource, rounds: Curve[][], opt
       return span ? [{ c, span }] : [];
     }),
   );
+  // One block is as well done here: no worker to start, nothing to copy. A length not announced may be anything.
+  const runner = source.length > 0 && source.length <= size ? inline : (options.pieces ?? inline);
   const sound = held(source.blocks(), source.channels);
-  try {
+  type Block = { kept: Float32Array[] } | { channels: Float32Array[]; rounds: Curve[][]; from: number; to: number };
+  async function* blocks(): AsyncGenerator<Block> {
     for (let a = 0; ; a += size) {
       await sound.until(a + size + margin);
       const b = Math.min(a + size, sound.end);
@@ -246,14 +255,19 @@ export async function* cleanedBlocks(source: SoundSource, rounds: Curve[][], opt
       const s0 = Math.max(0, a - margin);
       const s1 = Math.min(sound.end, b + margin);
       const here = known.map((round) => round.filter(({ span }) => span.end >= s0 / rate && span.start <= s1 / rate));
-      if (here.every((round) => !round.length)) yield sound.copy(a, b);
-      else {
-        const local: Audio = { channels: sound.copy(s0, s1), sampleRate: rate };
-        for (const round of here) if (round.length) clean(local, round.map(({ c }) => shifted(c, s0 / rate)), { scrub: options.scrub, window: Infinity });
-        yield local.channels.map((ch) => ch.subarray(a - s0, b - s0));
-      }
+      if (here.every((round) => !round.length)) yield { kept: sound.copy(a, b) };
+      else yield { channels: sound.copy(s0, s1), rounds: here.map((round) => round.map(({ c }) => shifted(c, s0 / rate))), from: a - s0, to: b - s0 };
       sound.drop(a + size - margin);
     }
+  }
+  try {
+    // A channel is taken out on its own, whatever the others hold: each is a piece.
+    yield* inOrder(blocks(), Math.max(1, Math.ceil(runner.size / source.channels)), async (block) => {
+      if ("kept" in block) return block.kept;
+      const { rounds, from, to } = block;
+      const out = await Promise.all(block.channels.map((ch) => runner.takeOut({ channels: [ch], rate, rounds, scrub: options.scrub }, () => {})));
+      return out.map(([ch]) => ch.subarray(from, to));
+    });
   } finally {
     await sound.close();
   }
@@ -269,13 +283,13 @@ export async function takeOutOfFile(
   store: SoundStore,
   length: number,
   consume: (block: Float32Array[]) => void | Promise<void>,
-  options: { find?: FindOptions; onProgress?: (done: number, total: number) => void; rate?: number } = {},
+  options: { find?: FindOptions; onProgress?: (done: number, total: number) => void; rate?: number; pieces?: Pieces } = {},
 ): Promise<Tone[]> {
-  const { rate = ANALYSIS_RATE } = options;
+  const { rate = ANALYSIS_RATE, pieces = inline } = options;
   const only = reachOf(rounds);
   const writer = analysisWriter(store, source.sampleRate, { rate, only });
   let frames = 0;
-  for await (const block of cleanedBlocks(source, rounds)) {
+  for await (const block of cleanedBlocks(source, rounds, { pieces })) {
     writer.add(block);
     await consume(block);
     frames += block[0]?.length ?? 0;
@@ -283,5 +297,5 @@ export async function takeOutOfFile(
   }
   writer.end();
   const changed = chunksOf(length, rate).filter((c) => only.some((s) => s.start * rate <= c.end && s.end * rate >= c.start));
-  return changed.length ? findTones(store.read, changed, rate, options.find) : [];
+  return changed.length ? findTonesWith(pieces, store.read, changed, rate, options.find) : [];
 }
