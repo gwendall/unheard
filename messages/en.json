@@ -70,7 +70,7 @@
       "recorder": "This browser could not open the microphone for recording. Try another browser.",
       "nothing": "Nothing was recorded. Check that the microphone works and try again."
     },
-    "locating": { "title": "Where are you?", "text": "Unheard needs your rough area to know which planes are around you. Only a square of about 10 km leaves your phone." },
+    "locating": { "title": "Where are you?", "text": "Unheard needs your position to find the planes around you. It is rounded before it leaves your phone: to about 28 km for the planes, about 100 m for the ground height and temperature." },
     "asking": { "title": "Allow the microphone", "text": "Unheard listens for the hum of a plane. The sound stays on your phone." },
     "listening": {
       "title": "Listening",
@@ -315,7 +315,7 @@
       {
         "title": "When you listen",
         "body": [
-          "Your recording is analysed on your phone and stays there. The page asks our server for the aircraft around you with your position rounded to about 10 km, and for the ground height and temperature with your position rounded to about 100 m. Unheard saves neither; the host's request logs keep them for a short time. To give the planes their names (airline, route, model), the page asks adsbdb.com about the aircraft around you by their codes, never with your position, and Unheard's server asks planespotters.net for a photo of the one it found, by its code too. Nothing else leaves your phone.",
+          "Your recording is analysed on your phone and stays there. The page asks our server for the aircraft around you with your position rounded to about 28 km, and for the ground height and temperature with your position rounded to about 100 m. Unheard saves neither; the host's request logs keep them for a short time. To give the planes their names (airline, route, model), the page asks adsbdb.com about the aircraft around you by their codes, never with your position, and Unheard's server asks planespotters.net for a photo of the one it found, by its code too. Nothing else leaves your phone.",
           "The planes you found are kept in this browser's storage to show your list on the home page. Nothing of it is sent, and Clear removes it.",
           "The language you pick in the menu is kept in a cookie for a year, so the site opens in it next time.",
           "On Somewhere else, the page asks our server for the aircraft over the place you pick, never with your own position, and your recording stays on the page.",
