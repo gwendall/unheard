@@ -3,7 +3,7 @@ import { expect, test, type Page } from "@playwright/test";
 import { encodeWav } from "../lib/bundle";
 import { STANDARD_AIR } from "../lib/core/doppler";
 import { synthesize } from "../lib/core/synth";
-import { cardFilled, fillIn, scene, sceneWav } from "./where-scene";
+import { cardFilled, fillIn, phoneVideo, scene, sceneWav } from "./where-scene";
 
 // The one flow for a file end to end in a real Chromium: a made-up recording of real flights
 // (e2e/history, adsb.lol, ODbL) decoded by Web Audio, what the file says, its tones, the search in
@@ -23,21 +23,6 @@ async function shoot(page: Page, name: string) {
   await page.setViewportSize({ width: 1440, height: 900 });
 }
 
-/** The file named in a QuickTime box holding a date and a position, as a phone writes them. */
-function phoneVideo(start = scene.start): Buffer {
-  const u32 = (n: number) => [(n >>> 24) & 0xff, (n >> 16) & 0xff, (n >> 8) & 0xff, n & 0xff];
-  const box = (type: string, ...parts: (number[] | Buffer)[]) => {
-    const body = Buffer.concat(parts.map((p) => Buffer.from(p)));
-    return Buffer.concat([Buffer.from(u32(8 + body.length)), Buffer.from(type, "latin1"), body]);
-  };
-  const at = Math.round(start) + 2_082_844_800;
-  const place = Buffer.from("+33.4727-111.7187/", "latin1");
-  return Buffer.concat([
-    box("ftyp", Buffer.from("qt  ", "latin1"), u32(512), Buffer.from("qt  ", "latin1")),
-    box("moov", box("mvhd", [0, 0, 0, 0], u32(at), u32(at), u32(600), u32(0), new Array<number>(80).fill(0)), box("udta", box("\xa9xyz", [(place.length >> 8) & 0xff, place.length & 0xff, 0x15, 0xc7], place))),
-  ]);
-}
-
 /** A WAV with a date tag, the way an editor leaves it. */
 function dated(wav: Uint8Array, when: string): Buffer {
   const chunk = (id: string, data: Buffer) => {
@@ -55,13 +40,20 @@ const rectsOf = (page: Page, ids: string[]) =>
   page.evaluate((list) => {
     const out: Record<string, number[]> = {};
     for (const id of list) {
-      const r = document.querySelector(`[data-testid="${id}"]`)!.getBoundingClientRect();
+      const r = document.querySelector(id === "title" ? '[data-testid="answer"] h2' : `[data-testid="${id}"]`)!.getBoundingClientRect();
       out[id] = [r.x, r.y, r.width, r.height].map(Math.round);
     }
     return out;
   }, ids);
 
-const STAY = ["where-name", "where-facts", "check-slot", "where-find"];
+/** The answer's frame: from listening to whatever the file comes to, these hold. */
+const STAY = ["where-name", "answer-no-map", "title", "answer-why", "answer-actions"];
+
+/** What is not the answer folds under Details. */
+async function details(page: Page) {
+  const fold = page.getByTestId("answer-details");
+  if (!(await fold.evaluate((el) => (el as HTMLDetailsElement).open))) await fold.locator("summary").first().click();
+}
 
 /** The search's form. */
 /**
@@ -111,6 +103,7 @@ test("a file in: what it says at once, its tones, then where and when, and the f
 
   await page.getByTestId("where-file").setInputFiles(wav);
   await expect(page.getByTestId("where-name")).toHaveText("flyovers.wav");
+  await details(page);
   await expect(page.getByTestId("where-facts-none")).toContainText("No date or place in the tags we read. GoPros, drones and some other cameras keep GPS elsewhere, where we do not look.");
   await expect(page.getByTestId("where-find")).toBeEnabled();
   await expect(page.getByTestId("check-progress")).toBeVisible();
@@ -121,7 +114,7 @@ test("a file in: what it says at once, its tones, then where and when, and the f
   const before = await rectsOf(page, STAY);
   await shoot(page, "where-opening");
 
-  await expect(page.getByTestId("check-verdict")).toHaveText(/^(An aircraft tone|\d+ aircraft tones) that could place this file\.$/, { timeout: 90_000 });
+  await expect(page.getByTestId("check-verdict")).toHaveText(/^(An aircraft sound|\d+ aircraft sounds) that could place this file\.$/, { timeout: 90_000 });
   await expect(page.getByTestId("check-tones").locator("li").first()).toContainText(/\d:\d\d to \d:\d\d in the file/);
   expect(await rectsOf(page, STAY)).toEqual(before);
   await expect(page.getByTestId("check-elsewhere")).toHaveAttribute("href", "/somewhere-else");
@@ -148,8 +141,16 @@ test("a file in: what it says at once, its tones, then where and when, and the f
   // The rest of the page stays usable meanwhile.
   await expect(page.getByTestId("check-clean")).toBeEnabled();
   await shoot(page, "where-searching");
-  await expect(page.getByTestId("where-verdict")).toHaveText("Probably here", { timeout: 170_000 });
+  await expect(page.getByTestId("where-verdict")).toHaveText("Probably filmed near Mesa, Arizona", { timeout: 170_000 });
+  // One sentence and one date, in the words of the place: no UTC, no flyovers, up front.
+  await expect(page.getByTestId("answer-when")).toHaveText(/^May 16, 2026, around 11:44.AM$/);
+  await expect(page.getByTestId("answer-reason")).toHaveText(/^\d+ planes were passing there at that moment, and we can hear them in the sound\.$/);
+  await expect(page.getByTestId("answer-plane").first()).toContainText(/ away, at \d+:\d\d.[AP]M$/);
+  await expect(page.getByTestId("answer-planes")).toContainText(scene.aircraft[1].registration);
+  await shoot(page, "where-found");
 
+  // The rest is a tap away.
+  await details(page);
   await expect(page.getByTestId("where-place-name")).toHaveText("Near Mesa, Arizona, United States");
   // Local time from the town's own zone, no more "about, from the longitude".
   await expect(page.getByTestId("where-start")).not.toContainText("longitude");
@@ -164,12 +165,12 @@ test("a file in: what it says at once, its tones, then where and when, and the f
   await expect(page.getByTestId("where-result")).not.toContainText("A place is named only");
   await expect(page.getByTestId("where-planes")).toContainText(scene.aircraft[1].registration);
   await expect(page.getByTestId("where-result")).toContainText("© adsb.lol contributors");
-  await shoot(page, "where-found");
+  await expect(page.getByTestId("where-result")).toContainText("Nothing leaves this page until you choose");
 
   // The answer first, the file's own findings under it, and one primary on the screen.
   const top = async (id: string) => (await page.getByTestId(id).boundingBox())!.y;
-  expect(await top("where-verdict")).toBeLessThan(await top("where-facts"));
-  expect(await top("where-facts")).toBeLessThan(await top("check-verdict"));
+  expect(await top("where-verdict")).toBeLessThan(await top("check-verdict"));
+  expect(await top("check-verdict")).toBeLessThan(await top("where-facts"));
   await expect(page.getByTestId("where-find")).toHaveCount(0);
   await expect(page.getByTestId("where-again")).toBeVisible();
   await expect(page.getByTestId("where").locator("button.bg-amber, a.bg-amber")).toHaveCount(1);
@@ -195,7 +196,7 @@ test("a result's card is made only on the sharer's click, and nothing is sent", 
   await openForm(page);
   await fillIn(page);
   await page.getByTestId("where-search").click();
-  await expect(page.getByTestId("where-share")).toContainText("Nothing leaves this page until you choose", { timeout: 170_000 });
+  await expect(page.getByTestId("where-share")).toBeVisible({ timeout: 170_000 });
   const [download] = await Promise.all([page.waitForEvent("download"), page.getByTestId("where-share").getByRole("button").click()]);
   expect(download.suggestedFilename()).toBe("unheard.png");
   const png = await download.path();
@@ -232,10 +233,11 @@ test("without the flag, leads with the best guess and the next answer, and says 
   await openForm(page);
   await fillIn(page);
   await page.getByTestId("where-search").click();
-  await expect(page.getByTestId("where-verdict")).toHaveText("Best guess", { timeout: 170_000 });
-  await expect(page.getByTestId("where-said")).toContainText("A place is named only when at least three planes");
+  await expect(page.getByTestId("where-verdict")).toHaveText(/^Probably filmed near /, { timeout: 170_000 });
   // The form gave way under the visitor's eyes: they are taken to the answer's first line.
   await expect(page.getByTestId("where-verdict")).toBeFocused();
+  await details(page);
+  await expect(page.getByTestId("where-said")).toContainText("A place is named only when at least three planes");
   await expect(page.getByTestId("where-start")).toContainText("Would have started");
   await expect(page.getByTestId("where-result")).toContainText("The planes that would explain the tones");
   await expect(page.getByTestId("place-map")).toBeVisible();
@@ -245,18 +247,23 @@ test("without the flag, leads with the best guess and the next answer, and says 
   await expect(guesses.nth(1)).toContainText(/^Next answer: .+, [\d.,]+ k?m off$/);
   await shoot(page, "where-best-guess");
   const first = await page.getByTestId("where-spot").innerText();
-  const { x, y, width } = (await page.getByTestId("place-map").boundingBox())!;
+  // In the page: the button is below the fold, and clicking it scrolls.
+  const mapBox = () => page.getByTestId("place-map").evaluate((el) => {
+    const r = el.getBoundingClientRect();
+    return { x: r.x, y: r.y + window.scrollY, width: r.width };
+  });
+  const before = await mapBox();
   await guesses.nth(1).click();
   // The lead stays on the best guess; what is shown below it is the answer picked.
   await expect(page.getByTestId("where-spot")).toHaveText(first);
   await expect(page.getByTestId("where-shown-spot")).not.toHaveText(first);
   await expect(page.getByTestId("where-shown-start")).toContainText("Would have started");
   // What changes with the answer sits under the map: the map holds.
-  expect(await page.getByTestId("place-map").boundingBox()).toMatchObject({ x, y, width });
+  expect(await mapBox()).toEqual(before);
   await shoot(page, "where-guesses");
 });
 
-test("one pass of a plane: too few, no place is named, nothing is asked for, and no flight is read", async ({ page }, info) => {
+test("one pass of a plane: too few says so with no click, no place is named, nothing is asked for, and no flight is read", async ({ page }, info) => {
   const wav = info.outputPath("one-pass.wav");
   writeFileSync(wav, await sceneWav(ONE_PASS));
   const tiles: string[] = [];
@@ -265,9 +272,14 @@ test("one pass of a plane: too few, no place is named, nothing is asked for, and
   });
   await page.goto("/where");
   await page.getByTestId("where-file").setInputFiles(wav);
-  await expect(page.getByTestId("check-verdict")).toBeVisible({ timeout: 90_000 });
-  await openForm(page);
-  await expect(page.getByTestId("where-verdict")).toHaveText("This file holds too few flyovers to place it.");
+  await expect(page.getByTestId("where-verdict")).toHaveText("Can't tell where this was filmed", { timeout: 90_000 });
+  await expect(page.getByTestId("answer-reason")).toHaveText("We heard planes, but not enough to be sure of a place. It takes at least three, each clear.");
+  // What it can still do stays, quieter.
+  await expect(page.getByTestId("check-clean")).toBeEnabled();
+  await expect(page.getByTestId("where-anyway")).toBeVisible();
+  await expect(page.getByTestId("where-find")).toHaveCount(0);
+  await expect(page.getByTestId("answer-no-map")).toBeVisible();
+  await details(page);
   await expect(page.getByTestId("where-said")).toContainText("at least three planes");
   await expect(page.getByTestId("where-said")).toContainText("if they bring more clear flyovers");
   await expect(page.getByTestId("where-search")).toHaveCount(0);
@@ -284,15 +296,14 @@ test("too few passes, looked at anyway: no place leads, and the candidates wait 
   writeFileSync(wav, await sceneWav(90));
   await page.goto("/where");
   await page.getByTestId("where-file").setInputFiles(wav);
-  await expect(page.getByTestId("check-verdict")).toBeVisible({ timeout: 90_000 });
-  await openForm(page);
-  await expect(page.getByTestId("where-anyway")).toContainText("probably be wrong");
+  await expect(page.getByTestId("where-anyway")).toContainText("probably be wrong", { timeout: 90_000 });
   await page.getByTestId("where-anyway").click();
   await fillIn(page);
   await page.getByTestId("where-search").click();
   const candidates = page.getByTestId("where-candidates");
   await expect(candidates).toContainText("probably wrong", { timeout: 170_000 });
-  await expect(page.getByTestId("where-verdict")).toHaveText("This file holds too few clear flyovers to place it.");
+  await expect(page.getByTestId("where-verdict")).toHaveText("Can't tell where this was filmed");
+  await details(page);
   await expect(page.getByTestId("where-said")).toContainText("if they bring more clear flyovers");
   await expect(page.getByTestId("where-spot")).toHaveCount(0);
   await expect(page.getByTestId("place-map")).toHaveCount(0);
@@ -330,11 +341,11 @@ test("too few passes, a search started before the check has counted: it stops be
   await openForm(page);
   await fillIn(page);
   await page.getByTestId("where-search").click();
-  await expect(page.getByTestId("where-verdict")).toHaveText("This file holds too few flyovers to place it.", { timeout: 170_000 });
+  await expect(page.getByTestId("where-verdict")).toHaveText("Can't tell where this was filmed", { timeout: 170_000 });
   await expect(page.getByTestId("where-spot")).toHaveCount(0);
   expect(tiles).toEqual([]);
   // It names no place, but its tones are known: the check does not start over, and does not say they could place the file.
-  await expect(page.getByTestId("check-verdict")).toHaveText(/^(An aircraft tone|Aircraft tones) in this file\.$/);
+  await expect(page.getByTestId("check-verdict")).toHaveText(/^(An aircraft sound|Aircraft sounds) in this file\.$/);
   await expect(page.getByTestId("check-clean")).toBeEnabled();
   const started = await checks();
   await page.waitForTimeout(5000);
@@ -348,7 +359,10 @@ test("says so when the file holds no tone, offers no search, and never says the 
   writeFileSync(noise, encodeWav(samples, 16_000));
   await page.goto("/where");
   await page.getByTestId("where-file").setInputFiles(noise);
-  await expect(page.getByTestId("check-verdict")).toHaveText("No aircraft tone found.", { timeout: 60_000 });
+  await expect(page.getByTestId("where-verdict")).toHaveText("Can't tell where this was filmed", { timeout: 60_000 });
+  await expect(page.getByTestId("answer-reason")).toHaveText("We did not hear any plane in the sound, and the file does not say.");
+  await expect(page.getByTestId("check-verdict")).toHaveText("No aircraft sound found.");
+  await details(page);
   await expect(page.getByTestId("check")).toContainText("That does not make the file safe");
   await expect(page.getByTestId("where-find")).toHaveCount(0);
   await shoot(page, "where-none");
@@ -359,10 +373,16 @@ test("a video with no sound track: its own tags said first and big, and the miss
   writeFileSync(video, phoneVideo());
   await page.goto("/where");
   await page.getByTestId("where-file").setInputFiles(video);
-  await expect(page.getByTestId("where-gps")).toContainText("This file already says where it was filmed: 33.4727, -111.7187");
-  await expect(page.getByTestId("where-made")).toHaveText(`${scene.day} ${HOUR} UTC`);
+  // Tags can be edited or copied: the place and the date are what the file says.
+  await expect(page.getByTestId("answer-title")).toHaveText("This file says it was filmed near Mesa, Arizona");
+  await expect(page.getByTestId("answer-when")).toHaveText(/^The file says May 16, 2026, 11:44.AM/);
+  await expect(page.getByTestId("answer-map-note")).toContainText("your file is never sent");
+  await expect(page.getByTestId("place-map")).toBeVisible();
   await expect(page.getByTestId("check-trouble")).toContainText("no sound we can read", { timeout: 30_000 });
   await expect(page.getByTestId("where-find")).toHaveCount(0);
+  await details(page);
+  await expect(page.getByTestId("where-gps")).toContainText("This file already says where it was filmed: 33.4727, -111.7187");
+  await expect(page.getByTestId("where-made")).toHaveText(`${scene.day} ${HOUR} UTC`);
   await shoot(page, "where-gps");
 });
 
@@ -383,6 +403,7 @@ test("fills in the day and hour from the file, and says where they came from", a
   writeFileSync(wav, dated(await sceneWav(), `${scene.day}T${HOUR}:00`));
   await page.goto("/where");
   await page.getByTestId("where-file").setInputFiles(wav);
+  await details(page);
   await expect(page.getByTestId("where-made")).toContainText(`${scene.day} ${HOUR}`);
   await openForm(page);
   await expect(page.getByTestId("where-day")).toHaveValue(scene.day);
@@ -521,9 +542,6 @@ test("reached by keyboard, with the focus visible, and still under reduced motio
   await expect(page.getByTestId("where-file")).toBeFocused();
   await expect(page.getByTestId("where-drop")).toHaveCSS("outline-style", "solid");
   await page.getByTestId("where-file").setInputFiles(wav);
-  // The pulse does not repeat.
-  const dot = page.getByTestId("check-progress").locator("span").first();
-  await expect(dot).toHaveCSS("animation-iteration-count", "1");
   await page.getByTestId("where-find").focus();
   await page.keyboard.press("Enter");
   await expect(page.getByTestId("where-day")).toBeFocused();
@@ -572,13 +590,13 @@ test("nothing jumps from the home to the tones, and what we check comes back und
   await expect(page).toHaveURL(/\/where$/);
   await expect(page.getByTestId("check-progress")).toBeVisible();
   await expect(page.getByTestId("where-scope")).toHaveCount(0);
-  await expect(page.getByTestId("check-verdict")).toBeVisible({ timeout: 90_000 });
+  await expect(page.getByTestId("where-verdict")).toBeVisible({ timeout: 90_000 });
   await expect(page.getByTestId("where-scope")).toBeVisible();
   const shifts = await page.evaluate(() => (window as unknown as { shifts: number[] }).shifts);
   expect(shifts).toEqual([]);
 });
 
-test("the tones appear as they are found, before the verdict, and what is above them holds", async ({ page }, info) => {
+test("the tones appear under Details as they are found, before the verdict, and the answer's frame holds", async ({ page }, info) => {
   // Longer than one chunk: a shorter file reports its tones only at its end, right before the verdict.
   const wav = info.outputPath("flyovers.wav");
   writeFileSync(wav, await sceneWav());
@@ -593,7 +611,11 @@ test("the tones appear as they are found, before the verdict, and what is above 
   await page.goto("/where");
   await page.getByTestId("where-file").setInputFiles(wav);
   await expect(page.getByTestId("check-progress")).toBeVisible();
+  // No number, no step, no time left: one thing happening.
+  await expect(page.getByTestId("check-progress")).toHaveText("Listening for planes in the sound");
+  await expect(page.locator('[data-testid="answer"] h2')).toHaveText("Listening for planes in the sound");
   const before = await rectsOf(page, STAY);
+  await details(page);
   await expect(page.getByTestId("check-verdict")).toBeVisible({ timeout: 90_000 });
   expect(await rectsOf(page, STAY)).toEqual(before);
   const seen = await page.evaluate(() => (window as unknown as { seen: { both: boolean; bar: number } }).seen);
@@ -636,10 +658,11 @@ test("on a long file, Find where waits for nothing, a search runs ahead of the c
   await expect(page.getByTestId("check-held")).toHaveCount(0);
   await expect(page.getByTestId("check-progress")).toBeVisible();
   const search = await page.getByTestId("where-search").boundingBox();
-  await expect(page.getByTestId("check-verdict")).toHaveText("No aircraft tone found.", { timeout: 170_000 });
-  await expect(page.getByTestId("check")).toContainText("does not make the file safe");
+  await expect(page.getByTestId("check-verdict")).toHaveText("No aircraft sound found.", { timeout: 170_000 });
   await expect(page.getByTestId("where-find")).toBeVisible();
   expect(await page.getByTestId("where-search").boundingBox()).toEqual(search);
+  await details(page);
+  await expect(page.getByTestId("check")).toContainText("does not make the file safe");
   await expect(page.getByTestId("check-clean")).toHaveCount(0);
 });
 
@@ -666,12 +689,14 @@ test("the tones a search finds show in the check's place, and after the answer n
   await fillIn(page);
   await page.getByTestId("where-search").click();
   await expect(page.getByTestId("check-held")).toBeVisible();
+  await details(page);
   await expect(page.getByTestId("check-tones").locator("li").first()).toBeVisible({ timeout: 90_000 });
   await expect(page.getByTestId("where-verdict")).toBeVisible({ timeout: 170_000 });
   await expect(page.getByTestId("check-held")).toHaveCount(0);
   // No count: the search cuts tones differently, and the check's own number comes when it runs.
-  await expect(page.getByTestId("check-verdict")).toHaveText(/^(An aircraft tone|Aircraft tones) in this file\.$/);
-  await expect(page.getByTestId("check-fold").locator("summary")).toHaveText(/^See the tones? in this file$/);
+  await expect(page.getByTestId("check-verdict")).toHaveText(/^(An aircraft sound|Aircraft sounds) in this file\.$/);
+  await details(page);
+  await expect(page.getByTestId("check-fold").locator("summary")).toHaveText(/^See the sounds? in this file$/);
   const started = await checks();
   expect(started).toBeGreaterThan(0);
   await page.waitForTimeout(5000);
@@ -685,8 +710,8 @@ test("the tones a search finds show in the check's place, and after the answer n
   await expect.poll(checks).toBe(started + 1);
   // It counts its own, then goes straight on to taking them out, with no second click. The rest of cleaning
   // is check.spec's, on a shorter file: on CI's runners this one would take minutes.
-  await expect(page.getByTestId("check-progress")).toContainText(/Taking the tones out|Checking again|Writing the cleaned file/, { timeout: 120_000 });
-  await expect(page.getByTestId("check-verdict")).toHaveText(/^(An aircraft tone|\d+ aircraft tones) in this file\.$/);
+  await expect(page.getByTestId("check-progress")).toContainText(/Taking the sound out|Checking again|Writing the cleaned file/, { timeout: 120_000 });
+  await expect(page.getByTestId("check-verdict")).toHaveText(/^(An aircraft sound|\d+ aircraft sounds) in this file\.$/);
 });
 
 /**
@@ -740,16 +765,17 @@ test("sixty tones: the strongest three, the others a tap away and not drawn, and
   await page.goto("/where");
   await page.getByTestId("where-file").setInputFiles(wav);
 
-  // As they are found.
+  // As they are found, a tap away.
+  await details(page);
   await expect(page.getByTestId("check-tones").locator("li")).toHaveCount(3, { timeout: 60_000 });
   await expect(drawn).toHaveCount(3);
   expect(await height()).toBeLessThan(3 * SCREEN);
   // No count yet: pieces of one tone may still be joined.
-  await expect(page.getByTestId("check-all").locator("summary")).toHaveText("See the tones found so far");
+  await expect(page.getByTestId("check-all").locator("summary")).toHaveText("See the sounds found so far");
 
   // Found: the count stays in one line, and so does the rest.
   await page.evaluate(() => (window as unknown as { finishCheck: () => void }).finishCheck());
-  await expect(page.getByTestId("check-verdict")).toHaveText("60 aircraft tones that could place this file.");
+  await expect(page.getByTestId("check-verdict")).toHaveText("60 aircraft sounds that could place this file.");
   await expect(drawn).toHaveCount(3);
   // The strongest, in the file's order.
   const captions = await page.getByTestId("check-tones").locator("li p").allInnerTexts();
@@ -760,7 +786,7 @@ test("sixty tones: the strongest three, the others a tap away and not drawn, and
 
   // A tap away, all of them; closed, they go.
   const all = page.getByTestId("check-all").locator("summary");
-  await expect(all).toHaveText("See all 60 tones");
+  await expect(all).toHaveText("See all 60 sounds");
   await all.click();
   await expect(drawn).toHaveCount(60);
   await all.click();
@@ -778,7 +804,9 @@ test("sixty tones: the strongest three, the others a tap away and not drawn, and
   // Under an answer they are all put away, with the same line as on a shorter file.
   await expect(page.getByTestId("where-verdict")).toBeVisible({ timeout: 170_000 });
   await expect(drawn).toHaveCount(0);
-  await expect(page.getByTestId("check-fold").locator("summary")).toHaveText("See the 60 tones in this file");
+  await details(page);
+  await expect(drawn).toHaveCount(0);
+  await expect(page.getByTestId("check-fold").locator("summary")).toHaveText("See the 60 sounds in this file");
   await shoot(page, "where-sixty-answer");
 });
 
@@ -788,10 +816,11 @@ test("sixty tones taken out: before and after for the three, and the others from
   await sixtyTones(page);
   await page.goto("/where");
   await page.getByTestId("where-file").setInputFiles(wav);
+  await details(page);
   await expect(page.getByTestId("check-tones").locator("li")).toHaveCount(3, { timeout: 60_000 });
   await page.evaluate(() => (window as unknown as { finishCheck: () => void }).finishCheck());
   await page.getByTestId("check-clean").click();
-  await expect(page.getByTestId("check-verdict")).toHaveText("The tones are gone.", { timeout: 90_000 });
+  await expect(page.getByTestId("check-verdict")).toHaveText("The sounds are gone.", { timeout: 90_000 });
   await expect(page.getByTestId("check-download")).toBeVisible();
   const items = page.getByTestId("check-tones").locator("li");
   await expect(items).toHaveCount(3);
@@ -801,7 +830,7 @@ test("sixty tones taken out: before and after for the three, and the others from
   await expect(page.getByTestId("check-others").locator("li").first().locator("canvas")).toHaveCount(2);
 });
 
-test("on a wide screen the map leaves no hole: it takes the whole width, and the planes go two by two", async ({ page }, info) => {
+test("on a wide screen the map takes the whole width, and under the answer each plane has its row", async ({ page }, info) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   const wav = info.outputPath("flyovers.wav");
   writeFileSync(wav, await sceneWav());
@@ -811,18 +840,18 @@ test("on a wide screen the map leaves no hole: it takes the whole width, and the
   await fillIn(page);
   await page.getByTestId("where-search").click();
   await expect(page.getByTestId("where-verdict")).toBeVisible({ timeout: 170_000 });
+  // Coordinates and the rest wait under Details.
+  await expect(page.getByTestId("where-spot")).toHaveCount(0);
   const result = (await page.getByTestId("where-result").boundingBox())!;
   const map = (await page.getByTestId("place-map").boundingBox())!;
   expect(map.width).toBe(result.width);
-  const planes = page.getByTestId("where-planes").locator("li");
+  const planes = page.getByTestId("answer-plane");
   const boxes = await planes.evaluateAll((items) => items.map((el) => el.getBoundingClientRect().toJSON() as DOMRect));
   expect(boxes[0].y).toBeGreaterThanOrEqual(map.y + map.height);
-  // Side by side, each from the same top; one left over has the whole row.
-  if (boxes.length > 1) {
-    expect(boxes[1].y).toBe(boxes[0].y);
-    expect(boxes[1].x).toBeGreaterThan(boxes[0].x + boxes[0].width);
+  for (const [i, box] of boxes.entries()) {
+    expect(box.width).toBe(result.width);
+    if (i) expect(box.y).toBeGreaterThanOrEqual(boxes[i - 1].y + boxes[i - 1].height);
   }
-  if (boxes.length % 2) expect(boxes[boxes.length - 1].width).toBe(result.width);
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/where-wide.jpg`, type: "jpeg", quality: 70, fullPage: true });
 });
 
@@ -874,24 +903,30 @@ test("the Hz labels have a dark backing", async ({ page }, info) => {
   writeFileSync(wav, await sceneWav(90));
   await page.goto("/where");
   await page.getByTestId("where-file").setInputFiles(wav);
+  await expect(page.getByTestId("where-verdict")).toBeVisible({ timeout: 90_000 });
+  await details(page);
+  await page.getByTestId("check-fold").locator("summary").click();
   const label = page.getByTestId("check-tones").locator("span", { hasText: " Hz" }).first();
   await expect(label).toBeVisible({ timeout: 90_000 });
   expect(await label.evaluate((el) => getComputedStyle(el).backgroundColor)).not.toBe("rgba(0, 0, 0, 0)");
 });
 
-test("nothing moves at phone width as the tones arrive", async ({ page }, info) => {
-  const wav = info.outputPath("two-passes.wav");
-  writeFileSync(wav, await sceneWav(90));
-  await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto("/where");
-  await page.getByTestId("where-file").setInputFiles(wav);
-  await expect(page.getByTestId("check-progress")).toBeVisible();
-  const before = await rectsOf(page, STAY);
-  await expect(page.getByTestId("check-verdict")).toBeVisible({ timeout: 90_000 });
-  expect(await rectsOf(page, STAY)).toEqual(before);
-  const width = await page.evaluate(() => document.documentElement.scrollWidth);
-  expect(width).toBeLessThanOrEqual(390);
-});
+for (const [name, width, height] of [["a computer", 1440, 900], ["a phone", 390, 844]] as const) {
+  test(`on ${name}, nothing moves from listening to "can't tell", in English and in French`, async ({ page }, info) => {
+    const wav = info.outputPath("two-passes.wav");
+    writeFileSync(wav, await sceneWav(90));
+    await page.setViewportSize({ width, height });
+    for (const [path, words] of [["/where", "Can't tell where this was filmed"], ["/fr/where", "Impossible de dire où ça a été filmé"]]) {
+      await page.goto(path);
+      await page.getByTestId("where-file").setInputFiles(wav);
+      await expect(page.getByTestId("check-progress")).toBeVisible();
+      const before = await rectsOf(page, STAY);
+      await expect(page.getByTestId("where-verdict")).toHaveText(words, { timeout: 90_000 });
+      expect(await rectsOf(page, STAY)).toEqual(before);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+    }
+  });
+}
 
 test("the home is the file's door: a drop goes straight into the flow, and the heading does not move", async ({ page }, info) => {
   const wav = info.outputPath("two-passes.wav");
@@ -917,7 +952,7 @@ test("the home is the file's door: a drop goes straight into the flow, and the h
   // In line with the door, and higher up: the lead has given way.
   expect([card!.x, card!.width]).toEqual([door!.x, door!.width]);
   expect(card!.y).toBeLessThan(door!.y);
-  await expect(page.getByTestId("where-find")).toBeEnabled();
+  await expect(page.getByTestId("answer")).toBeVisible();
 });
 
 test("the home takes a drop anywhere", async ({ page }) => {
@@ -967,9 +1002,11 @@ test("without the archive it says so, offers no search, and still reads the file
   writeFileSync(wav, await sceneWav(90));
   await page.goto("/where");
   await page.getByTestId("where-file").setInputFiles(wav);
-  await expect(page.getByTestId("where-offline")).toContainText("not connected yet");
   await expect(page.getByTestId("check-verdict")).toBeVisible({ timeout: 90_000 });
   await expect(page.getByTestId("check-clean")).toBeEnabled();
+  await details(page);
+  await expect(page.getByTestId("where-offline")).toContainText("not connected yet");
+  await expect(page.getByTestId("where-anyway")).toHaveCount(0);
   await expect(page.getByTestId("where-find")).toHaveCount(0);
   await shoot(page, "where-offline");
 });
@@ -989,7 +1026,7 @@ test("the French page, for the screenshots", async ({ page }, info) => {
   await expect(page.getByTestId("where-days")).toContainText("les vols d'un jour arrivent le lendemain");
   await shoot(page, "where-fr-form");
   await page.getByTestId("where-search").click();
-  await expect(page.getByTestId("where-verdict")).toHaveText("Probablement ici", { timeout: 170_000 });
+  await expect(page.getByTestId("where-verdict")).toHaveText(/^Probablement filmé près de /, { timeout: 170_000 });
   await shoot(page, "where-fr-found");
 });
 
@@ -1003,7 +1040,8 @@ test("the French best guess, for the screenshots", async ({ page }, info) => {
   await page.getByTestId("where-find").click();
   await fillIn(page);
   await page.getByTestId("where-search").click();
-  await expect(page.getByTestId("where-verdict")).toHaveText("Meilleure hypothèse", { timeout: 170_000 });
+  await expect(page.getByTestId("where-verdict")).toHaveText(/^Probablement filmé près de /, { timeout: 170_000 });
+  await details(page);
   await expect(page.getByTestId("where-said")).toContainText("Un lieu n'est nommé que si au moins trois avions");
   await expect(page.getByTestId("where-place-name")).toContainText(/^Vers .+, Arizona, États-Unis$/);
   await shoot(page, "where-fr-best-guess");

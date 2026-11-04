@@ -75,7 +75,7 @@ const shotOf = (instance: MapLibre, spot: () => Guess) =>
 
 const NO_LABELS: OverlayLabels = { guess: "", mirror: "", other: () => "", plane: () => undefined };
 
-export default function PlaceMapCanvas({ archive, guess, others, sure, onReady, onFail, shotRef }: { archive: string; guess: Guess; others: Spot[]; sure: boolean; onReady: () => void; onFail: () => void; shotRef?: RefObject<MapShot | null> }) {
+export default function PlaceMapCanvas({ archive, guess, others, sure, zoom = SPOT_ZOOM, onReady, onFail, shotRef }: { archive: string; guess: Guess; others: Spot[]; sure: boolean; zoom?: number; onReady: () => void; onFail: () => void; shotRef?: RefObject<MapShot | null> }) {
   const { m, locale, fill } = useI18n();
   const t = m.placeMap;
   const box = useRef<HTMLDivElement>(null);
@@ -137,7 +137,7 @@ export default function PlaceMapCanvas({ archive, guess, others, sure, onReady, 
         container,
         style: styleOf(base, locale),
         bounds: boundsOf(latest.current.guess, latest.current.others),
-        fitBoundsOptions: { padding: paddingOf(container), maxZoom: SPOT_ZOOM },
+        fitBoundsOptions: { padding: paddingOf(container), maxZoom: zoom },
         maxZoom: MAX_ZOOM,
         attributionControl: false,
         // A finger scrolls the page and two move the map; Ctrl or Cmd with the wheel zooms.
@@ -213,7 +213,7 @@ export default function PlaceMapCanvas({ archive, guess, others, sure, onReady, 
   }, []);
 
   const fit = (instance: MapLibre) => {
-    instance.fitBounds(boundsOf(latest.current.guess, latest.current.others), { padding: paddingOf(instance.getContainer()), maxZoom: SPOT_ZOOM, animate: !reducedMotion(), duration: 500 });
+    instance.fitBounds(boundsOf(latest.current.guess, latest.current.others), { padding: paddingOf(instance.getContainer()), maxZoom: zoom, animate: !reducedMotion(), duration: 500 });
   };
 
   // Another answer picked: the same map, new marks, and it moves there.

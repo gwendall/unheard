@@ -13,7 +13,7 @@ import { groundOf } from "../terrain";
 import { cachedFetcher, cachedTiles } from "./cached";
 import { stretchesOf, wherePiecesOf, withPool, type Pool } from "./pool";
 import type { PieceInput, PieceOutput } from "./piece.worker";
-import { daysOf, distinctAnswers, MIN_PASSES, MIN_WELL_HEARD, namesAPlace, partsOf, passesOf, type WherePart } from "./where";
+import { daysOf, distinctAnswers, MIN_WELL_HEARD, namesAPlace, partsOf, REPORTED_HZ, soundGate, type WherePart } from "./where";
 
 export type WhereRequest = {
   channels: Float32Array[];
@@ -75,7 +75,6 @@ const FT = 0.3048;
  * What the page calls an aircraft tone on its own, like the check (lib/core/leak.ts). The search
  * reads up to 3.4 kHz, for jets, but that range alone finds a line in half of white-noise files.
  */
-const REPORTED_HZ = 400;
 
 /** A plane's closest pass and its path around it, during a tone heard at a spot. */
 function passOf(f: Flight, listener: Listener, from: number, to: number): { metres: number; at: number; path: PlanePath } | null {
@@ -156,11 +155,9 @@ async function search({ channels, sampleRate, history, window, area, partial, an
   // In the order wherewhen numbers them: Explained.trace is an index into this list.
   const tones = segments.flatMap((g) => g.traces.map((t) => toneOf(t, g.stack.base.times, g.offset)));
   if (!tones.length) return { kind: "none" };
-  const heard = flybys(segments);
-  const low = heard.filter((h) => h.f0 <= REPORTED_HZ);
-  const passes = passesOf((low.length ? low : heard).map((h) => h.closest));
+  const { passes, low, refused } = soundGate(flybys(segments));
   // Too few passes to name a place: no flight is read, unless the visitor asks to look anyway.
-  if (passes < MIN_PASSES && !anyway) return low.length ? { kind: "few" } : { kind: "none" };
+  if (refused && !anyway) return { kind: refused };
 
   report("flights", "flights", 0);
   const days = daysOf(window, duration);
@@ -181,7 +178,7 @@ async function search({ channels, sampleRate, history, window, area, partial, an
     onBest: partial ? (best) => post({ type: "best", best }) : undefined,
   });
   // Only lines above the propellers' range, and nothing that convinces: no tone to speak of.
-  if (!low.length && !found.confident) return { kind: "none" };
+  if (!low && !found.confident) return { kind: "none" };
   const byHex = new Map(flights.map((f) => [f.hex, f]));
   // Otherwise the answers stay on offer, as candidates that are probably wrong.
   const best = found.answers[0];

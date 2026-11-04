@@ -36,6 +36,21 @@ export async function sceneWav(seconds = scene.duration): Promise<Uint8Array> {
 }
 
 /** The search's form filled in for the scene. */
+/** The file named in a QuickTime box holding a date and a position, as a phone writes them. */
+export function phoneVideo(start = scene.start): Buffer {
+  const u32 = (n: number) => [(n >>> 24) & 0xff, (n >> 16) & 0xff, (n >> 8) & 0xff, n & 0xff];
+  const box = (type: string, ...parts: (number[] | Buffer)[]) => {
+    const body = Buffer.concat(parts.map((p) => Buffer.from(p)));
+    return Buffer.concat([Buffer.from(u32(8 + body.length)), Buffer.from(type, "latin1"), body]);
+  };
+  const at = Math.round(start) + 2_082_844_800;
+  const place = Buffer.from("+33.4727-111.7187/", "latin1");
+  return Buffer.concat([
+    box("ftyp", Buffer.from("qt  ", "latin1"), u32(512), Buffer.from("qt  ", "latin1")),
+    box("moov", box("mvhd", [0, 0, 0, 0], u32(at), u32(at), u32(600), u32(0), new Array<number>(80).fill(0)), box("udta", box("\xa9xyz", [(place.length >> 8) & 0xff, place.length & 0xff, 0x15, 0xc7], place))),
+  ]);
+}
+
 export async function fillIn(page: Page) {
   await page.getByTestId("where-day").selectOption(scene.day);
   await page.getByTestId("where-time").fill(new Date(scene.start * 1000).toISOString().slice(11, 16));

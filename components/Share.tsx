@@ -7,7 +7,7 @@ import { useI18n } from "@/components/I18n";
 const SITE = "https://unheard.gwendall.com";
 
 /** Shares the card through the phone's share sheet; on a computer, saves it and copies the text. */
-export function Share({ card, text, label }: { card: Card | (() => Promise<Card>); text: string; label?: string }) {
+export function Share({ card, text, label, look = "rounded-full bg-amber px-6 py-3 font-medium text-night" }: { card: Card | (() => Promise<Card>); text: string; label?: string; look?: string }) {
   const [state, setState] = useState<"idle" | "busy" | "saved" | "error">("idle");
   const t = useI18n().m.share;
 
@@ -37,7 +37,7 @@ export function Share({ card, text, label }: { card: Card | (() => Promise<Card>
 
   return (
     <div className="flex flex-wrap items-center gap-3">
-      <button type="button" onClick={() => void share()} disabled={state === "busy"} className="rounded-full bg-amber px-6 py-3 font-medium text-night transition enabled:hover:bg-amber-soft disabled:opacity-60" data-testid="share">
+      <button type="button" onClick={() => void share()} disabled={state === "busy"} className={`${look} transition enabled:hover:bg-amber-soft disabled:opacity-60`} data-testid="share">
         {state === "busy" ? t.busy : (label ?? t.button)}
       </button>
       {state === "saved" && <p className="text-sm text-pretty text-mute">{t.saved}</p>}

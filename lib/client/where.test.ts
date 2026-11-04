@@ -1,7 +1,50 @@
 import { describe, expect, it } from "vitest";
-import { clockOf, coordinates, daysOf, distinctAnswers, metresApart, namesAPlace, offsetAt, osmLink, parseCoordinates, passesOf, prefillOf, townOf, windowOf, partsOf } from "./where";
+import { clockOf, coordinates, daysOf, distinctAnswers, madeInWords, metresApart, namesAPlace, offsetAt, osmLink, parseCoordinates, passesOf, prefillOf, soundGate, townOf, windowOf, partsOf } from "./where";
 
 const at = (iso: string) => Date.parse(iso) / 1000;
+
+describe("what the sound alone says", () => {
+  const low = (closest: number) => ({ f0: 110, closest });
+  const high = (closest: number) => ({ f0: 900, closest });
+
+  it("takes three separate passes of a propeller's line to let a search go on", () => {
+    expect(soundGate([low(10), low(100), low(200)])).toEqual({ passes: 3, low: 3, refused: null });
+    expect(soundGate([low(10), low(20), low(200)])).toEqual({ passes: 2, low: 3, refused: "few" });
+    expect(soundGate([low(10)]).refused).toBe("few");
+  });
+
+  it("calls lines above a propeller's range no aircraft sound, unless they are many", () => {
+    expect(soundGate([]).refused).toBe("none");
+    expect(soundGate([high(10), high(100)])).toEqual({ passes: 2, low: 0, refused: "none" });
+    expect(soundGate([high(10), high(100), high(200)])).toEqual({ passes: 3, low: 0, refused: null });
+  });
+
+  it("counts only the low lines when there are any", () => {
+    expect(soundGate([low(10), high(100), high(200)])).toEqual({ passes: 1, low: 1, refused: "few" });
+  });
+});
+
+describe("when a file says it was made, in plain words", () => {
+  const utc = Date.parse("2026-06-14T16:30:00Z") / 1000;
+  const zoned = { utc, offsetMinutes: 120, precision: "second", source: "exif" } as const;
+  const absolute = { utc, precision: "second", source: "mvhd" } as const;
+
+  it("reads a clock with its zone as that clock did, place or no place", () => {
+    expect(madeInWords(zoned, undefined, "en")).toEqual({ date: "June 14, 2026", time: expect.stringMatching(/^6:30.PM$/) });
+    expect(madeInWords(zoned, undefined, "fr")).toEqual({ date: "14 juin 2026", time: "18:30" });
+  });
+
+  it("turns an absolute time local only with a place, and never says a UTC clock", () => {
+    expect(madeInWords(absolute, undefined, "en")).toEqual({ date: "June 14, 2026" });
+    expect(madeInWords(absolute, { lon: 2.35, zone: "Europe/Paris" }, "fr")).toEqual({ date: "14 juin 2026", time: "18:30" });
+  });
+
+  it("says nothing of a time it does not have", () => {
+    expect(madeInWords(undefined, undefined, "en")).toBeNull();
+    expect(madeInWords({ utc, precision: "year", source: "exif" }, undefined, "en")).toBeNull();
+    expect(madeInWords({ utc, precision: "day", source: "exif" }, undefined, "en")).toEqual({ date: "June 14, 2026" });
+  });
+});
 
 describe("the answers shown", () => {
   const best = { lat: 40, lon: -73, start: 1000, mirror: { lat: 40.01, lon: -73 } };

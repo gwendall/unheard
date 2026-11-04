@@ -5,7 +5,7 @@
 // leaves it.
 
 import { chunksOf, cleanOut, curvesOf, findTonesWith, inline, pictureOf, viewOf, type Picture, type Pieces, type Reader, type Tone, type View } from "../core/leak";
-import { flybyOfTone } from "../core/flyby";
+import { findSegmentsWith, flybyOfTone, here } from "../core/flyby";
 import { ANALYSIS_RATE } from "../core/rate";
 import { estimator, stagesOf, type Estimate } from "../core/progress";
 import type { Curve } from "../core/scrub";
@@ -15,20 +15,21 @@ import { sweep } from "./folder";
 import { openMedia, type MediaFile } from "./media";
 import { readMetadata, type CreatedAt, type Place } from "./metadata";
 import { holdsTags, openVideoWriter, planCopy, planVideo, type Refusal, type VideoPlan } from "./remux";
-import { MIN_PASSES, passesOf } from "./where";
-import { withPieces, type Job as PoolJob } from "./pool";
+import { MIN_PASSES, passesOf, soundGate, type SoundGate } from "./where";
+import { flybys } from "../core/wherewhen";
+import { stretchesOf, withPieces, withPool, type Job as PoolJob } from "./pool";
 import { pcm16, WAV_HEADER, wavHeader } from "./wav";
 
 export type CheckRequest =
   /** A file picked: this worker reads it as a stream if it can. `partial`: also send each tone as soon as it is found. */
-  | { type: "open"; file: File; folder: string; partial?: boolean; phone?: boolean }
+  | { type: "open"; file: File; folder: string; partial?: boolean; phone?: boolean; gate?: boolean }
   /** The sound of a file this worker could not read, decoded by the page (Web Audio). */
   | { type: "sound"; channels: Float32Array[]; sampleRate: number }
   | { type: "clean" }
   /** The page shows this tone: its pictures. Nothing else waits for them. */
   | { type: "draw"; id: number };
 
-export type Step = "open" | "find" | "clean" | "again" | "write";
+export type Step = "open" | "find" | "gate" | "clean" | "again" | "write";
 
 /** Separate passes of a plane in the tones, read strongest first, and only until there are enough: a real hour holds dozens of tones. */
 function passesHeard(tones: Tone[]): number {
@@ -66,9 +67,8 @@ export type CheckEvent =
   | { type: "tags"; holds: boolean; can: boolean; picture: boolean; sound: boolean }
   /** How many workers this device and this file leave room for in the job that starts. */
   | { type: "workers"; count: number }
-  | { type: "found"; duration: number; found: Found[] }
-  /** How many separate passes of a plane the tones make: what a search of this file could stand on. */
-  | { type: "passes"; passes: number }
+  /** `refused`: what the sound alone says, by the search's own count. Null when a search can stand on it, or when only the search can tell. */
+  | { type: "found"; duration: number; found: Found[]; refused: SoundGate["refused"] }
   | ({ type: "cleaned"; cleaned: Found[]; left: Found[] } & Written)
   /** How a tone looks, and how it looks once taken out. */
   | { type: "drawn"; id: number; before: Picture; after?: Picture }
@@ -81,7 +81,8 @@ const post = (event: CheckEvent | CheckPartial, transfer: Transferable[] = []) =
 const clock = () => performance.now() / 1000;
 
 /** The stages of each job and their shares of it: reading a file takes about as long as searching it, measured on a 30-minute video. */
-const FINDING = stagesOf<Step>([["open", 1], ["find", 1]]);
+// The last part only runs on a file with too few passes: elsewhere the answer comes before the bar is full.
+const FINDING = stagesOf<Step>([["open", 1], ["find", 2], ["gate", 1]]);
 const CLEANING = stagesOf<Step>([["clean", 1], ["write", 1], ["again", 1]]);
 
 /** A job's progress as it goes: the step it is in, and how far the whole job has got. */
@@ -111,6 +112,8 @@ type Session = {
   partial: boolean;
   /** Told by the page: the workers go by a phone's budget. */
   phone: boolean;
+  /** Nothing else says where the file was made: too few passes would be its answer. */
+  gate: boolean;
   /** Samples of the store, and seconds of sound. */
   length: number;
   duration: number;
@@ -164,7 +167,21 @@ async function drawAsked() {
   drawing = false;
 }
 
-async function find(s: Session, source: SoundSource) {
+/**
+ * Whether the rule would stop at this sound, by the search's own steps on the same samples
+ * (where.worker.ts). The check cuts its tones its own way, good enough to say "worth a search" but
+ * not to refuse one: a refusal has no search behind it, so it can only come from the count the search reads.
+ */
+async function refusalOf(s: Session, job: ReturnType<typeof jobOf>): Promise<SoundGate["refused"]> {
+  job.reach("gate", 0, 1);
+  const { segments } = await withPool({ kind: "search", seconds: s.duration }, s.phone, (pool) =>
+    findSegmentsWith(pool ? stretchesOf(pool) : here, s.store.read(0, s.length), ANALYSIS_RATE, undefined, undefined, { onProgress: (share) => job.reach("gate", share, 1) }),
+  );
+  return soundGate(flybys(segments)).refused;
+}
+
+/** `same`: the sound as the search would read it. Decoded by the page it can differ, and then only the search may say too few. */
+async function find(s: Session, source: SoundSource, same = true) {
   s.source = source;
   const job = jobOf(FINDING, "find");
   const { length, frames } = await readInto(source, s.store, (done, total) => job.reach("open", done, total));
@@ -179,8 +196,8 @@ async function find(s: Session, source: SoundSource) {
     }),
   );
   s.current = told(s, tones, s.store.read);
-  post({ type: "found", duration: s.duration, found: s.current });
-  post({ type: "passes", passes: passesHeard(tones) });
+  // Together: too few, or none, is the answer, with no flash of the search's button before it.
+  post({ type: "found", duration: s.duration, found: s.current, refused: same && s.gate && passesHeard(tones) < MIN_PASSES ? await refusalOf(s, job) : null });
 }
 
 /** What a copy without its tags would be. A file that will not say is a file we cannot write: the check goes on all the same. */
@@ -194,7 +211,7 @@ async function tagsOf(media: MediaFile | null): Promise<CheckEvent> {
   }
 }
 
-async function open(file: File, folder: string, partial: boolean, phone: boolean) {
+async function open(file: File, folder: string, partial: boolean, phone: boolean, gate: boolean) {
   void sweep().catch(() => {});
   const media = await openMedia(file);
   post(await tagsOf(media));
@@ -202,7 +219,7 @@ async function open(file: File, folder: string, partial: boolean, phone: boolean
     post({ type: "no-sound" });
     return;
   }
-  session = { file, folder, media, source: null, store: await openStore(folder), partial, phone, length: 0, duration: 0, rounds: [], current: [], writes: 0, drawable: [] };
+  session = { file, folder, media, source: null, store: await openStore(folder), partial, phone, gate, length: 0, duration: 0, rounds: [], current: [], writes: 0, drawable: [] };
   if (media?.source) {
     try {
       await find(session, media.source);
@@ -325,9 +342,9 @@ async function cleanUp(s: Session) {
 
 async function handle(e: MessageEvent<CheckRequest>) {
   const request = e.data;
-  if (request.type === "open") await open(request.file, request.folder, !!request.partial, !!request.phone);
+  if (request.type === "open") await open(request.file, request.folder, !!request.partial, !!request.phone, !!request.gate);
   else if (request.type === "sound") {
-    if (session) await find(session, memorySource({ channels: request.channels, sampleRate: request.sampleRate }));
+    if (session) await find(session, memorySource({ channels: request.channels, sampleRate: request.sampleRate }), false);
   } else if (session) await cleanUp(session);
 }
 
