@@ -36,7 +36,9 @@ manifest, never from the names.
 From each `trace_full_<icao>.json` of the day (readsb's trace format): every airborne point (not
 `"ground"`) with a position, a ground speed and a track, at or below 10,000 ft pressure altitude
 (geometric altitude when no pressure altitude was received). That keeps every propeller and rotor
-aircraft near the ground, and jets on approach and departure, flagged as such.
+aircraft near the ground, and jets on approach and departure, flagged as such. A trace file damaged
+in the release itself (it does not unpack) is left out and named in `build.json`, with the bytes of
+the tar that were not valid and were looked past.
 
 ## manifest.json
 
