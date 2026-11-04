@@ -7,35 +7,42 @@ export type Clock = () => number;
 export type Estimate = {
   /** How far the job has got, 0 to 1: it never goes back. */
   fraction: number;
-  /** Seconds left at the pace so far; null while there is too little to go on. */
+  /** Seconds left, once they can be told: see `estimator`. Null until then, and whenever it would not hold. */
   secondsLeft: number | null;
 };
 
-/** No time left to show before this much of the job, or this many seconds, went by. */
-const FIRST_SHARE = 0.02;
+/** How far into the last stage, and how long in it, before its pace says anything. */
+const FIRST_SHARE = 0.15;
 const FIRST_SECONDS = 1;
-/** How fast the time left follows the pace, seconds: slow enough not to jump about between steps. */
-const SETTLE = 4;
+/** What the last stage's pace is stretched by, and what may still come after it, for a time that is not beaten. */
+const MARGIN = 1.25;
+const AFTER_SECONDS = 3;
 
 /**
  * Feed it the job's fraction as often as it moves: the bar never goes back, even when a stage's
- * guess was short (the rounds of a cleaning are only known as they come), and the time left is
- * the pace so far, settling over a few seconds.
+ * guess was short (the rounds of a cleaning are only known as they come).
+ *
+ * The stages' shares make a bar, not a clock: on a real hour a share ran from 2 to 6 minutes as the
+ * first stage went, and 5 s with 60 s to go near the end. So no time is told before the last stage,
+ * which starts at `lastStage` of the job, whatever the shares are, and then only from that stage's
+ * own pace. A time told never rises: past one, none is told until the pace is back under it. Nor
+ * does it hold at the end of the stage, when what is left is not counted.
  */
-export function estimator(clock: Clock): (fraction: number) => Estimate {
-  const start = clock();
+export function estimator(clock: Clock, lastStage = 0): (fraction: number) => Estimate {
   let shown = 0;
-  let left: number | null = null;
-  let last = start;
+  let began: number | null = null;
+  let told = Infinity;
   return (fraction) => {
     shown = Math.min(1, Math.max(shown, fraction));
-    if (shown >= 1) return { fraction: 1, secondsLeft: 0 };
     const now = clock();
-    const elapsed = now - start;
-    if (shown < FIRST_SHARE || elapsed < FIRST_SECONDS) return { fraction: shown, secondsLeft: null };
-    const pace = (elapsed * (1 - shown)) / shown;
-    left = left === null ? pace : left + (1 - Math.exp(-(now - last) / SETTLE)) * (pace - left);
-    last = now;
+    if (shown >= lastStage) began ??= now;
+    if (shown >= 1 || began === null) return { fraction: shown, secondsLeft: null };
+    const share = (shown - lastStage) / (1 - lastStage);
+    const elapsed = now - began;
+    if (share < FIRST_SHARE || elapsed < FIRST_SECONDS) return { fraction: shown, secondsLeft: null };
+    const left = (MARGIN * elapsed * (1 - share)) / share + AFTER_SECONDS;
+    if (left > told) return { fraction: shown, secondsLeft: null };
+    told = left;
     return { fraction: shown, secondsLeft: left };
   };
 }
