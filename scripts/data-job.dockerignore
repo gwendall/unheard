@@ -3,3 +3,4 @@
 !lib/places.ts
 !scripts/history-job.ts
 !scripts/places-build.ts
+!scripts/map-job.ts

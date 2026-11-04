@@ -120,6 +120,12 @@ What a visitor goes through, and where it lives:
   - **Place names**: `lib/client/places.ts` (`nearestPlace`, `searchPlaces`, `placeLabel`), an offline
     gazetteer from GeoNames in the bucket under `places/v1/`, so naming a spot or typing a town
     reaches no third party. Layout, the build and the upload: `docs/places-format.md`.
+  - **The map**: `components/PlaceMap.tsx` (a thin shell), `components/PlaceMapCanvas.tsx` (MapLibre, in
+    its own chunk, loaded when a result appears), `lib/client/map-style.ts` (the site's palette) and
+    `lib/client/map-overlay.ts` (the marks). One PMTiles file of the planet in our bucket, read by
+    range requests; fonts and sprite there too; nothing asked of OpenStreetMap or anyone else. No
+    WebGL, or tiles that cannot be read: `SpotPlot` in the same box. `/en/dev-map` shows it in
+    development (404 in production). Size, cost, refresh: `docs/map.md`.
   - **Development**: `next dev` defaults to `/dev-history` (`app/dev-history`, 404 in production),
     which serves `e2e/history` or `DEV_HISTORY_DIR` (say `evals/.cache/history`). `e2e/where.spec.ts`
     runs a made-up recording over one committed tile: 70 minutes of real adsb.lol flights (ODbL)
