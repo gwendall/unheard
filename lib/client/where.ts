@@ -11,7 +11,7 @@ export const OLDEST_DAY = "2026-01-01";
 /** An hour given means this far either side: the hour the search was measured with. */
 const HALF_HOUR = 1800;
 
-/** Roughly where: its name, its centre, and its time zone when the geocoder gives one. */
+/** Roughly where: its name, its centre, and its time zone when a place name gave one. */
 export type Place = { name: string; lat: number; lon: number; zone?: string };
 
 export type Zone = "local" | "utc";
@@ -113,15 +113,6 @@ export function metresApart(a: { lat: number; lon: number }, b: { lat: number; l
 export function distinctAnswers<A extends { lat: number; lon: number; start: number; mirror: { lat: number; lon: number } | null }>(answers: A[], count: number): A[] {
   const best = answers[0];
   return answers.filter((a) => a === best || !best.mirror || metresApart(best.mirror, a) > 300 || Math.abs(a.start - best.start) > 20).slice(0, count);
-}
-
-/** Places by name, from Open-Meteo's geocoder: no key, and only the typed name is sent. */
-export async function geocode(name: string, language: string, signal?: AbortSignal): Promise<Place[]> {
-  const url = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(name)}&count=5&language=${language}&format=json`;
-  const res = await fetch(url, { signal });
-  if (!res.ok) return [];
-  const { results } = (await res.json()) as { results?: { name: string; admin1?: string; country?: string; latitude: number; longitude: number; timezone?: string }[] };
-  return (results ?? []).map((r) => ({ name: [r.name, r.admin1, r.country].filter((x, i, all) => x && all.indexOf(x) === i).join(", "), lat: r.latitude, lon: r.longitude, zone: r.timezone }));
 }
 
 /** The where page's stages, each step of the worker with the search's own. */

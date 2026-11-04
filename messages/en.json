@@ -319,7 +319,7 @@
           "The planes you found are kept in this browser's storage to show your list on the home page. Nothing of it is sent, and Clear removes it.",
           "The language you pick in the menu is kept in a cookie for a year, so the site opens in it next time.",
           "On Somewhere else, the page asks our server for the aircraft over the place you pick, never with your own position, and your recording stays on the page.",
-        "A file you open here stays on the page and is never sent. If you use your location to search, it stays on the page too. To search, the page requests the flight tiles of the day and area you search, and tiles of the ground's height for that area from Amazon's open terrain data. A place name you type goes to Open-Meteo to find it on the map, and only that name.",
+        "A file you open here stays on the page and is never sent. If you use your location to search, it stays on the page too. To search, the page requests the flight tiles of the day and area you search, and tiles of the ground's height for that area from Amazon's open terrain data. Place names come from our own files, next to the flight tiles: for a name you type, only its first letters are asked for.",
         "Once a result is on your screen, the page names the spot and draws it on a map from files in Unheard's own storage (Tigris): the squares of the map and the place names around the answer, nothing else. OpenStreetMap, Google and other map services are asked nothing. Unheard saves none of it; the storage's request logs keep it for a short time, the way the host's do."
         ]
       },
@@ -420,7 +420,7 @@
     "hourWhy": "An hour or so gives better answers than a whole day.",
     "place": "Roughly where",
     "placePlaceholder": "A town, or coordinates: 48.85, 2.35",
-    "placeHint": "We search a 100 km square around it. A name you type goes to Open-Meteo to find it, and only the name.",
+    "placeHint": "We search a 100 km square around it. Only the first letters of a name you type reach our files, to find it.",
     "placesCredit": "Place names: GeoNames (CC BY 4.0).",
     "placeChosen": "{place}: we search a 100 km square around it.",
     "noPlace": "No place by that name. Try a town nearby, or coordinates.",
@@ -447,6 +447,7 @@
       "missing": "The archive has no flights for {day}.",
       "missingText": "It is still filling: each day's flights arrive the next day, older days a few at a time. Try another day.",
       "guesses": "Answers",
+      "near": "Near {place}",
       "first": "Best guess: {place}",
       "next": "Next answer: {place}, {distance} off",
       "later": "Answer {n}: {place}, {distance} off",

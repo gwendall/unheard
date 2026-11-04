@@ -120,6 +120,9 @@ test("a file in: what it says at once, its tones, then where and when, and the f
   await shoot(page, "where-searching");
   await expect(page.getByTestId("where-verdict")).toHaveText("Probably here", { timeout: 170_000 });
 
+  await expect(page.getByTestId("where-place-name")).toHaveText("Near Mesa, Arizona, United States");
+  // Local time from the town's own zone, no more "about, from the longitude".
+  await expect(page.getByTestId("where-start")).not.toContainText("longitude");
   const spot = (await page.getByTestId("where-spot").innerText()).split(", ").map(Number);
   expect(Math.hypot((spot[0] - scene.lat) * 111_195, (spot[1] - scene.lon) * 111_195 * Math.cos((scene.lat * Math.PI) / 180))).toBeLessThan(300);
   await expect(page.getByTestId("where-start")).toContainText(`${scene.day} at ${HOUR}`);
@@ -196,7 +199,7 @@ test("with too little to go on, leads with the best guess and the next answer, a
   await expect(page.getByTestId("where-plot")).toContainText("Guess");
   const guesses = page.getByTestId("where-guesses").getByRole("button");
   await expect(guesses.first()).toHaveAttribute("aria-pressed", "true");
-  await expect(guesses.first()).toContainText("Best guess: ");
+  await expect(guesses.first()).toContainText(/^Best guess: [A-Z][a-z ]+, Arizona$/);
   await expect(guesses.nth(1)).toContainText(/^Next answer: .+, [\d.,]+ k?m off$/);
   await shoot(page, "where-best-guess");
   const first = await page.getByTestId("where-spot").innerText();
@@ -275,6 +278,58 @@ test("offers only the days the archive holds, and says so when the file's date i
   await page.getByTestId("where-day").selectOption(scene.day);
   await page.getByTestId("where-place").fill("33.5, -111.8");
   await expect(page.getByTestId("where-search")).toBeEnabled();
+});
+
+test("offers towns as you type, from our own files alone, without moving the page", async ({ page }, info) => {
+  const wav = info.outputPath("one-pass.wav");
+  writeFileSync(wav, await sceneWav(90));
+  const asked: string[] = [];
+  page.on("request", (r) => asked.push(r.url()));
+  await page.goto("/where");
+  await page.getByTestId("where-file").setInputFiles(wav);
+  await openForm(page);
+  await page.getByTestId("where-day").selectOption(scene.day);
+  await page.getByTestId("where-time").fill("12:00");
+  await page.getByTestId("where-zone").selectOption("local");
+  // In the page, not the window: typing may scroll the field into view.
+  const top = () => page.getByTestId("where-search").evaluate((el) => el.getBoundingClientRect().top + window.scrollY);
+  const search = await top();
+
+  const field = page.getByTestId("where-place");
+  await field.pressSequentially("mes");
+  const list = page.getByTestId("where-matches");
+  await expect(list).toContainText("Mesa, Arizona, United States");
+  await expect(field).toHaveAttribute("aria-expanded", "true");
+  expect(await top()).toBe(search);
+  await shoot(page, "where-matches");
+  await field.press("Escape");
+  await expect(list).toHaveCount(0);
+
+  // The keyboard picks; the town's zone sets the hour: noon in Paris in May is 10:00 UTC, where the
+  // longitude alone would say 12:00.
+  await field.fill("paris");
+  await expect(list).toContainText("Paris, Île-de-France, France");
+  await field.press("ArrowDown");
+  await field.press("ArrowUp");
+  await field.press("Enter");
+  await expect(list).toHaveCount(0);
+  await expect(field).toHaveValue("Paris, Île-de-France, France");
+  await expect(page.getByTestId("where-place-hint")).toContainText("Paris, Île-de-France, France: we search a 100 km square");
+  await expect(page.getByTestId("where-window")).toHaveText(`Start between ${scene.day} 09:30 and ${scene.day} 10:30 UTC`);
+
+  // Coordinates have no zone until the search asks: no window it could not stand by.
+  await field.fill("48.85, 2.35");
+  await expect(page.getByTestId("where-search")).toBeEnabled();
+  await expect(page.getByTestId("where-window")).toHaveCount(0);
+
+  await field.fill("zzzz");
+  await expect(page.getByTestId("where-no-place")).toContainText("No place by that name");
+  await expect(page.getByTestId("where-search")).toBeDisabled();
+
+  expect(asked.some((u) => u.includes("/places/v1/s/"))).toBe(true);
+  expect(asked.filter((u) => !u.startsWith(new URL(page.url()).origin))).toEqual([]);
+  // The first letters at most: never the name as typed.
+  expect(asked.filter((u) => u.includes("paris") || u.includes("zzzz"))).toEqual([]);
 });
 
 test("does not promise a file older than the archive will reach", async ({ page }, info) => {
@@ -522,5 +577,6 @@ test("the French best guess, for the screenshots", async ({ page }, info) => {
   await page.getByTestId("where-search").click();
   await expect(page.getByTestId("where-verdict")).toHaveText("Meilleure hypothèse", { timeout: 170_000 });
   await expect(page.getByTestId("where-said")).toContainText("environ 8 de nos 20");
+  await expect(page.getByTestId("where-place-name")).toContainText(/^Vers .+, Arizona, États-Unis$/);
   await shoot(page, "where-fr-best-guess");
 });
