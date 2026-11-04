@@ -453,6 +453,14 @@ elsewhere, so wide is not safe as it stands.
     or more recordings, cut from the same 41 recordings, so running them again proves nothing. Reopen when 10
     to 20 natural files with 6 or more clear flyovers exist (the founder's `?capture=1` recordings), with fresh
     null units, about 2 to 4 CPU hours. Even then it serves such files only, not a clip found online.
+  - Two tones per flyover: a second tone that reads is common (27 of the 31 flyovers with a plane at the truth
+    in the 40 single recordings, 12 with one clearly better than the lead, 5 where the lead does not read at
+    all; 2 of 4 in colsto's hour). But the count of planes heard well at an answer already reads every trace,
+    so a second tone can raise the rank, never that count. From the readings already recorded at the truth of
+    the 112 files with the hour known, the rule could pass at most 15 (overlapping traces are one flyover) to 23
+    (every well-read trace is a plane) of them, against the 12 named today, all stitched groups: 0 of the 40
+    recordings, 0 of colsto's 25 files. So it cannot make a real clip name a place. Not built, not run (the 3
+    CPU hours, and 20 minutes on the files in that gap). Reopen if the rule's count of planes changes.
 
 Why it does not find more yet (measured):
 
@@ -464,7 +472,7 @@ Why it does not find more yet (measured):
   (R13, R17, R50), points only from 17 s on (R44), or its closest moment outside the clip (R57, R59).
 - The lead tone: one tone per flyover, the most confident. On R03 it jumps a harmonic (211 to 102
   Hz), on R02 it runs past the flight's data, while a weaker tone of the same flyover reads 0.17 and
-  0.33 at the truth. Up to two tones per flyover is the next thing to try.
+  0.33 at the truth. Two tones per flyover cannot make a real file name a place: see "How wide it can go".
 - A lucky fit can lead, as on R40 + R23 over a day. Capping a fit's worth at a loss of 0.1 finds
   that pair and misses another (still 6 of 20) but loses colsto's hour (truth second, 250 m).
   Scanning only the distances a tone's steepest slope allows saves 10 to 25 % of the CPU and, with
@@ -608,7 +616,7 @@ plane that clears the score and the lead now reads "possible": one comparison in
    find more without false traces in noise.
 9. Where and when: guesses come from the real tracks. A place is named only on three passes and
    three planes heard very well, a third of the passes at the least, at a rank chance does not make:
-   12 files of 112 with the hour known, no wrong place named on that set. Next: two tones per flyover, a flag that can be raised, a second pass on other days for "Probably here" on a day not confirmed (section "Where and when: the search"). Widening: not safe yet, see "How wide it can go".
+   12 files of 112 with the hour known, no wrong place named on that set. Next: a flag that can be raised (section "Where and when: the search"). Widening: not safe yet, see "How wide it can go", which also lists what we chose not to build and what would reopen each.
 
 10. "Strong must never be wrong", what is left after the level and the cap on distance:
    - At home with home's sky, 2 of 30 stay strong (synthetic-3 at 5.5 km, phoenix-9-25 at 2.9 km),
