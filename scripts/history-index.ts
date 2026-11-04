@@ -29,16 +29,26 @@ const TYPES_COMMIT = "2ab834a65f2fbde9457823e88682cd46954b8bc1";
 /** A tile heavier than this is cut in four (and again), so a browser never fetches more at once. */
 const MAX_TILE = 5_000_000;
 
-type Job = { id: number; gz: ArrayBuffer };
-type Result = { id: number; aircraft: Aircraft | null; pts: Float64Array; json: number; points: number; airborne: number; ms: number };
+type Job = { id: number; gz: ArrayBuffer; name: string };
+type Result = { id: number; aircraft: Aircraft | null; pts: Float64Array; json: number; points: number; airborne: number; ms: number; damaged?: string };
 
 if (!isMainThread) {
   // Worker: unpack one trace, keep its low airborne points.
   const { types, maxFt } = workerData as { types: Record<string, { desc: string }>; maxFt: number };
   parentPort!.on("message", (job: Job) => {
     const t0 = performance.now();
-    const raw = gunzipSync(Buffer.from(job.gz));
-    const doc = JSON.parse(raw.toString("utf8")) as { icao: string; r?: string; t?: string; timestamp: number; trace: unknown[][] };
+    let raw: Buffer;
+    let doc: { icao: string; r?: string; t?: string; timestamp: number; trace: unknown[][] };
+    try {
+      raw = gunzipSync(Buffer.from(job.gz));
+      doc = JSON.parse(raw.toString("utf8"));
+    } catch {
+      // A file damaged in the release itself (2026-04-30 has one): one aircraft is lost, not the day.
+      const pts = new Float64Array(0);
+      const result: Result = { id: job.id, aircraft: null, pts, json: 0, points: 0, airborne: 0, ms: performance.now() - t0, damaged: job.name };
+      parentPort!.postMessage(result, [pts.buffer]);
+      return;
+    }
     const points: number[] = [];
     let airborne = 0;
     let category: string | undefined;
@@ -190,7 +200,7 @@ async function indexDay(day: string, o: { out: URL; peek: boolean; force: boolea
   let next = 0;
   let inFlight = 0;
   let drained: (() => void) | null = null;
-  const stats = { traces: 0, json: 0, points: 0, airborne: 0, kept: 0, aircraft: 0, workerMs: 0, byKind: {} as Record<string, { aircraft: number; points: number }> };
+  const stats = { traces: 0, json: 0, points: 0, airborne: 0, kept: 0, aircraft: 0, workerMs: 0, damaged: [] as string[], byKind: {} as Record<string, { aircraft: number; points: number }> };
   const kindName = Object.fromEntries(Object.entries(KIND).map(([k, v]) => [v, k]));
 
   const dayStart = Date.parse(`${day}T00:00:00Z`) / 1000;
@@ -203,6 +213,7 @@ async function indexDay(day: string, o: { out: URL; peek: boolean; force: boolea
     stats.points += r.points;
     stats.airborne += r.airborne;
     stats.workerMs += r.ms;
+    if (r.damaged) stats.damaged.push(r.damaged);
     const a = r.aircraft;
     if (a) {
       const n = r.pts.length / STRIDE;
@@ -228,7 +239,7 @@ async function indexDay(day: string, o: { out: URL; peek: boolean; force: boolea
       d();
     }
   };
-  const dispatch = async (gz: Uint8Array) => {
+  const dispatch = async (gz: Uint8Array, name: string) => {
     if (inFlight >= workers * 8) await new Promise<void>((r) => (drained = r));
     const id = next++;
     inFlight++;
@@ -237,7 +248,7 @@ async function indexDay(day: string, o: { out: URL; peek: boolean; force: boolea
       settle(r);
     });
     const ab = gz.buffer.slice(gz.byteOffset, gz.byteOffset + gz.byteLength) as ArrayBuffer;
-    pool[id % workers].postMessage({ id, gz: ab } satisfies Job, [ab]);
+    pool[id % workers].postMessage({ id, gz: ab, name } satisfies Job, [ab]);
   };
 
   // A minimal streaming tar reader: 512-byte headers, GNU long names, pax paths.
@@ -263,6 +274,15 @@ async function indexDay(day: string, o: { out: URL; peek: boolean; force: boolea
     return parseInt(str(b).trim() || "0", 8);
   };
   const padded = (n: number) => Math.ceil(n / 512) * 512;
+  const validHeader = (h: Uint8Array) => {
+    let sum = 0;
+    for (let i = 0; i < 512; i++) sum += i >= 148 && i < 156 ? 32 : h[i];
+    return sum === octal(h.subarray(148, 156));
+  };
+  // Blocks of damage in the tar itself, looked past until the next real header (2026-04-30 has 66 kB
+  // of it just after its first part, and all the rest of the day after that).
+  let damagedBlocks = 0;
+  let lost = false;
   let typeflag = "";
   let finished = false;
   outer: for await (const chunk of stream()) {
@@ -278,9 +298,14 @@ async function indexDay(day: string, o: { out: URL; peek: boolean; force: boolea
         if (buf.length < need) continue;
         const h = buf;
         buf = new Uint8Array(0);
-        if (h.every((x) => x === 0)) {
+        if (!lost && h.every((x) => x === 0)) {
           finished = true;
           break outer;
+        }
+        lost = !validHeader(h);
+        if (lost) {
+          damagedBlocks++;
+          continue;
         }
         const name = str(h.subarray(0, 100));
         const prefix = str(h.subarray(345, 500));
@@ -312,7 +337,7 @@ async function indexDay(day: string, o: { out: URL; peek: boolean; force: boolea
           if (path) longName = path[1];
         } else {
           traceFiles++;
-          await dispatch(new Uint8Array(body));
+          await dispatch(new Uint8Array(body), entryName);
           if (peek && traceFiles >= 40) break outer;
         }
       }
@@ -329,6 +354,9 @@ async function indexDay(day: string, o: { out: URL; peek: boolean; force: boolea
     return;
   }
   if (!finished) throw new Error(`${tag}: the tar ended without its closing blocks`);
+  // One bad file is the release's; many would be this reader losing its place in the tar.
+  if (stats.damaged.length > traceFiles / 1000) throw new Error(`${tag}: ${stats.damaged.length} of ${traceFiles} traces do not unpack`);
+  if (damagedBlocks * 512 > total / 1000) throw new Error(`${tag}: ${damagedBlocks * 512} bytes of the tar are not valid`);
 
   // Write the tiles (heavy ones cut in four, again if need be).
   const t1 = performance.now();
@@ -388,6 +416,8 @@ async function indexDay(day: string, o: { out: URL; peek: boolean; force: boolea
     writeSeconds: Math.round(written / 100) / 10,
     peakMemoryMB: Math.round(process.resourceUsage().maxRSS / 1024),
     traces: stats.traces,
+    damagedTraces: stats.damaged.sort(),
+    damagedTarBytes: damagedBlocks * 512,
     jsonGB: Math.round(stats.json / 1e7) / 100,
     points: stats.points,
     airborne: stats.airborne,
