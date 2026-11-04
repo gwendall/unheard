@@ -568,6 +568,27 @@ plane that clears the score and the lead now reads "possible": one comparison in
 - From 3 km aside (somewhere else), the planes other than the primary named strongly sit at 1.9, 8.1
   and 13.6 km; the last now reads "possible". Not judged here: the ratchet counts the primary only.
 
+## Does the sound agree with a stated place and time? (2026-11-04)
+
+Not built, measured only, by a throwaway harness outside the repo. The question: a file states a place and a time (its own GPS and clock, which `lib/client/metadata.ts` already reads), and the sound either agrees or cannot say. Rules and readings were fixed before half B ran; intervals resample files. Half A is 32 files, half B 30 (2 have no tones). False claims moved the place 5 to 1000 km or the time an hour to a week.
+
+| Reading | Half A | Half B |
+|---|---|---|
+| 1 km and 10 min, rank at or above chance (6.87) + 2, one plane heard well: true | 4 of 32 | 7 of 30, 23 % (10 to 40) |
+| same: false | 6 of 704 | 12 of 660, 1.8 % (0.8 to 3.2) |
+| 500 m and 60 s in its own square, chance 3.87, rank at or above 5.87: true | 10 of 32 | 11 of 30, 37 % (20 to 53) |
+| same: false | 1 of 704 | 3 of 660, 0.45 % (0 to 1.06) |
+
+- It separates, and the place of the reading separates better than its score. At 1 km and 10 min a pass multiplies the odds by about 13; on colsto's cuts alone it does not show.
+- The independent proof is small: colsto's 5 tight true passes are nested cuts of 2 flyovers. Livermore's position and clock were fitted from flights, so its true claims start in-sample.
+- An ordinary sky is the hard case: 0 of 12 on the 2 and 4 minute cuts.
+- "No plane fits" refutes nothing: it is 41 to 43 % of true claims.
+- At the tight size a time moved by an hour or more never passed (0 of 372); a place moved passed 4 of 992. Moves under 5 km or under an hour were not run. Busy skies were not measured.
+- It could never say "filmed there" (anyone within a few km hears that plane, and a soundtrack can be laid over other pictures), that a claim is false, or anything about a caption: a town and a day has chance 15 to 17 nats against 6 to 12 for one flyover. Platforms usually strip the tags, so an online clip rarely has a claim this tight.
+- A square that small cannot beat its own chance: the table has to come from the 100 km hour around the claim. Cost on a page: 3 to 4 CPU s for a recording, 14 to 18 for 30 minutes, about 10 to 20 MB.
+
+Waits for 10 to 20 phone recordings through `?capture=1`, with GPS and a clock in the file. Suggested gate, on those files: at least 20 % true passes and at most 1 false pass in 200.
+
 ## Next
 
 1. Founder: record real flybys with `?capture=1` on a phone (a light-aircraft field, a heliport,
