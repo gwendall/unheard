@@ -2,17 +2,17 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Bar } from "@/components/Bar";
+import type { Heard } from "@/components/Check";
 import { useI18n } from "@/components/I18n";
 import { Share } from "@/components/Share";
 import { PlaceMap } from "@/components/PlaceMap";
 import { TonePicture } from "@/components/TonePicture";
-import { decode, troubleOf } from "@/lib/client/decode";
+import { soundOf, troubleOf } from "@/lib/client/decode";
 import { timeLeft } from "@/lib/client/format";
 import type { FileMetadata } from "@/lib/client/metadata";
 import { aircraftType } from "@/lib/client/types";
 import { clockOf, coordinates, metresApart, offsetAt, OLDEST_DAY, osmLink, parseCoordinates, SQUARE, windowOf, type Place, type Prefill, type Zone } from "@/lib/client/where";
 import type { Guess, WhereEvent, WherePartial, WhereRequest, WhereResult, WhereStep } from "@/lib/client/where.worker";
-import { ANALYSIS_RATE } from "@/lib/core/rate";
 import { nearestPlace, placeLabel, searchPlaces, type NearPlace, type PlaceHit } from "@/lib/client/places";
 import { paintWhere } from "@/lib/client/where-card";
 import { httpFetcher, readDays } from "@/lib/history";
@@ -55,7 +55,7 @@ const BUTTON = "w-full rounded-full bg-amber px-7 py-3 text-lg font-medium text-
 const FIELD = "rounded-xl border border-line bg-deep px-4 py-3 text-base text-ink placeholder:text-faint focus:border-amber";
 const TITLE = "text-3xl font-semibold tracking-tight text-balance sm:text-4xl";
 
-export function FindWhere({ picked, archive }: { picked: Picked; archive: string }) {
+export function FindWhere({ picked, archive, onSearching, onHeard }: { picked: Picked; archive: string; onSearching?: (running: boolean) => void; onHeard?: (heard: Heard) => void }) {
   const { m, f, fill, plural, locale } = useI18n();
   const t = m.where;
   const spot = picked.meta.location;
@@ -121,6 +121,10 @@ export function FindWhere({ picked, archive }: { picked: Picked; archive: string
 
   // The clock of the estimate, only while something runs.
   const running = !!busy;
+  useEffect(() => {
+    onSearching?.(running);
+    return () => onSearching?.(false);
+  }, [running, onSearching]);
   useEffect(() => {
     if (!running) return;
     const tick = setInterval(() => setNow(Date.now()), 1000);
@@ -195,9 +199,9 @@ export function FindWhere({ picked, archive }: { picked: Picked; archive: string
     const local = zone === "local" && !place.zone ? (await nearestPlace(place.lat, place.lon))?.zone : place.zone;
     if (mine !== run.current) return;
     const searched = windowOf({ day: chosen, time, zone }, { lon: place.lon, zone: local });
-    let audio: Awaited<ReturnType<typeof decode>>;
+    let audio: Awaited<ReturnType<typeof soundOf>>;
     try {
-      audio = await decode(picked.file, ANALYSIS_RATE);
+      audio = await soundOf(picked.file);
     } catch (err) {
       if (mine !== run.current) return;
       setBusy(null);
@@ -208,8 +212,8 @@ export function FindWhere({ picked, archive }: { picked: Picked; archive: string
     const w = new Worker(new URL("../lib/client/where.worker.ts", import.meta.url), { type: "module" });
     const onEvent = async (e: WhereEvent | WherePartial) => {
       if (e.type === "progress") return setBusy({ step: e.step, done: e.done, total: e.total, fraction: e.fraction, left: e.secondsLeft, since });
-      // The tones are on the page already, from the first look at the file.
-      if (e.type === "tones") return;
+      // In the check's place, which waits for this search.
+      if (e.type === "tones") return onHeard?.(e.tones);
       if (e.type === "best") {
         const { lat, lon, start } = e.best;
         setSoFar((was) => ({ lat, lon, start, name: was && metresApart(was, e.best) < 1000 ? was.name : null }));

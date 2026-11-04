@@ -345,7 +345,8 @@
       "find": "Listening for aircraft tones, {n} %",
       "clean": "Taking the tones out, {n} %",
       "again": "Checking again, {n} %",
-      "write": "Writing the cleaned sound..."
+      "write": "Writing the cleaned sound...",
+      "held": "Waiting for the search to finish."
     },
     "found": { "one": "An aircraft tone that could place this file.", "other": "{n} aircraft tones that could place this file." },
     "clean": { "one": "Take it out", "other": "Take them out" },
@@ -353,6 +354,7 @@
     "elsewhere": "Or make it sound like you are somewhere else",
     "none": "No aircraft tone found.",
     "noneText": "We looked for the hum of planes and helicopters and found none that stands out, so there is nothing to search or take out. That does not make the file safe: below is what we do not check.",
+    "noneSearch": "We looked for the hum of planes and helicopters and found none that stands out. The search above still says what it finds on its own. That does not make the file safe: below is what we do not check.",
     "gone": { "one": "The tone is gone.", "other": "The tones are gone." },
     "goneText": "We searched the cleaned sound again and no longer find an aircraft tone.",
     "left": { "one": "One tone is still there.", "other": "{n} tones are still there." },

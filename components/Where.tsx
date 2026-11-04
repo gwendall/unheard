@@ -2,7 +2,7 @@
 
 import type { Route } from "next";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { Check } from "@/components/Check";
+import { Check, type Heard } from "@/components/Check";
 import { ACCEPT, CARD, DropZone, PageDrop } from "@/components/Drop";
 import { FindWhere, type Picked } from "@/components/FindWhere";
 import { useI18n } from "@/components/I18n";
@@ -11,11 +11,11 @@ import { readMetadata, type FileMetadata } from "@/lib/client/metadata";
 import { coordinates, osmLink, prefillOf } from "@/lib/client/where";
 
 // One flow for a file, in the place of the drop zone, each thing as soon as it is known: what the
-// file says about itself, at once; its aircraft tones, within seconds; then the two things to do
-// with them, find where it was recorded and take them out. Nothing of the file is ever sent.
+// file says about itself, at once; its aircraft tones, as they are found; find where it was recorded,
+// open from the start and never waiting for them; and take them out. Nothing of the file is ever sent.
 
 const QUIET = "text-mute underline-offset-4 transition hover:text-ink hover:underline";
-const FIND = "w-full rounded-full bg-amber px-7 py-3 text-lg font-medium text-night transition enabled:hover:bg-amber-soft disabled:cursor-not-allowed disabled:opacity-40 sm:w-fit";
+const FIND = "w-full rounded-full bg-amber px-7 py-3 text-lg font-medium text-night transition hover:bg-amber-soft sm:w-fit";
 
 export function Where({ archive, elsewhere, scope }: { archive: string | null; elsewhere: Route; scope: ReactNode }) {
   const { m, fill } = useI18n();
@@ -23,6 +23,9 @@ export function Where({ archive, elsewhere, scope }: { archive: string | null; e
   const [picked, setPicked] = useState<(Picked & { id: number }) | null>(null);
   const [finding, setFinding] = useState(false);
   const [settled, setSettled] = useState(false);
+  // One long job at a time: while a search runs the check gives way, and shows the tones the search finds.
+  const [searching, setSearching] = useState(false);
+  const [heard, setHeard] = useState<Heard | null>(null);
   const settle = useCallback(() => setSettled(true), []);
   const count = useRef(0);
 
@@ -30,6 +33,7 @@ export function Where({ archive, elsewhere, scope }: { archive: string | null; e
     const meta = await readMetadata(file).catch((): FileMetadata => ({ format: "unknown" }));
     setFinding(false);
     setSettled(false);
+    setHeard(null);
     setPicked({ id: ++count.current, file, meta, prefill: prefillOf(meta) });
   }, []);
 
@@ -114,17 +118,17 @@ export function Where({ archive, elsewhere, scope }: { archive: string | null; e
               onSettled={settle}
               note={archive ? null : t.offline}
               fold={finding}
+              hold={searching}
+              heard={heard}
               find={
-                archive
-                  ? (ready) => (
-                      <button type="button" disabled={!ready} onClick={() => setFinding(true)} aria-expanded={finding} className={FIND} data-testid="where-find">
-                        {t.find}
-                      </button>
-                    )
-                  : undefined
+                archive ? (
+                  <button type="button" onClick={() => setFinding(true)} aria-expanded={finding} className={FIND} data-testid="where-find">
+                    {t.find}
+                  </button>
+                ) : undefined
               }
             >
-              {finding && archive && <FindWhere picked={picked} archive={archive} />}
+              {finding && archive && <FindWhere picked={picked} archive={archive} onSearching={setSearching} onHeard={setHeard} />}
             </Check>
           </>
         )}

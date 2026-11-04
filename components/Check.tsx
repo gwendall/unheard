@@ -2,26 +2,31 @@
 
 import Link from "next/link";
 import type { Route } from "next";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Bar } from "@/components/Bar";
 import { useI18n } from "@/components/I18n";
 import { TonePicture } from "@/components/TonePicture";
-import { decode, troubleOf } from "@/lib/client/decode";
+import { decode, soundOf, troubleOf } from "@/lib/client/decode";
 import { clock, timeLeft } from "@/lib/client/format";
 import type { CheckEvent, CheckPartial, CheckRequest, Found, Step } from "@/lib/client/check.worker";
-import type { Picture, View } from "@/lib/core/leak";
+import type { Picture, Tone, View } from "@/lib/core/leak";
 
 // A file's aircraft tones, and taking them out: its sound is decoded here (Web Audio takes the
 // audio of most video containers) and handed to a worker that does the rest; nothing of it is ever
 // sent. The verdict, the actions and the tones keep their places as each arrives. `find` is the
-// other thing to do with the tones (components/Where.tsx), `children` what it opens.
+// other thing to do with the file (components/Where.tsx), `children` what it opens: neither waits
+// for the tones. `hold`: a search is running, and finding the tones starts again after it, so a
+// phone never does both; `heard` is what that search has found meanwhile.
+
+/** Tones so far, and where each lies. */
+export type Heard = { tone: Tone; view: View }[];
 
 /** `fraction` and `left`: the whole job's, from the worker, once it has started. */
 type Busy = { step: Step | "open"; done: number; total: number; fraction?: number; left?: number | null };
 type Cleaned = { cleaned: (Found & { after: Picture })[]; left: Found[]; url: string };
-type State = { kind: "failed"; error: string } | { kind: "open"; busy: Busy; soFar?: Found[] } | { kind: "found"; found: Found[]; busy?: Busy } | ({ kind: "cleaned"; busy?: Busy } & Cleaned);
+type State = { kind: "failed"; error: string } | { kind: "open"; busy: Busy; soFar?: Heard } | { kind: "found"; found: Found[]; busy?: Busy } | ({ kind: "cleaned"; busy?: Busy } & Cleaned);
 
-/** Decoding happens at the rate of video sound; a file at another rate is resampled to it. */
+/** The cleaned file is written at the rate of video sound; a file at another rate is resampled to it. */
 const RATE = 48_000;
 
 /** m:ss, or h:mm:ss past an hour. */
@@ -29,6 +34,9 @@ const at = (s: number) => (s < 3600 ? clock(s) : `${Math.floor(s / 3600)}:${cloc
 
 /** A tone found while the search goes on: its curve, on a dark picture of the same size until the real one comes. */
 const blank = (view: View): Picture => ({ ...view, width: 1, height: 1, cells: new Uint8Array(1) });
+
+/** The check and a search find the same tones in the same order of the file: whichever has got further, so the list only grows. */
+const further = (a: Heard = [], b: Heard = []) => (b.length > a.length ? b : a);
 
 /** In the file's order, so a tone that arrives later never moves those above it. */
 const inOrder = <T extends Found>(list: T[]) => [...list].sort((a, b) => a.tone.times[0] - b.tone.times[0]);
@@ -40,7 +48,7 @@ const OUTLINE = "w-full rounded-full border border-line px-7 py-3 text-lg font-m
 const PRIMARY = "w-full rounded-full bg-amber px-7 py-3 text-center text-lg font-medium text-night transition hover:bg-amber-soft sm:w-fit";
 const QUIET = "text-mute underline-offset-4 transition hover:text-ink hover:underline";
 
-export function Check({ file, elsewhere, note, find, fold, onSettled, children }: { file: File; elsewhere?: Route; note?: string | null; find?: (ready: boolean) => ReactNode; fold?: boolean; onSettled?: () => void; children?: ReactNode }) {
+export function Check({ file, elsewhere, note, find, fold, hold, heard, onSettled, children }: { file: File; elsewhere?: Route; note?: string | null; find?: ReactNode; fold?: boolean; hold?: boolean; heard?: Heard | null; onSettled?: () => void; children?: ReactNode }) {
   const { m, fill, plural } = useI18n();
   const t = m.check;
   const [state, setState] = useState<State>({ kind: "open", busy: { step: "open", done: 0, total: 1 } });
@@ -57,19 +65,23 @@ export function Check({ file, elsewhere, note, find, fold, onSettled, children }
 
   const onEvent = (e: CheckEvent | CheckPartial) => {
     if (e.type === "progress") setState((s) => (s.kind === "failed" ? s : { ...s, busy: { step: e.step, done: e.done, total: e.total, fraction: e.fraction, left: e.secondsLeft } }));
-    else if (e.type === "tones") setState((s) => (s.kind === "open" ? { ...s, soFar: e.tones.map(({ tone, view }) => ({ tone, view, before: blank(view) })) } : s));
+    else if (e.type === "tones") setState((s) => (s.kind === "open" ? { ...s, soFar: further(s.soFar, e.tones) } : s));
     else if (e.type === "found") setState({ kind: "found", found: e.found });
     else if (e.type === "cleaned") setState({ kind: "cleaned", cleaned: e.cleaned, left: e.left, url: URL.createObjectURL(e.wav) });
     else setState({ kind: "failed", error: fill(t.errors.failed, { message: e.message }) });
   };
 
-  // After the first paint, so what the file says shows before decoding starts; once per file.
+  // After the first paint, so what the file says shows before decoding starts; once per file, and
+  // once more after a search that came before the end.
+  const waiting = !!hold && state.kind === "open";
   useEffect(() => {
+    if (waiting) return;
     let live = true;
     const start = setTimeout(async () => {
-      let audio: Awaited<ReturnType<typeof decode>>;
+      setState((s) => (s.kind === "open" ? { ...s, busy: { step: "open", done: 0, total: 1 } } : s));
+      let audio: Awaited<ReturnType<typeof soundOf>>;
       try {
-        audio = await decode(file, RATE);
+        audio = await soundOf(file);
       } catch (err) {
         if (live) setState({ kind: "failed", error: t.errors[troubleOf(err)] });
         return;
@@ -79,7 +91,7 @@ export function Check({ file, elsewhere, note, find, fold, onSettled, children }
       w.onmessage = (e: MessageEvent<CheckEvent | CheckPartial>) => onEvent(e.data);
       w.onerror = (e) => setState({ kind: "failed", error: fill(t.errors.failed, { message: e.message || "worker" }) });
       worker.current = w;
-      setState({ kind: "open", busy: { step: "find", done: 0, total: 1 } });
+      setState((s) => (s.kind === "open" ? { ...s, busy: { step: "find", done: 0, total: 1 } } : s));
       const request: CheckRequest = { type: "find", ...audio, partial: true };
       w.postMessage(request, audio.channels.map((c) => c.buffer as ArrayBuffer));
     }, 30);
@@ -89,15 +101,28 @@ export function Check({ file, elsewhere, note, find, fold, onSettled, children }
       worker.current?.terminate();
       worker.current = null;
     };
-    // The file alone starts this; the rest is read when it runs.
+    // The file and the search alone start this; the rest is read when it runs.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [file]);
+  }, [file, waiting]);
 
-  const cleanUp = () => {
-    if (!worker.current) return;
-    setState((s) => (s.kind === "failed" || s.kind === "open" ? s : { ...s, busy: { step: "clean", done: 0, total: 1 } }));
-    const request: CheckRequest = { type: "clean" };
-    worker.current.postMessage(request);
+  const cleanUp = async () => {
+    const working = (step: Busy["step"]) => setState((s) => (s.kind === "failed" || s.kind === "open" ? s : { ...s, busy: { step, done: 0, total: 1 } }));
+    let request: CheckRequest = { type: "clean" };
+    let moved: ArrayBuffer[] = [];
+    // The sound at the cleaned file's rate, only now that it is asked for; later rounds work on it as it is.
+    if (state.kind === "found") {
+      working("open");
+      try {
+        const sound = await decode(file, RATE);
+        request = { type: "clean", sound };
+        moved = sound.channels.map((c) => c.buffer as ArrayBuffer);
+      } catch (err) {
+        setState({ kind: "failed", error: t.errors[troubleOf(err)] });
+        return;
+      }
+    }
+    working("clean");
+    worker.current?.postMessage(request, moved);
   };
 
   /** `wide`: alone on its line, the verdict's place; otherwise at a button's width, in the actions. */
@@ -143,16 +168,26 @@ export function Check({ file, elsewhere, note, find, fold, onSettled, children }
     </ul>
   );
 
-  const heard = state.kind === "found" ? state.found : null;
-  const none = heard?.length === 0;
-  const list = state.kind === "cleaned" ? [...state.left, ...state.cleaned] : inOrder(heard ?? (state.kind === "open" ? (state.soFar ?? []) : []));
+  const soFar = state.kind === "open" ? state.soFar : undefined;
+  const sketches = useMemo(() => further(soFar, heard ?? undefined).map(({ tone, view }): Found => ({ tone, view, before: blank(view) })), [soFar, heard]);
+
+  const found = state.kind === "found" ? state.found : null;
+  const none = found?.length === 0;
+  const list = state.kind === "cleaned" ? [...state.left, ...state.cleaned] : inOrder(found ?? (state.kind === "open" ? sketches : []));
   const busy = state.kind === "failed" ? undefined : state.busy;
 
   return (
     <div className="flex flex-col gap-6" data-testid="check">
       <div className="flex flex-col gap-4">
         <div className={VERDICT} data-testid="check-slot">
-          {state.kind === "open" && progress(state.busy, true)}
+          {state.kind === "open" &&
+            (hold ? (
+              <p className="font-mono text-sm text-pretty text-mute" role="status" data-testid="check-held">
+                {t.steps.held}
+              </p>
+            ) : (
+              progress(state.busy, true)
+            ))}
           {state.kind === "failed" && (
             <p role="alert" className="text-xl font-medium text-pretty text-amber-soft" data-testid="check-trouble">
               {state.error}
@@ -165,22 +200,25 @@ export function Check({ file, elsewhere, note, find, fold, onSettled, children }
           )}
         </div>
 
-        {none && <p className="max-w-prose text-lg text-pretty text-mute">{t.noneText}</p>}
+        {none && !fold && <p className="max-w-prose text-lg text-pretty text-mute">{t.noneText}</p>}
 
-        {state.kind !== "failed" && !none && (
+        {/* A search already open keeps its place, whatever this look comes to. */}
+        {(fold || (state.kind !== "failed" && !none)) && (
           // While it works, the progress line takes the button's place, at its height.
           <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-4">
-            {find?.(state.kind !== "open")}
-            {state.kind === "open" && (
+            {find}
+            {/* Held in its place with nothing to take out, so that a search open under it does not move. */}
+            {(state.kind === "open" || none) && (
               <button type="button" disabled className={OUTLINE}>
                 {t.clean.other}
               </button>
             )}
             {state.kind === "found" &&
+              !none &&
               (busy ? (
                 progress(busy)
               ) : (
-                <button type="button" onClick={cleanUp} className={OUTLINE} data-testid="check-clean">
+                <button type="button" onClick={() => void cleanUp()} className={OUTLINE} data-testid="check-clean">
                   {plural(state.found.length, t.clean)}
                 </button>
               ))}
@@ -193,7 +231,7 @@ export function Check({ file, elsewhere, note, find, fold, onSettled, children }
                     {t.download}
                   </a>
                   {state.left.length > 0 && (
-                    <button type="button" onClick={cleanUp} className={OUTLINE} data-testid="check-clean">
+                    <button type="button" onClick={() => void cleanUp()} className={OUTLINE} data-testid="check-clean">
                       {plural(state.left.length, t.clean)}
                     </button>
                   )}
@@ -216,6 +254,9 @@ export function Check({ file, elsewhere, note, find, fold, onSettled, children }
       </div>
 
       {children}
+
+      {/* Under the search, so that what it has on the page stays where it is. */}
+      {none && fold && <p className="max-w-prose text-lg text-pretty text-mute">{t.noneSearch}</p>}
 
       {/* The search's own answer shows the tones it explains: here they step aside, a tap away, so its answer stays together. */}
       {list.length > 0 &&
