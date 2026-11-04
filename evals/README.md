@@ -20,8 +20,9 @@ request, CI posts this run's counts next to the base branch's (`scripts/eval-del
   *false strong* must stay 0.
 - **oracle**: how findable the sound was with a perfect model (true track, air and tone). It
   separates "too faint to find" from "the pipeline missed it". Read the table by oracle bucket.
-- **calibration**: best score and lead over the second, by outcome. `STRONG` and `POSSIBLE` in
-  `lib/core/match.ts` come from these lines.
+- **calibration**: best score and lead over the second, by outcome, and the closest range of those
+  that clear both (`STRONG.range`). `STRONG` and `POSSIBLE` in `lib/core/match.ts` come from these
+  lines.
 
 ## Locate me
 

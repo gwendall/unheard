@@ -4,7 +4,7 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { heardAt } from "../../lib/core/doppler";
-import { curveScore } from "../../lib/core/match";
+import { curveScore, STRONG } from "../../lib/core/match";
 import { analyze, type AnalysisOptions } from "../../lib/core/pipeline";
 import type { Stack } from "../../lib/core/spectrogram";
 import type { Scenario } from "./sim";
@@ -17,6 +17,8 @@ export type Outcome = {
   score: number | null;
   /** Best score minus the second best. */
   lead: number | null;
+  /** The best match's closest range in the recording, metres. */
+  closest: number | null;
   /** For heard scenarios: did the best match name the right aircraft? */
   correct: boolean | null;
   f0Error: number | null;
@@ -42,6 +44,7 @@ export async function run(s: Scenario, options?: AnalysisOptions): Promise<Outco
     answer: best?.id ?? null,
     score: best ? round(best.score) : null,
     lead: best ? round(best.score - (a.verdict.ranked[1]?.score ?? 0)) : null,
+    closest: best?.closest ? Math.round(best.closest.range) : null,
     correct: s.truth.heard ? answers.includes(best?.id ?? "") : null,
     f0Error: best && s.truth.f0 && best.id === s.truth.heard ? round(best.f0 - s.truth.f0) : null,
     clockError: best && s.truth.clock !== undefined && best.id === s.truth.heard ? round(best.clock - s.truth.clock) : null,
@@ -167,6 +170,9 @@ export function recordResults(name: string, outcomes: Outcome[], canonical: bool
   });
 }
 
+const clearsStrong = (os: Outcome[]) =>
+  os.filter((o) => (o.score ?? 0) >= STRONG.score && (o.lead ?? 0) >= STRONG.lead).map((o) => o.closest ?? 0);
+
 const quantiles = (xs: number[]) => {
   const s = [...xs].sort((a, b) => a - b);
   const q = (p: number) => (s.length ? s[Math.min(s.length - 1, Math.floor(p * s.length))] : NaN);
@@ -210,6 +216,11 @@ export function writeReport(name: string, outcomes: Outcome[], summary: Summary,
     `- nothing to find: score ${quantiles(empty.map((o) => o.score ?? 0))}; lead ${quantiles(empty.map((o) => o.lead ?? 0))}`,
     `- heard, right answer: score ${quantiles(heard.filter((o) => o.correct).map((o) => o.score ?? 0))}`,
     `- heard, wrong answer: score ${quantiles(heard.filter((o) => !o.correct).map((o) => o.score ?? 0))}`,
+    "",
+    "Calibration of STRONG.range (closest range of the best, metres, where its score and lead pass STRONG):",
+    `- right answer: ${quantiles(clearsStrong(heard.filter((o) => o.correct)))}`,
+    `- wrong answer: ${quantiles(clearsStrong(heard.filter((o) => !o.correct)))}`,
+    `- nothing to find: ${quantiles(clearsStrong(empty))}`,
     "",
     "| id | verdict | answer | right | score | lead | oracle | f0 err | clock err | aircraft | tags |",
     "|---|---|---|---|---|---|---|---|---|---|---|",

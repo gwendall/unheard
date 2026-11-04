@@ -84,8 +84,15 @@ const DEFAULTS: Required<MatchOptions> = {
  * - evals/real-tracks, 34: no wrong answer; evals/real-audio, 18: right answers 4.52 to 12.51, the
  *   best with nothing to find 6.77 (a second helicopter really audible, now labelled).
  * Strong sits 10 % above the worst score with nothing to find. "Strong" must never be wrong.
+ *
+ * `range` caps the plane's closest approach in the recording (metres), from the reports of
+ * 4 Nov 2026. Right answers named strongly stop at 5680 m on evals/real-audio (38) and 2468 m on
+ * evals/real-tracks (16), and no labelled plane is farther than that, so those say little past
+ * 6 km. Wrong strongs it takes out: 14424 m (the E2E's jet) and 11071 m (home's sky). colsto, no
+ * truth: Cessna 208 and PA-30 at 8.2 to 8.4 km stay under it, three jets at 12.3 to 13.4 km do not.
+ * Past it a high score reads "possible".
  */
-export const STRONG = { score: 9, lead: 2.5 };
+export const STRONG = { score: 9, lead: 2.5, range: 10_000 };
 export const POSSIBLE = { score: 6.5, lead: 1.5 };
 
 type Model = {
@@ -348,7 +355,7 @@ export function verdictOf<M>(ranked: Match<M>[]): Verdict<M> {
   const best = ranked[0] ?? null;
   const second = ranked[1]?.score ?? 0;
   if (!best) return { kind: "none", best: null, ranked };
-  if (best.score >= STRONG.score && best.score - second >= STRONG.lead) return { kind: "strong", best, ranked };
+  if (best.score >= STRONG.score && best.score - second >= STRONG.lead && (best.closest?.range ?? 0) <= STRONG.range) return { kind: "strong", best, ranked };
   if (best.score >= POSSIBLE.score && best.score - second >= POSSIBLE.lead) return { kind: "possible", best, ranked };
   return { kind: "none", best, ranked };
 }
