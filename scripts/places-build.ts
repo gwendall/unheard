@@ -29,8 +29,10 @@ const LONGEST_NAME = 64;
 const SECTION = "PPLX";
 /** How much less a section counts than a town of its size, when typed names are ranked. */
 const SECTION_SHARE = 0.01;
+/** A numbered district, named after its town (Paris 01 Louvre, Marseille 13). */
+const DISTRICT = /^(.+?) \d{1,2}( .+)?$/;
 
-type City = { id: number; name: string; others: string[]; lat: number; lon: number; country: string; region: string; population: number; zone: string; section: boolean };
+type City = { id: number; name: string; others: string[]; lat: number; lon: number; country: string; region: string; population: number; zone: string; section: boolean; town?: City };
 
 /**
  * Whether one of GeoNames' other names is a name someone would type. Addresses and numbers are
@@ -67,11 +69,22 @@ export function readCities(citiesTsv: string, admin1Tsv: string): City[] {
       section: c[7] === SECTION,
     });
   }
+  // GeoNames files these as towns of their own, with no sign of what they are but the name.
+  const largest = new Map<string, City>();
+  for (const city of cities) {
+    const key = `${city.country}.${city.name}`;
+    if (city.population > (largest.get(key)?.population ?? -1)) largest.set(key, city);
+  }
+  for (const city of cities) {
+    const name = DISTRICT.exec(city.name)?.[1];
+    const town = name && largest.get(`${city.country}.${name}`);
+    if (town && town.population > city.population) city.town = town;
+  }
   // The file's own order changes between dumps; nothing here should.
   return cities.sort((a, b) => a.id - b.id);
 }
 
-const weightOf = (c: City) => Math.round(c.section ? c.population * SECTION_SHARE : c.population);
+const weightOf = (c: City) => Math.round(c.section || c.town ? c.population * SECTION_SHARE : c.population);
 /** Largest first, then by name and id: a total order, so that files come out the same. */
 const byRank = (a: City, b: City) => weightOf(b) - weightOf(a) || (a.name < b.name ? -1 : a.name > b.name ? 1 : 0) || a.id - b.id;
 
@@ -155,8 +168,10 @@ export function buildPlaces(cities: City[], source: PlacesIndex["source"], { bui
   const bits = new Uint8Array((180 * 360) / 8);
 
   const bySquare = new Map<string, { lat: number; lon: number; cities: City[] }>();
-  for (const city of cities) {
-    if (city.section) continue;
+  for (const place of cities) {
+    if (place.section) continue;
+    // A spot in a district is in its town: the district's point, under the town's name and weight.
+    const city = place.town ? { ...place.town, lat: place.lat, lon: place.lon, id: place.id } : place;
     const lat = Math.min(89, Math.floor(city.lat));
     const lon = Math.min(179, Math.floor(city.lon));
     const key = `${lat}_${lon}`;

@@ -26,7 +26,7 @@ In all: 236,830 places, 58,266 files, 46 MB.
 
 A place is one row: `[name, region, country, lat, lon, weight, zone, other?]`. `region` and `zone`
 index the file's `strings`, `country` is the ISO code, the position is in 1e-4 degrees (11 m), and
-`weight` is the population, a hundredth of it for a section of a town. The country's name comes from
+`weight` is the population, a hundredth of it for a section or a district of a town. The country's name comes from
 the browser's own tables (`Intl.DisplayNames`), in the page's language, so no list is downloaded.
 
 **Search.** Each name a place goes by is a line under `nameKey(name)`: lower case, without the accents
@@ -47,7 +47,10 @@ win (3 rings at most, only squares the index says hold something, so no request 
 what a person means by it: the places of `cities500` minus the sections of a town (Times Square,
 Jean-Médecin) and the places that are gone (historical, abandoned, destroyed), and a place ten times
 larger counts as 1.6 times closer. So a spot in Nice is in Nice, and Times Square is in Manhattan
-(3.3 km), not in Weehawken across the river (3.1 km). `distance` is the real distance to the name given.
+(3.3 km), not in Weehawken across the river (3.1 km). The numbered districts GeoNames files as towns
+(Paris 01 Louvre, Marseille 13) keep their point but answer with their town's name and weight, so a spot
+near the Louvre is in Paris. `distance` is the real distance to the name given, or to that district's
+point.
 
 ## Building and uploading
 
