@@ -51,7 +51,7 @@
   },
   "proof": {
     "title": "Does it work?",
-    "lead": "Every change is tested on recorded flybys before it ships. One rule never bends: when Unheard says “It was”, it must be right.",
+    "lead": "Every change is tested on simulated flybys before it ships, and the real recordings below are run separately. Unheard saves “It was” for when it is sure. One known limit: if the plane you heard is missing from the flight data, another one close by can take its name (2 of 30 test scenes built to trap it).",
     "wrong": {
       "one": "wrong name when it says “It was”, over {tested} test recordings, {nothing} of them with no plane to find. When the trace is faint it says “probably”.",
       "other": "wrong names when it says “It was”, over {tested} test recordings, {nothing} of them with no plane to find. When the trace is faint it says “probably”."

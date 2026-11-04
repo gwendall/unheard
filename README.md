@@ -29,8 +29,10 @@ tests and the evals. What the evals measure is what runs in production.
 
 ## Scoreboard
 
-Every number below comes from `pnpm eval`, through the same `analyze()` as the page. The rule
-that never bends: when Unheard says it is sure, it must be right.
+Every number below comes from `pnpm eval`, through the same `analyze()` as the page. Unheard
+saves "It was" for when it is sure. One known limit: if the plane heard is missing from the flight
+data, another one close by can take its name (2 of 30 test scenes built to trap it, see
+`docs/STATUS.md`).
 
 <!-- scoreboard:start -->
 | Eval | Data | Sure and right | Named and right | Sure but wrong | Sure with nothing to find |

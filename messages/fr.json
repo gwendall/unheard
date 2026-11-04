@@ -51,7 +51,7 @@
   },
   "proof": {
     "title": "Est-ce que ça marche ?",
-    "lead": "Chaque changement est testé sur des passages enregistrés avant d'être mis en ligne. Une règle ne plie jamais : quand Unheard dit « C'était », il doit avoir raison.",
+    "lead": "Chaque changement est testé sur des passages simulés avant sa mise en ligne, et les vrais enregistrements ci-dessous sont testés à part. Unheard réserve « C'était » aux cas où il est sûr. Une limite connue : si l'avion entendu manque aux données de vol, un autre tout proche peut prendre son nom (2 scènes de test sur 30, construites pour le piéger).",
     "wrong": {
       "one": "erreur quand il dit « C'était », sur {tested} enregistrements de test, dont {nothing} sans aucun avion à trouver. Quand la trace est faible, il dit « sans doute ».",
       "other": "erreurs quand il dit « C'était », sur {tested} enregistrements de test, dont {nothing} sans aucun avion à trouver. Quand la trace est faible, il dit « sans doute »."
