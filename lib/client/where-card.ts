@@ -1,10 +1,25 @@
-// What a where result's share card paints (lib/client/card.ts): the spot and the planes' paths
-// above, one tone's spectrum with its curve below. Drawn in the page, and only on the sharer's click.
+// What a where result's share card paints (lib/client/card.ts): the map as the sharer sees it, or
+// the spot and the planes' paths without one, beside one tone's spectrum with its curve. Drawn in
+// the page, and only on the sharer's click.
 
 import { toLocal } from "../core/geo";
 import type { Picture, Tone } from "../core/leak";
 import { colorOf } from "./colormap";
 import type { Guess, ToneView } from "./where.worker";
+
+/** How much of the picture's width the map takes when a curve stands beside it. */
+const MAP_SHARE = 0.62;
+
+/** The map as it stood: its pixels, and where the spot lies in them, as shares of its width and height. */
+export type MapPicture = { picture: HTMLCanvasElement; spot: [number, number] };
+
+/**
+ * Where a picture `drawn` long starts in a frame `room` long, the spot as central as the picture
+ * allows, so that what a different shape cuts off is never the spot.
+ */
+export function cropStart(room: number, drawn: number, spot: number): number {
+  return Math.min(0, Math.max(room - drawn, room / 2 - spot * drawn));
+}
 
 /** The mirror, metres east and north of a guess. */
 export function mirrorOf(guess: Guess): [number, number] | null {
@@ -102,15 +117,32 @@ function paintSpot(ctx: CanvasRenderingContext2D, guess: Guess, side: number) {
   ctx.fill();
 }
 
-/** The card's picture: the spot on the left, one tone's curve on the right. */
-export function paintWhere(ctx: CanvasRenderingContext2D, w: number, h: number, guess: Guess, view: ToneView | undefined) {
+/** The map's picture filling `w` x `h`. */
+function paintMap(ctx: CanvasRenderingContext2D, { picture, spot }: MapPicture, w: number, h: number) {
+  const scale = Math.max(w / picture.width, h / picture.height);
+  const [drawnW, drawnH] = [picture.width * scale, picture.height * scale];
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(0, 0, w, h);
+  ctx.clip();
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
+  ctx.drawImage(picture, cropStart(w, drawnW, spot[0]), cropStart(h, drawnH, spot[1]), drawnW, drawnH);
+  ctx.restore();
+}
+
+/** The card's picture: the map, or the spot without one, on the left; one tone's curve on the right. */
+export function paintWhere(ctx: CanvasRenderingContext2D, w: number, h: number, guess: Guess, view: ToneView | undefined, map?: MapPicture | null) {
   ctx.fillStyle = "#0a0f1c";
   ctx.fillRect(0, 0, w, h);
-  const side = Math.min(h, view ? w * 0.5 : w);
-  ctx.save();
-  ctx.translate(view ? 0 : (w - side) / 2, (h - side) / 2);
-  paintSpot(ctx, guess, side);
-  ctx.restore();
+  const side = map ? (view ? w * MAP_SHARE : w) : Math.min(h, view ? w * 0.5 : w);
+  if (map) paintMap(ctx, map, side, h);
+  else {
+    ctx.save();
+    ctx.translate(view ? 0 : (w - side) / 2, (h - side) / 2);
+    paintSpot(ctx, guess, side);
+    ctx.restore();
+  }
   if (!view) return;
   ctx.save();
   ctx.translate(side, 0);
