@@ -2,66 +2,29 @@ name: CI
 
 on:
   pull_request:
-  push:
-    branches: [main]
-
-concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  check:
-    # GitHub's runners only: a self-hosted runner never serves a public repository.
+  probe:
+    # Throwaway, never merged: the page on an ordinary machine, against production.
     runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile --prefer-offline
-      - run: pnpm lint
-      - run: pnpm typecheck
-      - run: pnpm test
-      - run: pnpm scoreboard --check
-      - run: pnpm build
-
-  eval:
-    # The synthetic and real-track evals are the ratchet of the matcher (evals/baseline.json);
-    # somewhere-else reads back the curves the "Somewhere else" page plants.
-    # ghost holds how rarely the result page tells a line the flight data does not have by mistake:
-    # it runs when the analysis or the eval changed.
-    # The real-audio eval needs licensed data that never enters git: it runs on demand.
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    # The eval delta comments on the pull request (a fork's token stays read-only: summary only).
+    timeout-minutes: 60
     permissions:
       contents: read
-      pull-requests: write
     steps:
       - uses: actions/checkout@v4
-        with:
-          # The merge commit and its first parent, the base branch: the delta's reference.
-          fetch-depth: 2
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile --prefer-offline
-      - run: pnpm eval evals/synthetic evals/real-tracks evals/somewhere-else
-      - name: Eval delta
-        if: ${{ !cancelled() }}
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: nproc; lscpu | grep -E 'Model name|Thread|Core|MHz'; free -m | head -2
+      - run: pnpm build
         env:
-          GH_TOKEN: ${{ github.token }}
-        run: node scripts/eval-delta.ts synthetic real-tracks
-      - name: Ghost eval, when the analysis or the eval changed
-        # About 200 recordings, 13 minutes: page and docs changes cannot move it.
-        run: |
-          if git diff --name-only HEAD^ HEAD | grep -qE '^(lib/core/|lib/adsb\.ts|evals/ghost|evals/lib/|evals/baseline\.json)'; then
-            pnpm eval evals/ghost
-          else
-            echo "Nothing the ghost eval reads changed."
-          fi
+          NEXT_PUBLIC_HISTORY_URL: https://unheard-history.t3.tigrisbucket.io
+          NEXT_TELEMETRY_DISABLED: 1
+      - run: pnpm exec next start -p 3000 &
+      - run: pnpm exec tsx scripts/probe-ordinary.ts
+        env:
+          BASE_URL: http://localhost:3000
