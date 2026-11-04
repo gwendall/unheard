@@ -93,6 +93,9 @@ test("a file in: what it says at once, its tones, then where and when, and the f
   await expect(page.getByTestId("where-find")).toBeEnabled();
   await expect(page.getByTestId("check-progress")).toBeVisible();
   expect(await page.locator("h1").boundingBox()).toEqual(heading);
+  // With a file in, what the header said has done its work: the heading stays, and one line of privacy.
+  await expect(page.getByTestId("where-lead")).toHaveCount(0);
+  await expect(page.getByTestId("where-private")).toHaveText("Your file stays in this browser.");
   const before = await rectsOf(page, STAY);
   await shoot(page, "where-opening");
 
@@ -140,6 +143,15 @@ test("a file in: what it says at once, its tones, then where and when, and the f
   await expect(page.getByTestId("where-planes")).toContainText(scene.aircraft[1].registration);
   await expect(page.getByTestId("where-result")).toContainText("© adsb.lol contributors");
   await shoot(page, "where-found");
+
+  // The answer first, the file's own findings under it, and one primary on the screen.
+  const top = async (id: string) => (await page.getByTestId(id).boundingBox())!.y;
+  expect(await top("where-verdict")).toBeLessThan(await top("where-facts"));
+  expect(await top("where-facts")).toBeLessThan(await top("check-verdict"));
+  await expect(page.getByTestId("where-find")).toHaveCount(0);
+  await expect(page.getByTestId("where-again")).toBeVisible();
+  await expect(page.getByTestId("where").locator("button.bg-amber, a.bg-amber")).toHaveCount(1);
+  await expect(page.getByTestId("where-share").locator("button.bg-amber")).toHaveCount(1);
 
   // On a wide screen the map stays beside the planes as they scroll: no hole under it.
   await page.getByTestId("where-planes").evaluate((el) => window.scrollTo(0, el.getBoundingClientRect().top + window.scrollY - 40));
@@ -532,6 +544,49 @@ test("the tones a search finds show in the check's place while it waits, and the
   await expect(page.getByTestId("check-clean")).toBeEnabled();
 });
 
+test.describe("the end of a search on a phone", () => {
+  test.use({ viewport: { width: 390, height: 844 } });
+
+  async function search(page: Page, wav: string) {
+    writeFileSync(wav, await sceneWav(90));
+    await page.goto("/where");
+    await page.getByTestId("where-file").setInputFiles(wav);
+    await page.getByTestId("where-find").click();
+    await fillIn(page);
+    await page.getByTestId("where-search").click();
+  }
+
+  test("the verdict comes into view, on the first screen, and the answer holds still", async ({ page }, info) => {
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await search(page, info.outputPath("one-pass.wav"));
+    const verdict = page.getByTestId("where-verdict");
+    await expect(verdict).toBeFocused({ timeout: 170_000 });
+    const y = (await verdict.boundingBox())!.y;
+    expect(y).toBeGreaterThanOrEqual(0);
+    expect(y).toBeLessThan(844 / 2);
+    expect(await verdict.evaluate((el) => el.getBoundingClientRect().top + window.scrollY)).toBeLessThan(844);
+    // Here the map falls back to its diagram, whose caption is another length: what is above it holds, and it stays in the card.
+    const held = ["where-verdict", "where-share"];
+    const map = async () => (await page.getByTestId("place-map").boundingBox())!;
+    const before = await rectsOf(page, held);
+    const { x, y: mapY, width } = await map();
+    await expect(page.getByTestId("place-map")).toHaveAttribute("data-state", "failed", { timeout: 30_000 });
+    expect(await rectsOf(page, held)).toEqual(before);
+    expect(await map()).toMatchObject({ x, y: mapY, width });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+    await shoot(page, "where-phone-answer");
+  });
+
+  test("a visitor who has scrolled away stays where they are", async ({ page }, info) => {
+    await search(page, info.outputPath("one-pass.wav"));
+    await page.evaluate(() => window.scrollTo({ top: 0, behavior: "instant" }));
+    const verdict = page.getByTestId("where-verdict");
+    await expect(verdict).toBeVisible({ timeout: 170_000 });
+    await expect(verdict).not.toBeFocused();
+    expect(await page.evaluate(() => window.scrollY)).toBe(0);
+  });
+});
+
 test("the Hz labels have a dark backing", async ({ page }, info) => {
   const wav = info.outputPath("one-pass.wav");
   writeFileSync(wav, await sceneWav(90));
@@ -577,7 +632,9 @@ test("the home is the file's door: a drop goes straight into the flow, and the h
   await expect(page.getByTestId("where-name")).toHaveText("one-pass.wav");
   await expect.poll(() => page.locator("h1").boundingBox()).toEqual(heading);
   const card = await page.getByTestId("where").boundingBox();
-  expect([card!.x, card!.y, card!.width]).toEqual([door!.x, door!.y, door!.width]);
+  // In line with the door, and higher up: the lead has given way.
+  expect([card!.x, card!.width]).toEqual([door!.x, door!.width]);
+  expect(card!.y).toBeLessThan(door!.y);
   await expect(page.getByTestId("where-find")).toBeEnabled();
 });
 

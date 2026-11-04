@@ -16,7 +16,8 @@ import type { Picture, Tone, View } from "@/lib/core/leak";
 // sent. The verdict, the actions and the tones keep their places as each arrives. `find` is the
 // other thing to do with the file (components/Where.tsx), `children` what it opens: neither waits
 // for the tones. `hold`: a search is running, and finding the tones starts again after it, so a
-// phone never does both; `heard` is what that search has found meanwhile.
+// phone never does both; `heard` is what that search has found meanwhile. `answered`: what `children`
+// opened has its answer, which comes first, with `facts` and the rest under it, quieter.
 
 /** Tones so far, and where each lies. */
 export type Heard = { tone: Tone; view: View }[];
@@ -48,7 +49,7 @@ const OUTLINE = "w-full rounded-full border border-line px-7 py-3 text-lg font-m
 const PRIMARY = "w-full rounded-full bg-amber px-7 py-3 text-center text-lg font-medium text-night transition hover:bg-amber-soft sm:w-fit";
 const QUIET = "text-mute underline-offset-4 transition hover:text-ink hover:underline";
 
-export function Check({ file, elsewhere, note, find, fold, hold, heard, onSettled, children }: { file: File; elsewhere?: Route; note?: string | null; find?: ReactNode; fold?: boolean; hold?: boolean; heard?: Heard | null; onSettled?: () => void; children?: ReactNode }) {
+export function Check({ file, elsewhere, note, facts, find, fold, hold, heard, answered, onSettled, children }: { file: File; elsewhere?: Route; note?: string | null; facts?: ReactNode; find?: ReactNode; fold?: boolean; hold?: boolean; heard?: Heard | null; answered?: boolean; onSettled?: () => void; children?: ReactNode }) {
   const { m, fill, plural } = useI18n();
   const t = m.check;
   const [state, setState] = useState<State>({ kind: "open", busy: { step: "open", done: 0, total: 1 } });
@@ -176,8 +177,9 @@ export function Check({ file, elsewhere, note, find, fold, hold, heard, onSettle
   const list = state.kind === "cleaned" ? [...state.left, ...state.cleaned] : inOrder(found ?? (state.kind === "open" ? sketches : []));
   const busy = state.kind === "failed" ? undefined : state.busy;
 
-  return (
-    <div className="flex flex-col gap-6" data-testid="check">
+  const findings = (
+    <div className="flex flex-col gap-6">
+      {facts}
       <div className="flex flex-col gap-4">
         <div className={VERDICT} data-testid="check-slot">
           {state.kind === "open" &&
@@ -208,7 +210,7 @@ export function Check({ file, elsewhere, note, find, fold, hold, heard, onSettle
           <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-4">
             {find}
             {/* Held in its place with nothing to take out, so that a search open under it does not move. */}
-            {(state.kind === "open" || none) && (
+            {(state.kind === "open" || (none && !answered)) && (
               <button type="button" disabled className={OUTLINE}>
                 {t.clean.other}
               </button>
@@ -227,7 +229,7 @@ export function Check({ file, elsewhere, note, find, fold, hold, heard, onSettle
                 progress(busy)
               ) : (
                 <>
-                  <a href={state.url} download={`${name}-${t.suffix}.wav`} className={PRIMARY} data-testid="check-download">
+                  <a href={state.url} download={`${name}-${t.suffix}.wav`} className={answered ? `${OUTLINE} text-center hover:border-mute` : PRIMARY} data-testid="check-download">
                     {t.download}
                   </a>
                   {state.left.length > 0 && (
@@ -252,15 +254,24 @@ export function Check({ file, elsewhere, note, find, fold, hold, heard, onSettle
         )}
         {state.kind === "cleaned" && <p className="max-w-prose text-sm text-pretty text-faint">{state.left.length ? `${t.leftText} ` : ""}{t.remux}</p>}
       </div>
+    </div>
+  );
+
+  return (
+    <div className="flex flex-col gap-6" data-testid="check">
+      {/* Above what the search opens until it has its answer, then under it. `children` keeps its place, and its state, between the two. */}
+      {!answered && findings}
 
       {children}
+
+      {answered && findings}
 
       {/* Under the search, so that what it has on the page stays where it is. */}
       {none && fold && <p className="max-w-prose text-lg text-pretty text-mute">{t.noneSearch}</p>}
 
       {/* The search's own answer shows the tones it explains: here they step aside, a tap away, so its answer stays together. */}
       {list.length > 0 &&
-        (fold && state.kind === "found" ? (
+        (answered || (fold && state.kind === "found") ? (
           <details className="group" data-testid="check-fold">
             <summary className={`${QUIET} w-fit cursor-pointer`}>{plural(list.length, t.fold)}</summary>
             <div className="mt-4">{tones(list)}</div>

@@ -7,6 +7,8 @@ export function holdFile(file: File) {
   held = file;
 }
 
+export const hasHeld = () => held !== null;
+
 export function takeFile(): File | null {
   const file = held;
   held = null;

@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { DoorHeader } from "@/components/DoorHeader";
 import { Where } from "@/components/Where";
 import { ARCHIVE_URL } from "@/lib/archive";
 import { alternates, LANGUAGES, messages, pathFor, type Locale } from "@/lib/i18n";
@@ -25,11 +24,9 @@ export async function generateMetadata({ params }: PageProps<"/[lang]/where">): 
 export default async function WherePage({ params }: PageProps<"/[lang]/where">) {
   const lang = (await params).lang as Locale;
   const all = await messages(lang);
-  const t = all.where;
   const scope = all.check.scope;
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-6xl flex-col gap-8 px-5 pt-10 pb-16 sm:px-8 sm:pt-16">
-      <DoorHeader title={t.title} lead={t.lead} note={t.private} />
       <Where
         archive={ARCHIVE_URL || null}
         elsewhere={pathFor(lang, "/somewhere-else")}

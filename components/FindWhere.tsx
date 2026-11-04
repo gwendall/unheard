@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Bar } from "@/components/Bar";
 import type { Heard } from "@/components/Check";
 import { useI18n } from "@/components/I18n";
@@ -55,7 +55,7 @@ const BUTTON = "w-full rounded-full bg-amber px-7 py-3 text-lg font-medium text-
 const FIELD = "rounded-xl border border-line bg-deep px-4 py-3 text-base text-ink placeholder:text-faint focus:border-amber";
 const TITLE = "text-3xl font-semibold tracking-tight text-balance sm:text-4xl";
 
-export function FindWhere({ picked, archive, onSearching, onHeard }: { picked: Picked; archive: string; onSearching?: (running: boolean) => void; onHeard?: (heard: Heard) => void }) {
+export function FindWhere({ picked, archive, onSearching, onHeard, onAnswered }: { picked: Picked; archive: string; onSearching?: (running: boolean) => void; onHeard?: (heard: Heard) => void; onAnswered?: (answered: boolean) => void }) {
   const { m, f, fill, plural, locale } = useI18n();
   const t = m.where;
   const spot = picked.meta.location;
@@ -83,7 +83,7 @@ export function FindWhere({ picked, archive, onSearching, onHeard }: { picked: P
   const placeField = useRef<HTMLInputElement>(null);
   const dayField = useRef<HTMLElement | null>(null);
   const started = useRef(false);
-  const panel = useRef<HTMLDivElement>(null);
+  const atStart = useRef(0);
   const verdict = useRef<HTMLHeadingElement>(null);
   const watching = useRef(false);
 
@@ -110,13 +110,18 @@ export function FindWhere({ picked, archive, onSearching, onHeard }: { picked: P
     setBusy(null);
     setSoFar(null);
     setResult(null);
+    onAnswered?.(false);
     setShown(0);
     setError(null);
   };
 
-  // The form gives way to the answer: if the visitor was watching, take them to its first line.
-  useEffect(() => {
-    if (result && watching.current) verdict.current?.focus();
+  // The form gives way to the answer: unless the visitor has scrolled away, take them to its first line.
+  useLayoutEffect(() => {
+    const line = verdict.current;
+    if (!result || !watching.current || !line) return;
+    line.focus({ preventScroll: true });
+    const { top } = line.getBoundingClientRect();
+    if (top < 0 || top > window.innerHeight / 2) line.scrollIntoView({ block: "start", behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth" });
   }, [result]);
 
   // The clock of the estimate, only while something runs.
@@ -189,6 +194,7 @@ export function FindWhere({ picked, archive, onSearching, onHeard }: { picked: P
   const search = async () => {
     if (!place || !span) return;
     stop();
+    atStart.current = window.scrollY;
     const mine = run.current;
     setNow(Date.now());
     const since = Date.now();
@@ -227,10 +233,10 @@ export function FindWhere({ picked, archive, onSearching, onHeard }: { picked: P
         // The answer and its name arrive as one: nothing moves under the visitor.
         const named = await namesOf(e.result, locale);
         if (mine !== run.current) return;
-        const box = panel.current?.getBoundingClientRect();
-        watching.current = !!box && box.bottom > 0 && box.top < window.innerHeight;
+        watching.current = Math.abs(window.scrollY - atStart.current) < window.innerHeight / 4;
         setNames(named);
         setResult(e.result);
+        onAnswered?.(true);
       } else setError(fill(t.errors.failed, { message: e.message }));
       setBusy(null);
     };
@@ -341,7 +347,7 @@ export function FindWhere({ picked, archive, onSearching, onHeard }: { picked: P
 
   /** The answer picked: where it lies, the mirror, the planes and their tones. */
   const answer = (g: Guess, views: Found["views"], sure: boolean, best: boolean, others: { lat: number; lon: number }[]) => (
-    <div className="grid gap-8 lg:grid-cols-2">
+    <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
       <div className="flex flex-col gap-3 lg:sticky lg:top-6 lg:self-start">
         <PlaceMap guess={g} others={others} sure={sure} />
         <p className="text-sm text-pretty text-faint">{t.result.credit}</p>
@@ -567,7 +573,7 @@ export function FindWhere({ picked, archive, onSearching, onHeard }: { picked: P
   const others = useMemo(() => (found && shown === 0 ? found.guesses.slice(1).map(({ lat, lon }) => ({ lat, lon })) : []), [found, shown]);
 
   return (
-    <div ref={panel} className="flex flex-col gap-6" data-testid="where-find-panel">
+    <div className="flex flex-col gap-6" data-testid="where-find-panel">
       {form}
 
       {result && said && (
