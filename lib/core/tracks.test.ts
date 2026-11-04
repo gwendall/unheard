@@ -7,7 +7,7 @@ import { fixAt } from "./guess";
 import type { Stack } from "./spectrogram";
 import type { Trace } from "./trace";
 import { buildTrack } from "./track";
-import { BIN, FLOOR, joinFits, pathsOf, scanTracks, surprise, toneOf, worthOf, type Fits, type Scan, type Tone } from "./tracks";
+import { BIN, FLOOR, joinFits, pathsOf, scanPart, scanTracks, scanTracksWith, surprise, toneOf, worthOf, type Fits, type Scan, type ScanRunner, type Tone } from "./tracks";
 import { whereWhen, type BestSoFar } from "./wherewhen";
 
 const air = { groundTempC: 15 };
@@ -18,7 +18,7 @@ const start = 1_779_000_000;
 const spot = fromLocal(centre, 6000, 4000);
 const listener = { ...spot, elevation: 0 };
 const window: [number, number] = [start - 1800, start + 1800];
-const ground = () => 0;
+const ground = { heights: new Float32Array(1), size: 1, half: 0, step: 1 };
 const options = { half: 25_000, window, ground, c, maxRange: 10_000 };
 
 /** A flight from a path in the spot's frame: east and north at each second, a speed in m/s. */
@@ -114,6 +114,45 @@ describe("the scan of real tracks", () => {
     expect(worthOf(scan, 0, 1)).toBe(0);
     expect(surprise(scan.rate[0], 0.05)).toBeGreaterThan(5);
     expect(scan.rate[0][Math.floor(0.45 / BIN)]).toBeLessThan(1);
+  });
+});
+
+describe("the scan over workers", () => {
+  /** Parts that finish the later the sooner they started, as workers may. */
+  function backwards(size: number): ScanRunner {
+    let started = 0;
+    return {
+      size,
+      part: async (tones, paths, jets, o, longest, onShare) => {
+        const out = await scanPart(tones, paths, jets, { ...o, onProgress: (done, total) => onShare(done / total) }, longest);
+        await new Promise((go) => setTimeout(go, 12 - 4 * (started++ % 3)));
+        onShare(1);
+        return out;
+      },
+    };
+  }
+
+  it("reads the same fits, limits and rates, whichever part ends first", async () => {
+    const flights = [straight("a00001", 800, 100), straight("a00002", -900, 130), straight("a00003", 1500, 160), circling("a00004")];
+    const jetting: Tone = { ...toneHeard(1, flights[1], 90, 170), jets: true };
+    const tones = [toneHeard(0, flights[0], 70, 130), jetting, toneHeard(2, flights[2], 120, 200), toneHeard(3, flights[3], 60, 100)];
+    flights[1].kind = KIND.jet;
+    const paths = pathsOf(flights, centre, window[0] - 120, window[1] + 400);
+    const whole = await scanTracks(tones, paths, flights, options);
+    expect(whole.fits.reduce((a, f) => a + f.n, 0)).toBeGreaterThan(0);
+    for (const size of [2, 3, 8]) {
+      const shares: number[] = [];
+      const over = await scanTracksWith(backwards(size), tones, paths, flights, { ...options, onProgress: (done, total) => shares.push(done / total) });
+      expect(over).toEqual(whole);
+      expect(shares.at(-1)).toBe(1);
+    }
+  }, 120_000);
+
+  it("scans here when one part is all it can make", async () => {
+    const flights = [straight("a00001", 800, 100)];
+    const tones = [toneHeard(0, flights[0], 70, 130)];
+    const paths = pathsOf(flights, centre, window[0] - 120, window[1] + 400);
+    expect(await scanTracksWith(backwards(4), tones, paths, flights, options)).toEqual(await scanTracks(tones, paths, flights, options));
   });
 });
 

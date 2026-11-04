@@ -6,10 +6,13 @@ import { toneOf, pictureOf, readerOf, viewOf, type Picture, type Reader, type To
 import { toLocal, norm, type Listener } from "../core/geo";
 import { ANALYSIS_RATE } from "../core/pipeline";
 import { estimator, stagesOf, type Estimate } from "../core/progress";
-import { findSegments, flybys, whereWhen, type Answer, type BestSoFar } from "../core/wherewhen";
+import { findSegmentsWith, here } from "../core/flyby";
+import { flybys, whereWhen, type Answer, type BestSoFar } from "../core/wherewhen";
 import { loadFlights, type Flight } from "../history";
 import { groundOf } from "../terrain";
 import { cachedFetcher, cachedTiles } from "./cached";
+import { stretchesOf, wherePiecesOf, withPool, type Pool } from "./pool";
+import type { PieceInput, PieceOutput } from "./piece.worker";
 import { daysOf, distinctAnswers, partsOf, passesOf, type WherePart } from "./where";
 
 export type WhereRequest = {
@@ -118,11 +121,11 @@ function viewsOf(guesses: Guess[], tones: Tone[], read: Reader, length: number, 
   return views;
 }
 
-async function search({ channels, sampleRate, history, window, area, partial }: WhereRequest): Promise<WhereResult> {
+async function search({ channels, sampleRate, history, window, area, partial }: WhereRequest, pool: Pool<PieceInput, PieceOutput> | null): Promise<WhereResult> {
   const { read, length } = readerOf({ channels, sampleRate });
   const duration = length / ANALYSIS_RATE;
   const estimate = estimator(() => performance.now() / 1000);
-  const fractionOf = stagesOf(partsOf(duration));
+  const fractionOf = stagesOf(partsOf(duration, pool?.size ?? 1));
   /** Where the job stands: how far into the step, and the whole job's bar and time left. */
   const report = (step: WhereStep, part: WherePart, share: number) => {
     const fraction = fractionOf(part, share);
@@ -134,7 +137,7 @@ async function search({ channels, sampleRate, history, window, area, partial }: 
   report("find", "find", 0);
   const samples = read(0, length);
   const so: Tone[] = [];
-  const { segments, searched } = findSegments(samples, ANALYSIS_RATE, undefined, undefined, {
+  const { segments, searched } = await findSegmentsWith(pool ? stretchesOf(pool) : here, samples, ANALYSIS_RATE, undefined, undefined, {
     onProgress: (share) => report("find", "find", share),
     onSegment: (g) => {
       if (!partial) return;
@@ -159,6 +162,7 @@ async function search({ channels, sampleRate, history, window, area, partial }: 
 
   report("search", "shape", 0);
   const found = await whereWhen(segments, flights, {
+    pieces: pool ? wherePiecesOf(pool) : undefined,
     window,
     area,
     ground,
@@ -174,7 +178,7 @@ async function search({ channels, sampleRate, history, window, area, partial }: 
 }
 
 scope.onmessage = (e: MessageEvent<WhereRequest>) => {
-  search(e.data).then(
+  withPool((pool) => search(e.data, pool)).then(
     (result) => post({ type: "result", result }),
     (err: unknown) => post({ type: "error", message: err instanceof Error ? err.message : String(err) }),
   );
