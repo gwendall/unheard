@@ -269,7 +269,7 @@ test("one pass of a plane: too few, no place is named, nothing is asked for, and
   await openForm(page);
   await expect(page.getByTestId("where-verdict")).toHaveText("This file holds too few flyovers to place it.");
   await expect(page.getByTestId("where-said")).toContainText("at least three planes");
-  await expect(page.getByTestId("where-said")).toContainText("A longer recording would help");
+  await expect(page.getByTestId("where-said")).toContainText("not just more minutes");
   await expect(page.getByTestId("where-search")).toHaveCount(0);
   await expect(page.getByTestId("where-day")).toHaveCount(0);
   await expect(page.getByTestId("where-spot")).toHaveCount(0);
@@ -293,7 +293,7 @@ test("too few passes, looked at anyway: no place leads, and the candidates wait 
   const candidates = page.getByTestId("where-candidates");
   await expect(candidates).toContainText("probably wrong", { timeout: 170_000 });
   await expect(page.getByTestId("where-verdict")).toHaveText("This file holds too few clear flyovers to place it.");
-  await expect(page.getByTestId("where-said")).toContainText("A longer recording would help");
+  await expect(page.getByTestId("where-said")).toContainText("it takes several clear flyovers");
   await expect(page.getByTestId("where-spot")).toHaveCount(0);
   await expect(page.getByTestId("place-map")).toHaveCount(0);
   await expect(page.getByTestId("where-share")).toHaveCount(0);

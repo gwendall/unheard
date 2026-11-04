@@ -328,7 +328,7 @@ most of it.
   with the file's traces and MARGIN does not, so the flag can rise where the truth is not (lines below).
 - Too few passes: the page says so before any flight is read, and offers to look anyway. An answer
   that fails the rule shows no place as the answer: "This file holds too few flyovers to place it",
-  a longer recording would help, and the candidates behind a link that says they are probably wrong.
+  that it takes several clear flyovers and not just more minutes, and the candidates behind a link that says they are probably wrong.
 
 | 100 km, hour known, right = 1 km and 30 s | files | right (flag) | wrong named | no place named | no tone |
 |---|---|---|---|---|---|
@@ -384,12 +384,13 @@ These searches share recordings, so they are not independent draws and the upper
 
 At the page's settings, the flag alone: six recordings, two hours after the real time, 37.1 km off, 2 planes of 6 passes, rank 25.03 against a threshold of 24.48; eleven recordings or more, a wrong day, 16.9 km off, 3 planes of 11 passes, rank 29.08 against 27.3. Both say "Probably here" on main and are refused here. Two wide searches at 333 km on a day away, same settings: nine recordings, 290.8 km off, 3 planes of 9, rank 35.17, passes this rule, one more reason it does not widen the search; eleven or more, 82.2 km off, 2 planes of 11, refused.
 
-Limits: one real long file (colsto), 0 wrong of 12 has a 95 % upper bound of 24 %, and GOOD and the 15 s inside `wellHeard` were set earlier on these same recordings. The files are 41 recordings on 7 days, 25 cuts of one hour.
+Limits: every file that names a place is a group of recordings read as one file. No single natural file does, and the one natural long file is refused at 60 minutes, 3 planes of 31 passes, with the truth as its first candidate. So the page says several clear flyovers help, not more minutes: six or more recordings joined named a place 8 times in 9, the real hour none. One real long file (colsto), 0 wrong of 12 has a 95 % upper bound of 24 %, and GOOD and the 15 s inside `wellHeard` were set earlier on these same recordings. The files are 41 recordings on 7 days, 25 cuts of one hour.
 
-Measured with a throwaway harness on `main` at 36662df, not kept in the repo: groups of recordings of
-one site and day read as one file with gaps, colsto's hour in cuts of 2 to 30 minutes. Worth keeping as
-a part of `evals/wherewhen.eval.ts`, as its own lot. In the real page on the real bucket, colsto's hour
+Measured with a throwaway harness on `main` at 36662df: groups of recordings of one site and day read
+as one file with gaps, colsto's hour in cuts of 2 to 30 minutes. `evals/wherewhen-named.eval.ts` is that
+measure, kept (`pnpm eval evals/wherewhen-named`). In the real page on the real bucket, colsto's hour
 took 44 s at a machine load above 500: the refusal, then its first candidate on the truth, 206 m off.
+On the live site after #94, 69 s at a load of about 20: the refusal, no spot shown as the answer.
 
 Why it does not find more yet (measured):
 
