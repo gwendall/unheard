@@ -378,13 +378,13 @@ Searches where the truth cannot be (same squares, hours or days away from the re
 
 | where the truth cannot be | searches | a place named before | "Probably here" before | three planes alone | the rule | the rule with "Probably here" | after the freeze: searches, the rule |
 |---|---|---|---|---|---|---|---|
-| 100 km, a wrong hour (page settings) | 76 | 76 | 1 | 2 | 1 (upper 7.1 %) | 0 | 31, 1 |
+| 100 km, a wrong hour (page settings) | 109 | 109 | 1 | 2 | 1 (upper 5.0 %) | 0 | 64, 1 |
 | 100 km, a wrong hour (refine 3) | 78 | 78 | 1 | 7 | 0 (upper 4.7 %) | 0 | 0, 0 |
-| 100 km, a wrong day (page settings) | 10 | 10 | 2 | 4 | 1 (upper 40.4 %) | 1 | 3, 1 |
+| 100 km, a wrong day (page settings) | 73 | 72 | 3 | 9 | 3 (upper 11.4 %) | 2 | 66, 3 |
 
-Interim: 2026-11-04 08:41, 84 of the 180 searches of the last stage in, the rest still running; the final numbers go in a comment on #94. The rule was frozen at 08:30:39 with 50 of those 180 seen. After the freeze: 34 searches, 2 named a place. One is 41.3 km off on a wrong hour (four recordings, 3 planes of 4 passes, rank 17.6 against S 16.5), a "Best guess". One is a wrong "Probably here", 39.5 km off on a wrong day (six recordings, 3 planes of 6 passes, rank 28.2 against S 19.6), and only 3 fresh wrong days have run so far. The rule only removes answers: main names a place on every one of these searches, so the rest of the test cannot make it worse than what is live.
+The last test: the rule was frozen at 08:30:39 with 50 of the last 180 searches seen, and #94 shipped with 84 of them in. All 180 in, nothing changed after the freeze: 130 searches after it, 4 named a place: a wrong hour, four recordings, 41.3 km off, 3 planes of 4 passes, rank 17.6 against S 16.5, "Best guess"; a wrong day, six recordings, 39.5 km off, 3 planes of 6 passes, rank 28.2 against S 19.6, "Probably here"; a wrong day, nine recordings, 22.2 km off, 3 planes of 9 passes, rank 23.9 against S 19.5, "Best guess"; a wrong day, nine recordings, 30.3 km off, 4 planes of 9 passes, rank 28.9 against S 19.5, "Probably here". By file, since searches share recordings: By file: wrong hour 19 files, 1 named, 0 "Probably here"; wrong day 27 files, 2 named, 2 "Probably here". The rule only removes answers: before it, a place was named on nearly every one of these searches.
 
-These searches share recordings, so they are not independent draws and the upper bounds above are optimistic. The rank here leaves out the cost of the sea, so these counts are at most. No null bound is on the page: it quotes the true files' rate only.
+The rank here leaves out the cost of the sea, so these counts are at most. No null bound is on the page: it quotes the true files' rate only.
 
 At the page's settings, the flag alone: six recordings, two hours after the real time, 37.1 km off, 2 planes of 6 passes, rank 25.03 against a threshold of 24.48; eleven recordings or more, a wrong day, 16.9 km off, 3 planes of 11 passes, rank 29.08 against 27.3. Both say "Probably here" on main and are refused here. Two wide searches at 333 km on a day away, same settings: nine recordings, 290.8 km off, 3 planes of 9, rank 35.17, passes this rule, one more reason it does not widen the search; eleven or more, 82.2 km off, 2 planes of 11, refused.
 
@@ -396,6 +396,72 @@ measure, kept (`pnpm eval evals/wherewhen-named`). In the real page on the real 
 took 44 s at a machine load above 500: the refusal, then its first candidate on the truth, 206 m off.
 On the live site after #94, 69 s at a load of about 20: the refusal, no spot shown as the answer.
 
+How wide it can go (2026-11-04, `main` at 36662df, throwaway harness): not safely past the square asked for.
+
+Chance grows as the log of what is searched. Over a day, 100 km is 19.7 nats, 1000 km 24.3, the US 26.4,
+the land of the world 29.3, and the whole archive adds 5.7. Each clue, in nats of chance removed: hour
+against day 3.2, day against week 1.9, week against month 1.5, month against the archive 2.3; 100 against
+300 km 2.2, 300 against 1000 km 2.4, 1000 km against the US 2.1, the US against the world's land 2.9. A
+flyover read very well gives 6 to 12. Knowing nothing costs 18.5 nats more than an hour and a square: 2 to
+3 more flyovers read very well, 5 to 6 in all.
+
+Measured on 8 files that hold many flyovers (7 groups of 6 to 18 recordings, colsto's hour): the truth's
+unit of 333 km with real terrain at 12 refined, then a sample of the other units, flat at 3 refined.
+
+| Row, day known unless said | right ("Probably here") | wrong | no place named |
+|---|---|---|---|
+| 1000 km | 6 (6) | 0 | 2 |
+| US | 6 (6) | 0 | 2 |
+| world | 6 (6) | 0 | 2 |
+| 333 km, whole archive | 6 (6) | 0 | 2 |
+| world, whole archive | 6 (5) | 0 | 2 |
+
+Those rows have the truth inside, and that is what holds them up. Of 95 units searched without it, 6 name
+a wrong place under the rule and 2 raise the flag. Rerun at the page's settings, one of those two still
+says "Probably here", 290.8 km off, on 3 planes of 9 passes, rank 35.17: it would clear S even over the
+whole archive and the whole world (35.0). The page cannot tell a right wide answer from a file made
+elsewhere, so wide is not safe as it stands.
+
+- What would make it safe, chosen on these searches and not tried on others: a margin of 16 nats instead
+  of 8 (0 of 161 searches where the truth cannot be reach it, 17 of 44 right answers do), or four planes
+  and half of the passes (0 of those units, 6 of 7 truth units).
+- It would serve only files with many clear flyovers. Colsto's hour is 118 km off from 333 km up, on two
+  planes, and minutes of real sound name nothing even at 100 km with the hour known.
+- Cost per unit of 333 km over a day: the truth's 185 s of CPU (p50) and 17 MB; others 7 to 214 s and 2 to
+  19 MB. Whole zones, extrapolated, not run: 1000 km about 10 CPU minutes, 43 MB of flights and about 45 MB
+  of terrain; US about 1.7 CPU hours, 230 MB; world 3 to 7 CPU hours, 345 MB; each times the days searched.
+- An index, not built: entries measured at 6,700 to 7,800 per MB of tiles on 2 days and 2 regions, the rest
+  estimated. A known place over an unknown day: about 40 kB a day for a square, about 12 MB over the
+  archive, range reads from the browser, nothing of the file sent, candidate hours for today's search. An
+  unknown place: 6.4 GB raw, a server that receives the tones' shape, which conflicts with "nothing of the
+  file is ever sent": the founder's decision. An index only speeds up; wide needs the stricter rule first.
+- Not run, on purpose: 300 km on this base, 1000 km with every unit, 100 km over a week or a month (about 4 CPU
+  hours for the 300 km and 1000 km rows). They cannot decide anything until a stricter wide rule exists, and
+  that needs fresh files with many clear flyovers, which we do not have. 300 km has one older number:
+  `main` at 9a0a8ea, an earlier rule, 20 files right at the hour: 8 right, 0 wrong, 12 refused. The cost of
+  a week and a month at 100 km is extrapolated from the day: about 10 and 43 CPU minutes, 84 and 360 MB.
+- Decided not to do now (2026-11-04), and what would reopen each:
+  - "Probably here" on a day that was not confirmed: 2 wrong in 73 wrong-day searches, on 2 of 27 files, only on groups of 6 or more
+    recordings, with a wrong day given by the user. No natural file raised the flag where it was searched, and the
+    flag rose on such days before the rule too. Reopen when a natural file reaches "Probably here", or with
+    an unknown-day search, where wrong days are the normal case. The idea then: a second pass, the same file on
+    other days as its own chance level. In sample, a margin of 6 over the best other day removes the wrong
+    ones and keeps 7 of the 9 right at the day; a flagged day search goes from about 86 to about 260 CPU s. Fresh
+    days are written down (162 searches, about 3 CPU hours), they are fresh days, not fresh files. A plain "4
+    planes" does not work: one wrong answer holds 4 of 9.
+  - A stricter wide rule: margin 16, or 4 planes and half of the passes, was chosen on the only 9 files of 6
+    or more recordings, cut from the same 41 recordings, so running them again proves nothing. Reopen when 10
+    to 20 natural files with 6 or more clear flyovers exist (the founder's `?capture=1` recordings), with fresh
+    null units, about 2 to 4 CPU hours. Even then it serves such files only, not a clip found online.
+  - Two tones per flyover: a second tone that reads is common (27 of the 31 flyovers with a plane at the truth
+    in the 40 single recordings, 12 with one clearly better than the lead, 5 where the lead does not read at
+    all; 2 of 4 in colsto's hour). But the count of planes heard well at an answer already reads every trace,
+    so a second tone can raise the rank, never that count. From the readings already recorded at the truth of
+    the 112 files with the hour known, the rule could pass at most 15 (overlapping traces are one flyover) to 23
+    (every well-read trace is a plane) of them, against the 12 named today, all stitched groups: 0 of the 40
+    recordings, 0 of colsto's 25 files. So it cannot make a real clip name a place. Not built, not run (the 3
+    CPU hours, and 20 minutes on the files in that gap). Reopen if the rule's count of planes changes.
+
 Why it does not find more yet (measured):
 
 - Physics: over a day at 100 km the search is 19.7 nats (spots and starts at 500 m and 10 s), an
@@ -406,7 +472,7 @@ Why it does not find more yet (measured):
   (R13, R17, R50), points only from 17 s on (R44), or its closest moment outside the clip (R57, R59).
 - The lead tone: one tone per flyover, the most confident. On R03 it jumps a harmonic (211 to 102
   Hz), on R02 it runs past the flight's data, while a weaker tone of the same flyover reads 0.17 and
-  0.33 at the truth. Up to two tones per flyover is the next thing to try.
+  0.33 at the truth. Two tones per flyover cannot make a real file name a place: see "How wide it can go".
 - A lucky fit can lead, as on R40 + R23 over a day. Capping a fit's worth at a loss of 0.1 finds
   that pair and misses another (still 6 of 20) but loses colsto's hour (truth second, 250 m).
   Scanning only the distances a tone's steepest slope allows saves 10 to 25 % of the CPU and, with
@@ -550,7 +616,7 @@ plane that clears the score and the lead now reads "possible": one comparison in
    find more without false traces in noise.
 9. Where and when: guesses come from the real tracks. A place is named only on three passes and
    three planes heard very well, a third of the passes at the least, at a rank chance does not make:
-   12 files of 112 with the hour known, no wrong place named on that set. Next: two tones per flyover, a flag that can be raised (section "Where and when: the search").
+   12 files of 112 with the hour known, no wrong place named on that set. Next: a flag that can be raised (section "Where and when: the search"). Widening: not safe yet, see "How wide it can go", which also lists what we chose not to build and what would reopen each.
 
 10. "Strong must never be wrong", what is left after the level and the cap on distance:
    - At home with home's sky, 2 of 30 stay strong (synthetic-3 at 5.5 km, phoenix-9-25 at 2.9 km),
