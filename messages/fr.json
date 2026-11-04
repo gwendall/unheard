@@ -476,6 +476,7 @@
       "shareNote": "L'image montre ce lieu et ce moment. Rien ne quitte cette page tant que vous ne choisissez pas où la partager.",
       "cardStart": "début de l'enregistrement",
       "cardFlyovers": "survols expliqués",
+      "cardCredit": "© contributeurs OpenStreetMap, Protomaps, GeoNames, adsb.lol",
       "credit": "Données de vol © contributeurs adsb.lol (ODbL). Rien n'est conservé."
     },
     "errors": {

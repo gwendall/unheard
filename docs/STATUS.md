@@ -113,8 +113,10 @@ What a visitor goes through, and where it lives:
   "Take them out" stay usable meanwhile. "Probably here" only under the confidence flag, else "Best guess" and
   up to two more answers; the map (`SpotPlot` only as its fallback), the start in UTC and local time, each plane with its registration
   (the history keeps no callsign), type, distance and passing time, its spectrum with the curve.
-  A share card (`lib/client/where-card.ts`, the same `drawCard`) holds the plot, one curve, the place
-  and the time; it is drawn only on the sharer's click, and nothing is sent until they choose where.
+  A share card (`lib/client/where-card.ts`, the same `drawCard`) holds the map as it stands on the
+  screen, one curve, the place and the time; the plot takes the map's place without WebGL or tiles,
+  with the spot out of view, or with another answer picked. It is drawn only on the sharer's click,
+  and nothing is sent until they choose where.
   The answer leads with the town nearest it (`nearestPlace`, "Near Oyster Bay, New York", waited for
   1.5 s at most so the answer arrives whole), coordinates second, and the answers' chips read as town
   names. Local time comes from that town's zone; a local hour with typed coordinates asks the nearest

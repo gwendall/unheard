@@ -476,6 +476,7 @@
       "shareNote": "The picture shows this place and time. Nothing leaves this page until you choose where to share it.",
       "cardStart": "start of the recording",
       "cardFlyovers": "flyovers it explains",
+      "cardCredit": "© OpenStreetMap contributors, Protomaps, GeoNames, adsb.lol",
       "credit": "Flight data © adsb.lol contributors (ODbL). Nothing is stored."
     },
     "errors": {

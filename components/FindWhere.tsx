@@ -5,7 +5,7 @@ import { Bar } from "@/components/Bar";
 import type { Heard } from "@/components/Check";
 import { useI18n } from "@/components/I18n";
 import { Share } from "@/components/Share";
-import { PlaceMap } from "@/components/PlaceMap";
+import { PlaceMap, type MapShot } from "@/components/PlaceMap";
 import { TonePicture } from "@/components/TonePicture";
 import { soundOf, troubleOf } from "@/lib/client/decode";
 import { timeLeft } from "@/lib/client/format";
@@ -85,6 +85,7 @@ export function FindWhere({ picked, archive, onSearching, onHeard, onAnswered }:
   const started = useRef(false);
   const atStart = useRef(0);
   const verdict = useRef<HTMLHeadingElement>(null);
+  const mapShot = useRef<MapShot | null>(null);
   const watching = useRef(false);
 
   useEffect(() => () => worker.current?.terminate(), []);
@@ -349,7 +350,7 @@ export function FindWhere({ picked, archive, onSearching, onHeard, onAnswered }:
   const answer = (g: Guess, views: Found["views"], sure: boolean, best: boolean, others: { lat: number; lon: number }[]) => (
     <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
       <div className="flex flex-col gap-3 lg:sticky lg:top-6 lg:self-start">
-        <PlaceMap guess={g} others={others} sure={sure} />
+        <PlaceMap guess={g} others={others} sure={sure} shotRef={mapShot} />
         <p className="text-sm text-pretty text-faint">{t.result.credit}</p>
       </div>
       <div className="flex flex-col gap-8">
@@ -596,16 +597,21 @@ export function FindWhere({ picked, archive, onSearching, onHeard, onAnswered }:
               <Share
                 label={t.result.share}
                 text={fill(t.result.shareText, { verdict: said.title, place: nearText(best) ?? coordinates(best, 2) })}
-                card={{
-                  lead: said.title,
-                  name: nearText(best) ?? coordinates(best, 2),
-                  // The day, and the coordinates once the name has taken their place above.
-                  detail: `${new Date(best.start * 1000).toISOString().slice(0, 10)}${nearText(best) ? ` - ${coordinates(best)}` : ""}`,
-                  facts: [
-                    [`${clockOf(best.start).slice(0, 5)} UTC`, t.result.cardStart],
-                    [String(best.planes.length), t.result.cardFlyovers],
-                  ],
-                  paint: (ctx, w, h) => paintWhere(ctx, w, h, best, found.views[best.planes[0]?.tone]),
+                card={async () => {
+                  // The card is about the best answer: the map goes on it while the map shows that one.
+                  const map = shown === 0 ? await mapShot.current?.() : null;
+                  return {
+                    lead: said.title,
+                    name: nearText(best) ?? coordinates(best, 2),
+                    // The day, and the coordinates once the name has taken their place above.
+                    detail: `${new Date(best.start * 1000).toISOString().slice(0, 10)}${nearText(best) ? ` - ${coordinates(best)}` : ""}`,
+                    facts: [
+                      [`${clockOf(best.start).slice(0, 5)} UTC`, t.result.cardStart],
+                      [String(best.planes.length), t.result.cardFlyovers],
+                    ],
+                    credit: map ? t.result.cardCredit : undefined,
+                    paint: (ctx, w, h) => paintWhere(ctx, w, h, best, found.views[best.planes[0]?.tone], map),
+                  };
                 }}
               />
               <p className="text-sm text-pretty text-faint">{t.result.shareNote}</p>

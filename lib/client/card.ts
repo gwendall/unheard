@@ -10,6 +10,8 @@ export type Card = {
   facts: [string, string][];
   /** Paints the spectrum with the plane's curve into a w x h area. */
   paint: (ctx: CanvasRenderingContext2D, w: number, h: number) => void;
+  /** Whose data the picture shows, in small type under it. */
+  credit?: string;
 };
 
 export const CARD = { width: 1080, height: 1350 };
@@ -100,6 +102,12 @@ export async function drawCard(card: Card, font: string): Promise<Blob> {
   ctx.strokeStyle = "rgba(255,255,255,0.12)";
   ctx.lineWidth = 2;
   ctx.stroke();
+
+  if (card.credit) {
+    ctx.fillStyle = MUTE;
+    ctx.font = `400 24px ${font}`;
+    ctx.fillText(wrap(ctx, card.credit, w, 1)[0], PAD, top + height + 38);
+  }
 
   // Three facts in a row.
   const col = w / facts.length;

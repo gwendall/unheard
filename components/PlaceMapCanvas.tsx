@@ -3,11 +3,13 @@
 import { addProtocol, Map as MapLibre, setWorkerUrl, type GeoJSONSource } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { Protocol } from "pmtiles";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type RefObject } from "react";
 import { useI18n } from "@/components/I18n";
+import type { MapShot } from "@/components/PlaceMap";
 import { edgesOf, placeWords, wordsData, type Measure, type Rect } from "@/lib/client/map-labels";
 import { boundsOf, overlayOf, type OverlayLabels, type Spot } from "@/lib/client/map-overlay";
 import { ringsFilter, styleOf } from "@/lib/client/map-style";
+import type { MapPicture } from "@/lib/client/where-card";
 import type { Guess } from "@/lib/client/where.worker";
 
 // The map itself, in its own chunk (components/PlaceMap.tsx loads it). Its worker comes from our
@@ -24,6 +26,8 @@ const SPOT_ZOOM = 15;
 const FAILURES = 3;
 /** The first picture, or the diagram. */
 const FIRST_PICTURE_MS = 25_000;
+/** A frame to copy, or the card goes without: it is made inside the sharer's click. */
+const SHOT_MS = 400;
 
 const reducedMotion = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
@@ -42,9 +46,36 @@ const paddingOf = (container: HTMLElement) => (container.clientWidth >= 480 ? { 
 const BUTTON =
   "flex size-11 items-center justify-center bg-panel/90 text-ink backdrop-blur transition hover:bg-line focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-amber sm:size-9";
 
+/** What the map draws, copied: WebGL's pixels can be read only during the frame that drew them. */
+const shotOf = (instance: MapLibre, spot: () => Guess) =>
+  new Promise<MapPicture | null>((resolve) => {
+    const { lon, lat } = spot();
+    if (!instance.getBounds().contains([lon, lat])) return resolve(null);
+    const copy = () => {
+      clearTimeout(timer);
+      const drawn = instance.getCanvas();
+      const picture = document.createElement("canvas");
+      picture.width = drawn.width;
+      picture.height = drawn.height;
+      const pen = picture.getContext("2d");
+      pen?.drawImage(drawn, 0, 0);
+      // The map's background is opaque: a clear pixel means this browser gave a blank copy.
+      if (!pen?.getImageData(drawn.width >> 1, drawn.height >> 1, 1, 1).data[3]) return resolve(null);
+      const at = instance.project([lon, lat]);
+      const { clientWidth, clientHeight } = instance.getContainer();
+      resolve({ picture, spot: [at.x / clientWidth, at.y / clientHeight] });
+    };
+    const timer = setTimeout(() => {
+      instance.off("render", copy);
+      resolve(null);
+    }, SHOT_MS);
+    instance.once("render", copy);
+    instance.triggerRepaint();
+  });
+
 const NO_LABELS: OverlayLabels = { guess: "", mirror: "", other: () => "", plane: () => undefined };
 
-export default function PlaceMapCanvas({ archive, guess, others, sure, onReady, onFail }: { archive: string; guess: Guess; others: Spot[]; sure: boolean; onReady: () => void; onFail: () => void }) {
+export default function PlaceMapCanvas({ archive, guess, others, sure, onReady, onFail, shotRef }: { archive: string; guess: Guess; others: Spot[]; sure: boolean; onReady: () => void; onFail: () => void; shotRef?: RefObject<MapShot | null> }) {
   const { m, locale, fill } = useI18n();
   const t = m.placeMap;
   const box = useRef<HTMLDivElement>(null);
@@ -166,6 +197,7 @@ export default function PlaceMapCanvas({ archive, guess, others, sure, onReady, 
       if (!tilesRead) return fail();
       settled = true;
       clearTimeout(timer);
+      if (shotRef) shotRef.current = () => shotOf(instance, () => latest.current.guess);
       latest.current.onReady();
     });
 
@@ -173,6 +205,7 @@ export default function PlaceMapCanvas({ archive, guess, others, sure, onReady, 
       settled = true;
       clearTimeout(timer);
       map.current = null;
+      if (shotRef) shotRef.current = null;
       instance.remove();
     };
     // The map is made once; the effect below follows the answer.

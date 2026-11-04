@@ -3,7 +3,7 @@ import { expect, test, type Page } from "@playwright/test";
 import { encodeWav } from "../lib/bundle";
 import { STANDARD_AIR } from "../lib/core/doppler";
 import { synthesize } from "../lib/core/synth";
-import { scene, sceneWav } from "./where-scene";
+import { cardFilled, fillIn, scene, sceneWav } from "./where-scene";
 
 // The one flow for a file end to end in a real Chromium: a made-up recording of real flights
 // (e2e/history, adsb.lol, ODbL) decoded by Web Audio, what the file says, its tones, the search in
@@ -19,14 +19,6 @@ async function shoot(page: Page, name: string) {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.screenshot({ path: `${SHOTS}/${name}-phone.jpg`, quality: 70, scale: "css", fullPage: true });
   await page.setViewportSize({ width: 1440, height: 900 });
-}
-
-async function fillIn(page: Page) {
-  await page.getByTestId("where-day").selectOption(scene.day);
-  await page.getByTestId("where-time").fill(HOUR);
-  await page.getByTestId("where-zone").selectOption("utc");
-  // Not the spot itself: a place some way off, the way a person knows roughly where.
-  await page.getByTestId("where-place").fill(`${(scene.lat + 0.12).toFixed(2)}, ${(scene.lon - 0.09).toFixed(2)}`);
 }
 
 /** The file named in a QuickTime box holding a date and a position, as a phone writes them. */
@@ -193,6 +185,9 @@ test("a result's card is made only on the sharer's click, and nothing is sent", 
   if (SHOTS) copyFileSync(png, `${SHOTS}/where-card.png`);
   expect(statSync(png).size).toBeGreaterThan(50_000);
   expect(sent).toEqual([]);
+  // No map here (the local archive has none): the card has the diagram, and no map to credit.
+  await expect(page.getByTestId("place-map")).toHaveAttribute("data-state", "failed");
+  expect(await cardFilled(page, png)).toBeLessThan(0.3);
 });
 
 test("a search can be cancelled, and the form comes back as it was", async ({ page }, info) => {

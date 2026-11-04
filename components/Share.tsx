@@ -7,7 +7,7 @@ import { useI18n } from "@/components/I18n";
 const SITE = "https://unheard.gwendall.com";
 
 /** Shares the card through the phone's share sheet; on a computer, saves it and copies the text. */
-export function Share({ card, text, label }: { card: Card; text: string; label?: string }) {
+export function Share({ card, text, label }: { card: Card | (() => Promise<Card>); text: string; label?: string }) {
   const [state, setState] = useState<"idle" | "busy" | "saved" | "error">("idle");
   const t = useI18n().m.share;
 
@@ -15,7 +15,7 @@ export function Share({ card, text, label }: { card: Card; text: string; label?:
     setState("busy");
     try {
       await document.fonts.ready;
-      const blob = await drawCard(card, getComputedStyle(document.body).fontFamily);
+      const blob = await drawCard(typeof card === "function" ? await card() : card, getComputedStyle(document.body).fontFamily);
       const file = new File([blob], "unheard.png", { type: "image/png" });
       const message = `${text} ${SITE}`;
       if (navigator.canShare?.({ files: [file] })) {

@@ -1,3 +1,4 @@
+import type { Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { encodeWav } from "../lib/bundle";
 import { STANDARD_AIR } from "../lib/core/doppler";
@@ -32,4 +33,38 @@ export async function sceneWav(seconds = scene.duration): Promise<Uint8Array> {
   });
   const samples = synthesize({ start: scene.start, duration: seconds, sampleRate: RATE, air: STANDARD_AIR, sources, noise: 0.5, rumble: 0.5, seed: 11 });
   return encodeWav(samples, RATE);
+}
+
+/** The search's form filled in for the scene. */
+export async function fillIn(page: Page) {
+  await page.getByTestId("where-day").selectOption(scene.day);
+  await page.getByTestId("where-time").fill(new Date(scene.start * 1000).toISOString().slice(11, 16));
+  await page.getByTestId("where-zone").selectOption("utc");
+  // Not the spot itself: a place some way off, the way a person knows roughly where.
+  await page.getByTestId("where-place").fill(`${(scene.lat + 0.12).toFixed(2)}, ${(scene.lon - 0.09).toFixed(2)}`);
+}
+
+/**
+ * How much of the left of a card's picture is not its bare background: a map fills it, the diagram
+ * is thin lines, and a blank copy of a WebGL canvas leaves nothing.
+ */
+export async function cardFilled(page: Page, png: string) {
+  const blank = await page.context().newPage();
+  try {
+    return await blank.evaluate(async (bytes) => {
+      const image = new Image();
+      image.src = `data:image/png;base64,${bytes}`;
+      await image.decode();
+      const canvas = document.createElement("canvas");
+      canvas.width = canvas.height = 400;
+      const ctx = canvas.getContext("2d")!;
+      ctx.drawImage(image, 100, 560, 400, 400, 0, 0, 400, 400);
+      const { data } = ctx.getImageData(0, 0, 400, 400);
+      let on = 0;
+      for (let i = 0; i < data.length; i += 4) if (Math.abs(data[i] - 0x0a) + Math.abs(data[i + 1] - 0x0f) + Math.abs(data[i + 2] - 0x1c) > 12) on++;
+      return on / (data.length / 4);
+    }, readFileSync(png).toString("base64"));
+  } finally {
+    await blank.close();
+  }
 }
