@@ -17,7 +17,9 @@ import { coordinates, MIN_PASSES, osmLink, prefillOf } from "@/lib/client/where"
 // first, the only primary on the screen, and the file's own findings under it. Nothing of the file is ever sent.
 
 const QUIET = "text-mute underline-offset-4 transition hover:text-ink hover:underline";
-const FIND = "w-full rounded-full bg-amber px-7 py-3 text-lg font-medium text-night transition hover:bg-amber-soft sm:w-fit";
+const FIND = "w-full rounded-full border border-transparent bg-amber px-7 py-3 text-lg font-medium text-night transition hover:bg-amber-soft sm:w-fit";
+/** The same button when something else on the page leads: the same box, so nothing moves. */
+const FIND_NEXT = "w-full rounded-full border border-line px-7 py-3 text-lg font-medium text-ink transition hover:border-mute sm:w-fit";
 
 export function Where({ archive, elsewhere, scope }: { archive: string | null; elsewhere: Route; scope: ReactNode }) {
   const { m, fill } = useI18n();
@@ -137,12 +139,15 @@ export function Where({ archive, elsewhere, scope }: { archive: string | null; e
               heard={heard}
               answered={answered || few}
               onPasses={setPasses}
+              tagged={!!(location || made || device)}
               find={
-                archive && !answered && !few ? (
-                  <button type="button" onClick={() => setFinding(true)} aria-expanded={finding} className={FIND} data-testid="where-find">
-                    {t.find}
-                  </button>
-                ) : undefined
+                archive && !answered && !few
+                  ? (leads) => (
+                      <button type="button" onClick={() => setFinding(true)} aria-expanded={finding} className={leads ? FIND : FIND_NEXT} data-testid="where-find">
+                        {t.find}
+                      </button>
+                    )
+                  : undefined
               }
             >
               {finding && archive && <FindWhere picked={picked} archive={archive} few={few} onSearching={setSearching} onHeard={setHeard} onAnswered={setAnswered} />}

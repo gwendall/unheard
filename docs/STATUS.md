@@ -108,6 +108,14 @@ What a visitor goes through, and where it lives:
   9 of 9 clips, 6 named before, none after. On the Livermore set, phone recordings of planes passing within 6 km, 36 named before and 8 after: the tone is gone from a blind search, not from what someone with the flight data can add up, and the page says so with these numbers (`check.goneText`). On a 30-minute, 1.83 GB video in Chrome the browser peaks
   at 1.7 GB finding its tones and 2.2 GB taking them out (5 GB and 4.5 GB when the file was decoded whole).
 
+- **A copy without its tags** (`lib/client/strip.worker.ts`, `planCopy` and `writeCopy` in
+  `lib/client/remux.ts`): offered under the actions from the moment the file is known to hold a tag
+  that says more than the software's name, or a track beyond the picture and the first sound, with or
+  without a tone or a sound. Its own worker reads packets and writes them, encoding nothing, in a new
+  file of the same kind (MP4, MOV, WebM, Matroska, and for sound M4A, MP3, FLAC, Ogg, WAV, AAC). Only
+  the writer's own stamp stays. A file we cannot write says so in one line. The note says what stays:
+  the sound, tones included, and whatever the picture shows.
+
 - **Find where** (`components/FindWhere.tsx`, `components/PlaceMap.tsx`,
   `lib/client/where.ts`, `lib/client/where.worker.ts`): a spot and a start
   time out, in the browser. It asks only what is missing: the day and hour come filled in from the

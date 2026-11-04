@@ -5,25 +5,41 @@
 //
 // Runs in the check's worker. The sound is one track of AAC (MP4, MOV) or Opus (WebM), from the
 // browser's encoder, or for AAC from a WebAssembly one loaded only where the browser has none.
+//
+// The copy without its tags takes the same road and encodes nothing: picture and sound, each packet
+// as it is, in a new container of the same kind (`planCopy`, `writeCopy`), for sound files as well.
 
 import {
+  ADTS,
+  AdtsOutputFormat,
   AudioSample,
   AudioSampleSource,
   canEncodeAudio,
+  EncodedAudioPacketSource,
   EncodedPacketSink,
   EncodedVideoPacketSource,
+  FLAC,
+  FlacOutputFormat,
   MATROSKA,
   MkvOutputFormat,
   MovOutputFormat,
+  MP3,
+  Mp3OutputFormat,
   MP4,
   Mp4OutputFormat,
+  OGG,
+  OggOutputFormat,
   Output,
   QTFF,
   StreamTarget,
+  WAVE,
+  WavOutputFormat,
   WEBM,
   WebMOutputFormat,
   type AudioCodec,
+  type EncodedPacket,
   type Input,
+  type InputAudioTrack,
   type InputVideoTrack,
   type OutputFormat,
 } from "mediabunny";
@@ -114,9 +130,8 @@ export type VideoWriter = {
   cancel(): Promise<void>;
 };
 
-/** Starts the new file: `add` the cleaned sound, the picture follows along. */
-export async function openVideoWriter(video: InputVideoTrack, plan: VideoPlan, sink: Sink, sound: { sampleRate: number; channels: number; origin: number }): Promise<VideoWriter> {
-  const { sampleRate, channels, origin } = sound;
+/** The new file, with nothing said about itself. */
+function outputTo(format: OutputFormat, sink: Sink): Output {
   const target = new StreamTarget(
     new WritableStream<{ type: "write"; data: Uint8Array; position: number }>({
       write(chunk) {
@@ -125,9 +140,16 @@ export async function openVideoWriter(video: InputVideoTrack, plan: VideoPlan, s
     }),
     { chunked: true },
   );
-  const output = new Output({ format: plan.format, target });
+  const output = new Output({ format, target });
   // Null, not left out: left out, the muxer stamps today's date on the file.
   output.setMetadataTags({ creationTime: null });
+  return output;
+}
+
+/** Starts the new file: `add` the cleaned sound, the picture follows along. */
+export async function openVideoWriter(video: InputVideoTrack, plan: VideoPlan, sink: Sink, sound: { sampleRate: number; channels: number; origin: number }): Promise<VideoWriter> {
+  const { sampleRate, channels, origin } = sound;
+  const output = outputTo(plan.format, sink);
 
   const picture = new EncodedVideoPacketSource(video.codec!);
   output.addVideoTrack(picture, { rotation: video.rotation });
@@ -183,4 +205,83 @@ export async function openVideoWriter(video: InputVideoTrack, plan: VideoPlan, s
       await output.cancel().catch(() => {});
     },
   };
+}
+
+/** What a sound file comes back as, each as it came in. */
+async function soundFormatFor(input: Input): Promise<OutputFormat | null> {
+  const format = await input.getFormat();
+  if (format === MP3) return new Mp3OutputFormat();
+  if (format === WAVE) return new WavOutputFormat();
+  if (format === FLAC) return new FlacOutputFormat();
+  if (format === OGG) return new OggOutputFormat();
+  if (format === ADTS) return new AdtsOutputFormat();
+  return null;
+}
+
+/** What is copied without its tags, and into what. */
+export type CopyPlan = { format: OutputFormat; video: InputVideoTrack | null; audio: InputAudioTrack | null; extension: string; type: string };
+
+/** How this file comes back without its tags, or null when we cannot write it so: a track that could not come across would make the copy another file. */
+export async function planCopy(input: Input): Promise<CopyPlan | null> {
+  const [video, audio] = await Promise.all([input.getPrimaryVideoTrack(), input.getPrimaryAudioTrack()]);
+  if (!video && !audio) return null;
+  const format = (await choiceFor(input))?.format() ?? (await soundFormatFor(input));
+  if (!format) return null;
+  if (video && (!video.codec || !format.getSupportedVideoCodecs().includes(video.codec))) return null;
+  if (audio && (!audio.codec || !format.getSupportedAudioCodecs().includes(audio.codec))) return null;
+  // An MP4 with no picture is an M4A to everything that opens it.
+  const soundOnly = !video && format instanceof Mp4OutputFormat;
+  return { format, video, audio, extension: soundOnly ? "m4a" : format.fileExtension.slice(1), type: soundOnly ? "audio/mp4" : format.mimeType };
+}
+
+/** Tags that only name the software that wrote the file. Nearly every file has one, this copy too: alone, they are no reason to offer it. */
+const WRITERS = new Set(["©TOO", "TSSE", "ISFT", "ENCODER", "VENDOR"]);
+
+/** Whether a copy would leave something behind: a tag that says more than the software's name, or a track beyond the picture and the sound. */
+export async function holdsTags(input: Input): Promise<boolean> {
+  const [{ raw, ...named }, tracks] = await Promise.all([input.getMetadataTags(), input.getTracks()]);
+  if (Object.keys(named).length > 0 || Object.keys(raw ?? {}).some((key) => !WRITERS.has(key.toUpperCase()))) return true;
+  const pictures = tracks.filter((t) => t.isVideoTrack()).length;
+  const sounds = tracks.filter((t) => t.isAudioTrack()).length;
+  return tracks.length > Math.min(1, pictures) + Math.min(1, sounds);
+}
+
+/** The picture and the sound copied as they are, in the order of their times, so the muxer holds little in memory. */
+export async function writeCopy(plan: CopyPlan, sink: Sink, onProgress?: (fraction: number) => void): Promise<Blob> {
+  const { video, audio } = plan;
+  const output = outputTo(plan.format, sink);
+  const picture = video && new EncodedVideoPacketSource(video.codec!);
+  if (picture) output.addVideoTrack(picture, { rotation: video.rotation });
+  const sound = audio && new EncodedAudioPacketSource(audio.codec!);
+  if (sound) output.addAudioTrack(sound);
+  await output.start();
+  try {
+    const seconds = Math.max(...(await Promise.all([video?.computeDuration() ?? 0, audio?.computeDuration() ?? 0])));
+    const pictureMeta = { decoderConfig: (await video?.getDecoderConfig()) ?? undefined };
+    const soundMeta = { decoderConfig: (await audio?.getDecoderConfig()) ?? undefined };
+    const pictures = video ? new EncodedPacketSink(video).packets(undefined, undefined, { verifyKeyPackets: true })[Symbol.asyncIterator]() : null;
+    const sounds = audio ? new EncodedPacketSink(audio).packets()[Symbol.asyncIterator]() : null;
+    const next = async (from: AsyncIterator<EncodedPacket> | null) => (from ? ((await from.next()).value as EncodedPacket | undefined) : undefined);
+    let p = await next(pictures);
+    let a = await next(sounds);
+    while (p || a) {
+      const pictureFirst = !!p && (!a || p.timestamp <= a.timestamp);
+      const at = pictureFirst ? p!.timestamp : a!.timestamp;
+      if (pictureFirst) {
+        await picture!.add(p!, pictureMeta);
+        p = await next(pictures);
+      } else {
+        await sound!.add(a!, soundMeta);
+        a = await next(sounds);
+      }
+      if (seconds > 0) onProgress?.(Math.min(1, at / seconds));
+    }
+    picture?.close();
+    sound?.close();
+    await output.finalize();
+  } catch (err) {
+    await output.cancel().catch(() => {});
+    throw err;
+  }
+  return sink.finish(plan.type);
 }

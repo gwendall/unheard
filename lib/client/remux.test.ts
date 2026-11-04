@@ -1,10 +1,10 @@
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
-import { ALL_FORMATS, BlobSource, EncodedPacketSink, Input, type AudioCodec, type InputVideoTrack } from "mediabunny";
+import { ALL_FORMATS, BlobSource, EncodedPacketSink, Input, type AudioCodec, type InputAudioTrack, type InputVideoTrack } from "mediabunny";
 import { describe, expect, it } from "vitest";
 import { memorySink } from "./disk";
 import { readMetadata } from "./metadata";
-import { openVideoWriter, planVideo, type VideoPlan } from "./remux";
+import { holdsTags, openVideoWriter, planCopy, planVideo, writeCopy, type VideoPlan } from "./remux";
 
 // The cleaned video without a browser: real H.264 and VP9 packets, the sound as PCM (Node has no
 // AAC or Opus encoder; e2e/check-video.spec.ts runs the real ones). tiny.mp4 is a phone's file in
@@ -33,7 +33,7 @@ async function clean(name: string, codec: AudioCodec = "pcm-s16") {
   return { input, video, left, bytes: new Uint8Array(await blob.arrayBuffer()) };
 }
 
-async function packetsOf(track: InputVideoTrack) {
+async function packetsOf(track: InputVideoTrack | InputAudioTrack) {
   const out: { hash: string; type: string; timestamp: number }[] = [];
   for await (const p of new EncodedPacketSink(track).packets()) out.push({ hash: createHash("sha256").update(p.data).digest("hex"), type: p.type, timestamp: p.timestamp });
   return out;
@@ -56,6 +56,30 @@ function boxes(bytes: Uint8Array, from = 0, to = bytes.length, out: { type: stri
   }
   return out;
 }
+
+describe("the copy without its tags", () => {
+  it("holds the picture and the first sound as they were, and nothing the file said", async () => {
+    const input = open(bytesOf("tiny.mp4"));
+    expect(await holdsTags(input)).toBe(true);
+    const plan = (await planCopy(input))!;
+    expect([plan.extension, plan.type]).toEqual(["mp4", "video/mp4"]);
+    const fractions: number[] = [];
+    const blob = await writeCopy(plan, memorySink(), (fraction) => fractions.push(fraction));
+    expect(fractions.at(-1)).toBeGreaterThan(0.9);
+    const bytes = new Uint8Array(await blob.arrayBuffer());
+    const back = open(bytes);
+    const [picture, sound] = [(await back.getPrimaryVideoTrack())!, (await back.getPrimaryAudioTrack())!];
+    expect((await back.getTracks()).length).toBe(2);
+    expect(await packetsOf(picture)).toEqual(await packetsOf((await input.getPrimaryVideoTrack())!));
+    expect(await packetsOf(sound)).toEqual(await packetsOf((await input.getPrimaryAudioTrack())!));
+    expect(picture.rotation).toBe((await input.getPrimaryVideoTrack())!.rotation);
+    expect(await back.getMetadataTags()).toEqual({});
+    const said = await readMetadata(new Blob([bytes as BlobPart]));
+    expect([said.location, said.createdAt, said.device]).toEqual([undefined, undefined, undefined]);
+    // So nothing is offered for it.
+    expect(await holdsTags(back)).toBe(false);
+  });
+});
 
 describe("the cleaned video", () => {
   it("names no place, date or device, where the file it came from names them all", async () => {
