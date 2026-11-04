@@ -93,7 +93,7 @@ export function Answer({
           {title}
         </h2>
         {when && (
-          <p className="text-lg text-pretty text-ink tabular-nums" data-testid="answer-when">
+          <p className="text-base text-pretty text-ink tabular-nums sm:text-lg" data-testid="answer-when">
             {when}
           </p>
         )}
