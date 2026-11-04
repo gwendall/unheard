@@ -573,7 +573,8 @@ export function FindWhere({ picked, archive, onSearching, onHeard, onAnswered }:
   const others = useMemo(() => (found && shown === 0 ? found.guesses.slice(1).map(({ lat, lon }) => ({ lat, lon })) : []), [found, shown]);
 
   return (
-    <div className="flex flex-col gap-6" data-testid="where-find-panel">
+    // No box of its own: what it holds goes from the form to the answer, and only that changes on the page.
+    <div className="contents" data-testid="where-find-panel">
       {form}
 
       {result && said && (

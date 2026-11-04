@@ -80,6 +80,7 @@ What a visitor goes through, and where it lives:
   results arrive, checked by rect in `e2e/where.spec.ts`; "What we check" comes back under the card
   once the tones are known, so nothing jumps (layout shift 0 from the home to the tones, same spec).
   Find where puts the focus on the first gap, and on no field on a touch screen.
+  Only the three strongest tones are on the page, in the file's order, during a search, after one and without one, and "See all N tones" under them: a real hour holds dozens, each a tall panel, and the others are not drawn until opened (`Folded` in `components/Check.tsx`). A result keeps them all collapsed under the answer.
   With a file in, the header drops its lead and keeps the heading, which does not move, and one line of privacy. Once a search has its answer, the answer comes first, the file's own findings under it, on both widths: "Find where" gives way to "Change the search", the file's actions go quiet, and "Share this result" is the one primary. A search's end brings the verdict into view, instantly under reduced motion, unless the visitor has scrolled away.
 - **Take them out** (`components/Check.tsx`, `lib/client/check.worker.ts`,
   `lib/core/leak.ts`, `lib/core/stream.ts`, `lib/client/media.ts`): the defence colsto's viewers

@@ -49,6 +49,9 @@ const further = (a: Heard = [], b: Heard = []) => (b.length > a.length ? b : a);
 /** In the file's order, so a tone that arrives later never moves those above it. */
 const inOrder = <T extends Found>(list: T[]) => [...list].sort((a, b) => a.tone.times[0] - b.tone.times[0]);
 
+/** The tones on the page without asking: the strongest. A real hour holds dozens, each a tall panel. */
+const SHOWN = 3;
+
 /** The verdict's place, at the height of its longest wording, so nothing under it moves. */
 const VERDICT = "flex min-h-16 items-center sm:min-h-13";
 /** At one width whether it says "it" or "them", so the link beside it stays. */
@@ -150,8 +153,8 @@ export function Check({ file, elsewhere, note, facts, find, fold, hold, heard, a
     return fill(t.tone, { start: at(times[0]), end: at(times[times.length - 1]), from: Math.round(freq[0]), to: Math.round(freq[freq.length - 1]), sure });
   };
 
-  const tones = (list: (Found & { after?: Picture })[]) => (
-    <ul className="flex flex-col gap-6" data-testid="check-tones">
+  const tones = (list: (Found & { after?: Picture })[], testid = "check-tones") => (
+    <ul className="flex flex-col gap-6" data-testid={testid}>
       {list.map((f) => (
         <li key={`${f.tone.times[0]}-${f.tone.freq[0]}`} className="flex flex-col gap-2">
           <p className="text-sm text-pretty text-mute tabular-nums">{caption(f)}</p>
@@ -175,7 +178,9 @@ export function Check({ file, elsewhere, note, facts, find, fold, hold, heard, a
 
   const found = state.kind === "found" ? state.found : null;
   const none = found?.length === 0;
-  const list = state.kind === "cleaned" ? [...state.left, ...state.cleaned] : inOrder(found ?? (state.kind === "open" ? sketches : []));
+  const list: (Found & { after?: Picture })[] = state.kind === "cleaned" ? [...state.left, ...state.cleaned] : (found ?? (state.kind === "open" ? sketches : []));
+  const strongest = [...list].sort((a, b) => b.tone.confidence - a.tone.confidence).slice(0, SHOWN);
+  const others = list.filter((f) => !strongest.includes(f));
   const busy = state.kind === "failed" ? undefined : state.busy;
 
   const findings = (
@@ -271,16 +276,34 @@ export function Check({ file, elsewhere, note, facts, find, fold, hold, heard, a
       {none && fold && <p className="max-w-prose text-lg text-pretty text-mute">{t.noneSearch}</p>}
 
       {/* The search's own answer shows the tones it explains: here they step aside, a tap away, so its answer stays together. */}
+      {/* No count before the check's own: pieces of one tone may still be joined, and the search's come cut differently. */}
       {list.length > 0 &&
-        (answered || (fold && state.kind === "found") ? (
-          <details className="group" data-testid="check-fold">
-            <summary className={`${QUIET} w-fit cursor-pointer`}>{plural(list.length, t.fold)}</summary>
-            <div className="mt-4">{tones(list)}</div>
-          </details>
+        (answered ? (
+          <Folded summary={state.kind === "open" ? t.soFar : plural(list.length, t.fold)} testid="check-fold">
+            {tones(inOrder(list))}
+          </Folded>
         ) : (
-          tones(list)
+          <div className="flex flex-col gap-6">
+            {tones(inOrder(strongest))}
+            {others.length > 0 && (
+              <Folded summary={state.kind === "open" ? t.soFar : fill(t.all, { n: list.length })} testid="check-all">
+                {tones(inOrder(others), "check-others")}
+              </Folded>
+            )}
+          </div>
         ))}
     </div>
+  );
+}
+
+/** What opens is not drawn until it is opened, and goes again when it is closed: dozens of panels weigh on a phone. */
+function Folded({ summary, testid, children }: { summary: string; testid: string; children: ReactNode }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <details data-testid={testid} onToggle={(e) => setOpen(e.currentTarget.open)}>
+      <summary className={`${QUIET} w-fit cursor-pointer`}>{summary}</summary>
+      {open && <div className="mt-6">{children}</div>}
+    </details>
   );
 }
 
