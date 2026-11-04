@@ -4,3 +4,5 @@
 !scripts/history-job.ts
 !scripts/places-build.ts
 !scripts/map-job.ts
+!scripts/terrain-job.ts
+!scripts/pmtiles-write.ts

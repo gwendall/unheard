@@ -153,8 +153,9 @@ async function search({ channels, sampleRate, history, window, area, partial }: 
   const days = daysOf(window, duration);
   const { flights, missing } = await loadFlights(cachedFetcher(history), days, area, undefined, (done, total) => report("flights", "flights", done / Math.max(1, total)));
   if (missing.length === days.length) return { kind: "missing", day: missing[0] };
-  // The ground's height from the open terrain tiles (they allow browsers); flat if they fail.
-  const ground = await groundOf((z, x, y) => cachedTiles(z, x, y).catch(() => null), area.lat, area.lon, area.side);
+  // The ground's height, from our own file next to the flights; flat if it fails.
+  const tiles = cachedTiles(history);
+  const ground = await groundOf((z, x, y) => tiles(z, x, y).catch(() => null), area.lat, area.lon, area.side);
 
   report("search", "shape", 0);
   const found = await whereWhen(segments, flights, {

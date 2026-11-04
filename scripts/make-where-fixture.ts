@@ -13,7 +13,8 @@ import { createHash } from "node:crypto";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { gzipSync } from "node:zlib";
 import { decodeTile, gunzip, isProp, STRIDE, TileWriter, type Flight, type Manifest } from "../lib/history.ts";
-import { groundOf, httpTiles } from "../lib/terrain.ts";
+import { groundOf } from "../lib/terrain.ts";
+import { httpTiles } from "../lib/terrain-source.ts";
 
 const day = process.argv[2] ?? "2026-05-16";
 const tile = process.argv[3] ?? "33_-112";

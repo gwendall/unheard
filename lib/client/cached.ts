@@ -3,8 +3,9 @@
 // about the file goes in it, only what any visitor could fetch. Where it is missing or refused (a
 // private window, no room), the same bytes simply come from the network every time.
 
+import { PMTiles } from "pmtiles";
 import type { Fetcher } from "../history";
-import { terrainUrl, type TileFetcher } from "../terrain";
+import { TERRAIN_FILE, type TileFetcher } from "../terrain";
 
 const NAME = "unheard-tiles-1";
 /** A day of history can be indexed again, rarely: read it again after a week. */
@@ -63,5 +64,16 @@ export const cachedFetcher =
   (path) =>
     cachedBytes(new URL(path, base.endsWith("/") ? base : `${base}/`).href);
 
-/** The ground's tiles, kept on this device. */
-export const cachedTiles: TileFetcher = (z, x, y) => cachedBytes(terrainUrl(z, x, y));
+/** The ground's tiles from our own file, by range requests under the archive's base, kept on this device. */
+export function cachedTiles(base: string, keep: Keep = onDevice): TileFetcher {
+  const url = new URL(TERRAIN_FILE, base.endsWith("/") ? base : `${base}/`).href;
+  const file = new PMTiles(url);
+  return (z, x, y) =>
+    cachedBytes(`${url}/${z}/${x}/${y}.png`, {
+      ...keep,
+      fetch: async () => {
+        const tile = await file.getZxy(z, x, y);
+        return tile ? new Response(tile.data) : new Response(null, { status: 404 });
+      },
+    });
+}

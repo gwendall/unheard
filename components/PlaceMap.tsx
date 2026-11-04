@@ -103,6 +103,11 @@ export function PlaceMap({
                   GeoNames
                 </a>
               ),
+              terrain: (
+                <a href="https://github.com/tilezen/joerd/blob/master/docs/attribution.md" target="_blank" rel="noreferrer" className={LINK}>
+                  Terrain Tiles
+                </a>
+              ),
             }}
           />
         )}

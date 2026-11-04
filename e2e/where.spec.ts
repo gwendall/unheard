@@ -10,6 +10,7 @@ import { scene, sceneWav } from "./where-scene";
 // the worker over tiles from the dev route, and the answer. The sound is never in a request.
 
 const SHOTS = process.env.SHOTS;
+const BUCKET = "unheard-history.t3.tigrisbucket.io";
 const HOUR = new Date(scene.start * 1000).toISOString().slice(11, 16);
 
 async function shoot(page: Page, name: string) {
@@ -77,8 +78,14 @@ test("a file in: what it says at once, its tones, then where and when, and the f
   const wav = info.outputPath("flyovers.wav");
   writeFileSync(wav, await sceneWav());
   const sent: string[] = [];
+  const hosts = new Set<string>();
+  const terrain: number[] = [];
   page.on("request", (r) => {
     if (r.method() !== "GET" && r.method() !== "HEAD") sent.push(`${r.method()} ${r.url()}`);
+    if (/^https?:/.test(r.url())) hosts.add(new URL(r.url()).host);
+  });
+  page.on("response", (r) => {
+    if (r.url().includes(".pmtiles") && r.url().includes("/terrain/")) terrain.push(r.status());
   });
   await page.goto("/where");
   await expect(page.locator("h1")).toHaveText("Where was this filmed?");
@@ -160,6 +167,11 @@ test("a file in: what it says at once, its tones, then where and when, and the f
   expect(plot!.y).toBeLessThan(120);
 
   expect(sent).toEqual([]);
+  // The whole search, the worker's requests included: the site and our bucket, nobody else.
+  expect([...hosts].filter((host) => host !== new URL(page.url()).host && host !== BUCKET)).toEqual([]);
+  // The ground's height came from our own file, by ranges.
+  expect(terrain.length).toBeGreaterThan(0);
+  expect([...new Set(terrain)]).toEqual([206]);
 });
 
 test("a result's card is made only on the sharer's click, and nothing is sent", async ({ page }, info) => {

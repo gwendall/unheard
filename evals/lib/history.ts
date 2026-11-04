@@ -4,7 +4,8 @@
 
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { loadFlights, type Fetcher } from "../../lib/history";
-import { groundOf, httpTiles, type TileFetcher } from "../../lib/terrain";
+import { groundOf, type TileFetcher } from "../../lib/terrain";
+import { httpTiles } from "../../lib/terrain-source";
 
 export const HISTORY = new URL("../.cache/history/", import.meta.url);
 
