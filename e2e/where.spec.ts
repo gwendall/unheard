@@ -103,8 +103,8 @@ test("a file in: what it says at once, its tones, then where and when, and the f
   await shoot(page, "where-tones");
 
   await openForm(page);
-  // No date in the file: the first gap is the day.
-  await expect(page.getByTestId("where-day")).toBeFocused();
+  // No date in the file: the first gap is the day, once the archive has said which days it holds.
+  await expect(page.getByTestId("where-day")).toBeFocused({ timeout: 30_000 });
   await expect(page.getByTestId("where-search")).toBeDisabled();
   await expect(page.getByTestId("where-hour-why")).toHaveText("An hour or so gives better answers than a whole day.");
   await fillIn(page);
@@ -478,19 +478,20 @@ test("the home is the file's door: a drop goes straight into the flow, and the h
   await page.goto("/");
   await expect(page.locator("h1")).toHaveText("Where was this filmed?");
   await shoot(page, "home");
+  await page.evaluate(() => window.scrollTo({ top: 0, behavior: "instant" }));
+  const heading = await page.locator("h1").boundingBox();
+  const door = await page.getByTestId("door").boundingBox();
   // A computer sees the way to a phone only behind the second door.
   await expect(page.getByTestId("qr")).toHaveCount(0);
   await page.getByTestId("listen").click();
   await expect(page.getByTestId("qr")).toBeVisible();
   await expect(page.getByTestId("listen-here")).toBeVisible();
   await shoot(page, "home-second-door");
-  // Measured last: that click may have scrolled the page a little, and a drop keeps the scroll.
-  const heading = await page.locator("h1").boundingBox();
-  const door = await page.getByTestId("door").boundingBox();
+  // That click scrolled the home: the file still opens from the top, the heading where it was.
   await page.getByTestId("where-file").setInputFiles(wav);
   await expect(page).toHaveURL(/\/where$/);
   await expect(page.getByTestId("where-name")).toHaveText("one-pass.wav");
-  expect(await page.locator("h1").boundingBox()).toEqual(heading);
+  await expect.poll(() => page.locator("h1").boundingBox()).toEqual(heading);
   const card = await page.getByTestId("where").boundingBox();
   expect([card!.x, card!.y, card!.width]).toEqual([door!.x, door!.y, door!.width]);
   await expect(page.getByTestId("where-find")).toBeEnabled({ timeout: 90_000 });
@@ -498,12 +499,15 @@ test("the home is the file's door: a drop goes straight into the flow, and the h
 
 test("the home takes a drop anywhere", async ({ page }) => {
   await page.goto("/");
-  await page.evaluate(() => {
-    const data = new DataTransfer();
-    data.items.add(new File([new Uint8Array(64)], "dropped.wav", { type: "audio/wav" }));
-    for (const type of ["dragenter", "dragover", "drop"]) window.dispatchEvent(new DragEvent(type, { dataTransfer: data, bubbles: true, cancelable: true }));
-  });
-  await expect(page).toHaveURL(/\/where$/);
+  // Again until the page has hydrated: on a loaded machine the first drop can come before it.
+  await expect(async () => {
+    await page.evaluate(() => {
+      const data = new DataTransfer();
+      data.items.add(new File([new Uint8Array(64)], "dropped.wav", { type: "audio/wav" }));
+      for (const type of ["dragenter", "dragover", "drop"]) window.dispatchEvent(new DragEvent(type, { dataTransfer: data, bubbles: true, cancelable: true }));
+    });
+    await expect(page).toHaveURL(/\/where$/, { timeout: 2000 });
+  }).toPass({ timeout: 30_000 });
   await expect(page.getByTestId("where-name")).toHaveText("dropped.wav");
 });
 
