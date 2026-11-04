@@ -2,7 +2,7 @@
 // the area, search (lib/core/wherewhen.ts), and shape what the page shows. The file's sound stays
 // here and never leaves the device: only tile requests for that day and area go out.
 
-import { toneOf, pictureOf, readerOf, viewOf, type Picture, type Reader, type Tone, type View } from "../core/leak";
+import { toneOf, pictureOf, readerOf, viewOf, type Picture, type Reader, type Tone, type View, mergeTones } from "../core/leak";
 import { toLocal, norm, type Listener } from "../core/geo";
 import { ANALYSIS_RATE } from "../core/pipeline";
 import { estimator, stagesOf, type Estimate } from "../core/progress";
@@ -148,7 +148,9 @@ async function search({ channels, sampleRate, history, window, area, partial, an
     onSegment: (g) => {
       if (!partial) return;
       so.push(...g.traces.map((t) => toneOf(t, g.stack.base.times, g.offset)));
-      post({ type: "tones", tones: so.filter((t) => t.freq[t.freq.length >> 1] <= REPORTED_HZ).map((tone) => ({ tone, view: viewOf(tone, duration) })) });
+      // On copies, as the check tells its own: merging marks the tones it keeps.
+      const reported = so.filter((t) => t.freq[t.freq.length >> 1] <= REPORTED_HZ).map((t) => ({ ...t }));
+      post({ type: "tones", tones: mergeTones(reported).map((tone) => ({ tone, view: viewOf(tone, duration) })) });
     },
   });
   // In the order wherewhen numbers them: Explained.trace is an index into this list.

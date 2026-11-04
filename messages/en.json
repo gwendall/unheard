@@ -354,6 +354,8 @@
     "fold": { "one": "See the tone in this file", "other": "See the {n} tones in this file" },
     "all": "See all {n} tones",
     "soFar": "See the tones found so far",
+    "foundSearch": { "one": "An aircraft tone in this file.", "other": "Aircraft tones in this file." },
+    "foldSearch": { "one": "See the tone in this file", "other": "See the tones in this file" },
     "elsewhere": "Or make it sound like you are somewhere else",
     "none": "No aircraft tone found.",
     "noneText": "We looked for the hum of planes and helicopters and found none that stands out, so there is nothing to search or take out. That does not make the file safe: below is what we do not check.",

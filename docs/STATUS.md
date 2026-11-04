@@ -124,6 +124,10 @@ What a visitor goes through, and where it lives:
   screen, one curve, the place and the time; the plot takes the map's place without WebGL or tiles,
   with the spot out of view, or with another answer picked. It is drawn only on the sharer's click,
   and nothing is sent until they choose where.
+  A search that catches the check before its end stops it. Once the search has answered with tones, the
+  check does not run again: the page shows the search's tones, with no count since a search cuts them differently, and the check's own finder
+  runs only on "Take them out", since that is what evals/leak measures. With no tone, it runs once the
+  page is at rest; called off, at once. Its pictures are sketches until then.
   The answer leads with the town nearest it (`nearestPlace`, "Near Oyster Bay, New York", waited for
   1.5 s at most so the answer arrives whole), coordinates second, and the answers' chips read as town
   names. Local time comes from that town's zone; a local hour with typed coordinates asks the nearest

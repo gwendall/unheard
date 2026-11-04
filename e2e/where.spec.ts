@@ -312,10 +312,15 @@ test("too few passes, a search started before the check has counted: it stops be
   // The check's worker stays silent, so the search goes first and counts for itself.
   await page.addInitScript(() => {
     const Real = window.Worker;
+    const seen = window as unknown as { checks: number };
+    seen.checks = 0;
     window.Worker = function (url: string | URL, options?: WorkerOptions) {
-      return String(url).includes("where") ? new Real(url, options) : { postMessage() {}, terminate() {} };
+      if (String(url).includes("where")) return new Real(url, options);
+      seen.checks++;
+      return { postMessage() {}, terminate() {} };
     } as unknown as typeof Worker;
   });
+  const checks = () => page.evaluate(() => (window as unknown as { checks: number }).checks);
   const tiles: string[] = [];
   page.on("request", (r) => {
     if (r.url().endsWith(".bin.gz")) tiles.push(r.url());
@@ -328,6 +333,13 @@ test("too few passes, a search started before the check has counted: it stops be
   await expect(page.getByTestId("where-verdict")).toHaveText("This file holds too few flyovers to place it.", { timeout: 170_000 });
   await expect(page.getByTestId("where-spot")).toHaveCount(0);
   expect(tiles).toEqual([]);
+  // It names no place, but its tones are known: the check does not start over, and does not say they could place the file.
+  await expect(page.getByTestId("check-verdict")).toHaveText(/^(An aircraft tone|Aircraft tones) in this file\.$/);
+  await expect(page.getByTestId("check-clean")).toBeEnabled();
+  const started = await checks();
+  await page.waitForTimeout(5000);
+  expect(await checks()).toBe(started);
+  await expect(page.getByTestId("check-progress")).toHaveCount(0);
 });
 
 test("says so when the file holds no tone, offers no search, and never says the file is safe", async ({ page }, info) => {
@@ -631,11 +643,25 @@ test("on a long file, Find where waits for nothing, a search runs ahead of the c
   await expect(page.getByTestId("check-clean")).toHaveCount(0);
 });
 
-test("the tones a search finds show in the check's place while it waits, and the check finds them again after the answer", async ({ page }, info) => {
+test("the tones a search finds show in the check's place, and after the answer nothing runs again until the visitor asks", async ({ page }, info) => {
   const wav = info.outputPath("flyovers.wav");
   writeFileSync(wav, await sceneWav());
+  // How many times the check's worker started.
+  await page.addInitScript(() => {
+    const Real = window.Worker;
+    const seen = window as unknown as { checks: number };
+    seen.checks = 0;
+    window.Worker = class extends Real {
+      constructor(url: string | URL, options?: WorkerOptions) {
+        super(url, options);
+        if (String(url).includes("check")) seen.checks++;
+      }
+    };
+  });
+  const checks = () => page.evaluate(() => (window as unknown as { checks: number }).checks);
   await page.goto("/where");
   await page.getByTestId("where-file").setInputFiles(wav);
+  await expect(page.getByTestId("check-progress")).toBeVisible();
   await page.getByTestId("where-find").click();
   await fillIn(page);
   await page.getByTestId("where-search").click();
@@ -643,8 +669,24 @@ test("the tones a search finds show in the check's place while it waits, and the
   await expect(page.getByTestId("check-tones").locator("li").first()).toBeVisible({ timeout: 90_000 });
   await expect(page.getByTestId("where-verdict")).toBeVisible({ timeout: 170_000 });
   await expect(page.getByTestId("check-held")).toHaveCount(0);
-  await expect(page.getByTestId("check-verdict")).toHaveText(/in this file\.$/, { timeout: 90_000 });
-  await expect(page.getByTestId("check-clean")).toBeEnabled();
+  // No count: the search cuts tones differently, and the check's own number comes when it runs.
+  await expect(page.getByTestId("check-verdict")).toHaveText(/^(An aircraft tone|Aircraft tones) in this file\.$/);
+  await expect(page.getByTestId("check-fold").locator("summary")).toHaveText(/^See the tones? in this file$/);
+  const started = await checks();
+  expect(started).toBeGreaterThan(0);
+  await page.waitForTimeout(5000);
+  expect(await checks()).toBe(started);
+  await expect(page.getByTestId("check-progress")).toHaveCount(0);
+  // Asked: it finds its own tones and takes them out, in one go, in the button's place.
+  const button = await page.getByTestId("check-clean").boundingBox();
+  await page.getByTestId("check-clean").click();
+  await expect(page.getByTestId("check-progress")).toBeVisible();
+  expect((await page.getByTestId("check-progress").boundingBox())!.y).toBeLessThan(button!.y + button!.height);
+  await expect.poll(checks).toBe(started + 1);
+  // It counts its own, then goes straight on to taking them out, with no second click. The rest of cleaning
+  // is check.spec's, on a shorter file: on CI's runners this one would take minutes.
+  await expect(page.getByTestId("check-progress")).toContainText(/Taking the tones out|Checking again|Writing the cleaned file/, { timeout: 120_000 });
+  await expect(page.getByTestId("check-verdict")).toHaveText(/^(An aircraft tone|\d+ aircraft tones) in this file\.$/);
 });
 
 /**
