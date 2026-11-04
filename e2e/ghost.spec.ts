@@ -54,6 +54,7 @@ for (const { lang, locale, path, words } of LANGUAGES) {
 
       await page.goto(path);
       await page.getByTestId("listen").click();
+      await page.getByTestId("listen-here").click();
       await page.getByTestId("start").click();
       await expect(page.getByTestId("timer")).toBeVisible({ timeout: 30_000 });
       // The pass is over by 1:10; the other planes of the sky may stop the recording on their own after that.

@@ -93,6 +93,13 @@ export function clockOf(utc: number, offsetMinutes = 0): string {
 
 export const osmLink = (p: { lat: number; lon: number }) => `https://www.openstreetmap.org/?mlat=${p.lat.toFixed(5)}&mlon=${p.lon.toFixed(5)}#map=14/${p.lat.toFixed(5)}/${p.lon.toFixed(5)}`;
 
+/** Seconds left in a step from how far it has come, or null until it has come far enough to tell. */
+export function secondsLeft(done: number, total: number, elapsedMs: number): number | null {
+  const share = done / Math.max(1, total);
+  if (share < 0.05 || share >= 1 || elapsedMs < 2000) return null;
+  return ((elapsedMs / 1000) * (1 - share)) / share;
+}
+
 /** Metres between two points, on the flat: they lie in one search square. */
 export function metresApart(a: { lat: number; lon: number }, b: { lat: number; lon: number }): number {
   const east = (a.lon - b.lon) * 111_195 * Math.cos((((a.lat + b.lat) / 2) * Math.PI) / 180);

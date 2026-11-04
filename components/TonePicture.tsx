@@ -59,9 +59,10 @@ export function TonePicture({ picture, tone }: { picture: Picture; tone: Tone })
   return (
     <div className="relative overflow-hidden rounded-xl border border-line bg-night">
       <canvas ref={canvas} className="block h-32 w-full sm:h-40" aria-label={label} />
-      <div className="pointer-events-none absolute inset-y-1.5 left-2.5 flex flex-col justify-between font-mono text-[10px] text-mute">
-        <span>{Math.round(picture.hi)} Hz</span>
-        <span>{Math.round(picture.lo)} Hz</span>
+      {/* A dark backing: the labels sit on the picture's brightest pixels as often as not. */}
+      <div className="pointer-events-none absolute inset-y-1.5 left-1.5 flex flex-col items-start justify-between font-mono text-[10px] text-ink">
+        <span className="rounded bg-night/80 px-1 py-px">{Math.round(picture.hi)} Hz</span>
+        <span className="rounded bg-night/80 px-1 py-px">{Math.round(picture.lo)} Hz</span>
       </div>
     </div>
   );

@@ -2,23 +2,21 @@
   "meta": {
     "title": "Unheard: the plane you can't hear",
     "shareTitle": "Unheard: your phone names the plane flying over you",
-    "description": "Hold your phone up to the sky for a couple of minutes. Unheard picks out the faint drone of a plane in the noise and tells you which plane it was, from live flight data.",
+    "description": "Drop a video or a sound file: the planes in its sound can sometimes tell where and when it was recorded, and you can take them out. Or hold your phone up and name the plane flying over you.",
     "ogAlt": "There's a plane you can't hear. Your phone hears it. Unheard names it. A glowing amber tone bends down across a night-blue spectrogram, as the pitch of a passing plane does.",
     "privacyTitle": "What is sent · Unheard",
-    "checkTitle": "Check a video · Unheard",
-    "checkDescription": "The faint hum of a plane in the background of a video can place it on flight data. Look for those tones in a video or a sound file and take them out, in your browser: the file never leaves your device.",
-    "whereTitle": "Where was this recorded? · Unheard",
-    "whereDescription": "The hum of the planes in a video or a sound file, matched to a flight archive, can say where and when it was recorded. Search your own file, in your browser: it never leaves your device.",
+    "whereTitle": "Where was this filmed? · Unheard",
+    "whereDescription": "The hum of the planes in a video or a sound file, matched to a flight archive, can sometimes say where and when it was recorded. Find out, or take those tones out, in your browser: your file never leaves your device.",
     "elsewhereTitle": "Somewhere else · Unheard",
     "elsewhereDescription": "Make your recording sound like it was made in another city: Unheard puts under your voice the real planes flying over it right now, with the Doppler curves an investigator would match to flight data."
   },
   "og": { "lines": ["There’s a plane", "you can’t hear."], "sub": "Your phone hears it. Unheard names it.", "size": 100 },
   "nav": { "home": "Unheard, home", "language": "Language" },
   "hero": {
-    "title": "There's a plane you can't hear.",
-    "lead": "Your phone can. Unheard shows you the planes passing nearby, listens while one flies over, and finds its faint hum in the noise to tell you which plane it was.",
+    "doorTitle": "Or listen to the sky",
+    "doorText": "Your phone can hear a plane you can't: it shows the planes passing nearby, listens while one flies over, and names it. Your recording stays on your phone.",
     "listen": "Listen to the sky",
-    "needs": ["A phone, outdoors, and a minute or two", "Best with propeller planes and helicopters", "Your recording stays on your phone unless you choose to give it"],
+    "listenHere": "Listen on this computer",
     "qrTitle": "Better on a phone, outdoors.",
     "qrBody": "Point your phone's camera here to open Unheard on it."
   },
@@ -38,16 +36,16 @@
     "title": "How it works",
     "steps": [
       {
-        "title": "Wait for a plane",
-        "body": "The page shows the aircraft around you from live flight data: which one will pass closest, and when. Propeller planes and helicopters hum the steadiest, so they are the easiest to find."
+        "title": "A plane leaves a tone",
+        "body": "Propellers and helicopters hum steadily, too low and faint to notice under a voice. Microphones pick it up all the same, and its pitch falls as the plane passes: the Doppler effect."
       },
       {
-        "title": "Hold your phone up",
-        "body": "Start when it says so and point your phone at the sky. It records for a minute or two and stops by itself once the plane has gone."
+        "title": "The curve fits a place and a moment",
+        "body": "Each flight in the data leaves its own curve at each spot and moment. Unheard looks for the spot and the start time where flights fit the tones in your file, and the search runs in your browser."
       },
       {
-        "title": "Get its name",
-        "body": "Its hum is a little higher while it comes, a little lower once it leaves: the Doppler effect. Your phone works out the curve each plane should have left where you stand, finds the one in your recording, and names the plane."
+        "title": "It works sometimes",
+        "body": "It takes a plane close enough to leave a trace, ideally two passes, and that flight in the archive. When nothing fits, the page says so, and you can take the tones out of your file."
       }
     ]
   },
@@ -60,8 +58,8 @@
     },
     "realValue": "{hit} of {n}",
     "real": "real recorded flybys, near Adelaide and over Livermore, California, named right: {strong} for sure, the others as “probably”.",
-    "yoursValue": "Yours",
-    "yours": "Recordings made on this page are the next test. After a match you can give yours, with no place or time attached.",
+    "whereValue": "8 of 20",
+    "where": "of our test recordings placed on the right spot when the hour is known, fewer with the day only.",
     "measured": "Last measured on {date}.",
     "scoreboard": "Every number and how it is measured"
   },
@@ -229,7 +227,7 @@
   "elsewhere": {
     "title": "Make your recording sound like it was made somewhere else.",
     "lead": "A video recently located a security camera from the faint curves passing planes leave in its sound, matched to flight data. Unheard reads those curves. Here it writes them: the real planes flying over another city right now, as heard from a spot there, under your voice.",
-    "link": "New: make a recording sound like it was made somewhere else",
+    "link": "Or make a recording sound like it was made somewhere else",
     "fromResult": "Make a recording sound like it was made somewhere else",
     "place": { "title": "Pick a place", "random": "Anywhere, at random", "coords": "Coordinates", "coordsLabel": "Latitude and longitude", "coordsPlaceholder": "37.98, 23.73" },
     "places": { "athens": "Athens", "london": "London", "newYork": "New York", "paris": "Paris", "tokyo": "Tokyo", "saoPaulo": "São Paulo", "losAngeles": "Los Angeles", "mexicoCity": "Mexico City", "lisbon": "Lisbon", "sydney": "Sydney", "berlin": "Berlin", "rome": "Rome" },
@@ -295,8 +293,7 @@
   "footer": {
     "github": "Open source on GitHub",
     "privacy": "Privacy",
-    "madeBy": "Made by Gwendall",
-    "check": "Check a video"
+    "madeBy": "Made by Gwendall"
   },
   "privacy": {
     "title": "What is sent",
@@ -308,7 +305,7 @@
           "The planes you found are kept in this browser's storage to show your list on the home page. Nothing of it is sent, and Clear removes it.",
           "The language you pick in the menu is kept in a cookie for a year, so the site opens in it next time.",
           "On Somewhere else, the page asks our server for the aircraft over the place you pick, never with your own position, and your recording stays on the page.",
-        "On Where was this recorded?, your file stays on the page and is never sent. To search, the page requests the flight tiles of the day and area you search, and tiles of the ground's height for that area from Amazon's open terrain data. A place name you type goes to Open-Meteo to find it on the map, and only that name."
+        "A file you open here stays on the page and is never sent. If you use your location to search, it stays on the page too. To search, the page requests the flight tiles of the day and area you search, and tiles of the ground's height for that area from Amazon's open terrain data. A place name you type goes to Open-Meteo to find it on the map, and only that name."
         ]
       },
       {
@@ -328,12 +325,6 @@
     ]
   },
   "check": {
-    "title": "Does your video give away where you are?",
-    "lead": "The faint hum of a plane in the background can place a video: its pitch falls as the plane passes, and matched to flight data, that curve tells where and when it was filmed. Unheard looks for those tones in your file and takes them out.",
-    "private": "Your file never leaves this device: it is opened, checked and cleaned in this browser, and nothing of it is sent.",
-    "choose": "Choose a file",
-    "drop": "or drop it here",
-    "formats": "Most videos and sound files: MP4, MOV, WebM, M4A, MP3, WAV.",
     "steps": {
       "open": "Opening the file...",
       "find": "Listening for aircraft tones, {n} %",
@@ -341,22 +332,18 @@
       "again": "Checking again, {n} %",
       "write": "Writing the cleaned sound..."
     },
-    "found": { "one": "This recording holds an aircraft tone that could place it.", "other": "This recording holds {n} aircraft tones that could place it." },
-    "foundText": {
-      "one": "It falls in pitch the way a plane or a helicopter does as it passes. Matched to flight data, it can tell where and when this was recorded.",
-      "other": "Each one falls in pitch the way a plane or a helicopter does as it passes. Matched to flight data, it can tell where and when this was recorded."
-    },
+    "found": { "one": "An aircraft tone that could place this file.", "other": "{n} aircraft tones that could place this file." },
     "clean": { "one": "Take it out", "other": "Take them out" },
+    "fold": { "one": "See the tone in this file", "other": "See the {n} tones in this file" },
     "elsewhere": "Or make it sound like you are somewhere else",
     "none": "No aircraft tone found.",
-    "noneText": "We looked for the hum of planes and helicopters and found none that stands out. That does not make the file safe: below is what we do not check.",
+    "noneText": "We looked for the hum of planes and helicopters and found none that stands out, so there is nothing to search or take out. That does not make the file safe: below is what we do not check.",
     "gone": { "one": "The tone is gone.", "other": "The tones are gone." },
     "goneText": "We searched the cleaned sound again and no longer find an aircraft tone.",
     "left": { "one": "One tone is still there.", "other": "{n} tones are still there." },
     "leftText": "Taking a tone out can bring a fainter one to light. You can take them out again.",
     "download": "Download the cleaned sound",
     "remux": "A WAV file. To put it back in your video: in your editor, mute the video's own sound and place this WAV at the very start. It has the same length, so it lines up.",
-    "another": "Check another file",
     "suffix": "cleaned",
     "tone": "{start} to {end} in the file, {from} to {to} Hz, {sure}",
     "sure": { "clear": "stands out clearly", "likely": "stands out", "faint": "faint, but there" },
@@ -364,32 +351,37 @@
     "after": "After",
     "picture": "Spectrum of the recording around the tone",
     "errors": {
-      "open": "This browser could not open the sound of this file. Try another browser, or the sound alone as an M4A, MP3 or WAV.",
+      "open": "This file has no sound we can read: it may have no sound track, or one this browser cannot open. Try another browser, or the sound alone as an M4A, MP3 or WAV.",
+      "tooBig": "This file is too big for a browser to open whole: the limit is 2 GB. Try a shorter part of it, or its sound alone as an M4A, MP3 or WAV.",
       "failed": "Something went wrong while checking this file: {message}"
     },
     "scope": {
       "title": "What we check",
       "yes": "We look for the hum of planes and helicopters whose pitch falls as they pass, between 40 and 400 Hz: the tone that can place a recording on flight data. When we find one, taking it out also takes what we hear higher up, to 3.4 kHz. Jets are harder, their tone sits higher: of four real jet recordings in our tests, we found a tone in three and missed one. Flight data placed two, and neither once cleaned.",
       "no": "We do not look for a tone above 400 Hz on its own, for the hum of the power grid (ENF), which can date a recording, or for anything else a video shows or says."
-    },
-    "link": "New: check whether your video gives away where you are"
+    }
   },
   "where": {
-    "title": "Where was this recorded?",
-    "link": "New: find where a video was recorded",
-    "fromCheck": "Curious what a file gives away? Find where it was recorded.",
-    "lead": "The planes in the background of a video or a sound file leave a tone that falls as they pass. Matched to an archive of flights, those tones can tell where and when it was recorded.",
-    "private": "Your file stays in this browser: it is opened and searched here, nothing of it is sent, and nothing is stored.",
-    "offline": "The flight archive is not connected yet, so the search is not offered. You can still see what a file says about itself.",
+    "title": "Where was this filmed?",
+    "lead": "The planes in the background of a video or a sound file leave a tone that falls as they pass. Matched to an archive of flights, those tones can sometimes tell where and when it was recorded.",
+    "private": "Your file stays in this browser: it is opened, searched and cleaned here, nothing of it is sent, and nothing is stored.",
+    "offline": "The flight archive is not connected yet, so the search is not offered.",
+    "find": "Find where",
+    "facts": { "made": "Made", "device": "Device", "nothing": "This file says nothing about where or when it was made." },
+    "locate": "Use my location",
+    "locating": "Locating...",
+    "locateFailed": "We could not get your location. Type a town or coordinates instead.",
+    "cancel": "Cancel",
+    "elapsed": "{time} so far",
+    "leftSeconds": "about {n} s left",
+    "leftMinutes": "about {n} min left",
     "choose": "Choose a file",
     "drop": "or drop it here",
     "formats": "Most videos and sound files: MP4, MOV, WebM, M4A, MP3, WAV.",
     "another": "Choose another file",
     "gps": {
       "title": "This file already says where it was filmed: {place}",
-      "still": "That is what its own tags say, and anyone can edit them. You can still check it against the planes in its sound.",
-      "made": "It gives a date: {when} ({source}).",
-      "nothing": "This file says nothing about where it was filmed."
+      "still": "That is what its own tags say, and anyone can edit them."
     },
     "fromFile": {
       "zoned": "Day and hour filled in from the file's creation date, which gives its time zone ({source}).",
@@ -457,12 +449,9 @@
       "plane": "{type}, {distance} away, passed at {time} UTC",
       "noType": "type unknown",
       "again": "Change the search",
-      "check": "Is this your video? Take the tones out.",
-      "credit": "Flight data © adsb.lol contributors (ODbL). Nothing is stored.",
-      "stored": "Nothing is stored."
+      "credit": "Flight data © adsb.lol contributors (ODbL). Nothing is stored."
     },
     "errors": {
-      "open": "This browser could not open the sound of this file. Try another browser, or the sound alone as M4A, MP3 or WAV.",
       "failed": "Something went wrong while searching: {message}"
     }
   }

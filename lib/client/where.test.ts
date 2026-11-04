@@ -1,7 +1,19 @@
 import { describe, expect, it } from "vitest";
-import { clockOf, coordinates, daysOf, distinctAnswers, metresApart, offsetAt, osmLink, parseCoordinates, passesOf, prefillOf, windowOf } from "./where";
+import { clockOf, coordinates, daysOf, distinctAnswers, metresApart, offsetAt, osmLink, parseCoordinates, passesOf, prefillOf, secondsLeft, windowOf } from "./where";
 
 const at = (iso: string) => Date.parse(iso) / 1000;
+
+describe("the time left", () => {
+  it("says nothing until the step has come far enough to tell", () => {
+    expect(secondsLeft(0, 100, 30_000)).toBeNull();
+    expect(secondsLeft(3, 100, 30_000)).toBeNull();
+    expect(secondsLeft(50, 100, 1000)).toBeNull();
+  });
+  it("goes on from the pace so far", () => {
+    expect(secondsLeft(25, 100, 30_000)).toBeCloseTo(90);
+    expect(secondsLeft(100, 100, 30_000)).toBeNull();
+  });
+});
 
 describe("the answers shown", () => {
   const best = { lat: 40, lon: -73, start: 1000, mirror: { lat: 40.01, lon: -73 } };

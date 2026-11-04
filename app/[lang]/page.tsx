@@ -27,7 +27,7 @@ export default async function Home({ params }: PageProps<"/[lang]">) {
   const proof = [
     { value: fill("{n}", { n: sureWrong }, lang), label: plural(lang, sureWrong, t.proof.wrong, { tested, nothing }) },
     { value: fill(t.proof.realValue, { hit: real.anyHit, n: real.n }, lang), label: fill(t.proof.real, { strong: real.strongHit }, lang) },
-    { value: t.proof.yoursValue, label: t.proof.yours },
+    { value: t.proof.whereValue, label: t.proof.where },
   ];
   return (
     <main className="flex min-h-dvh flex-col">
@@ -71,9 +71,6 @@ export default async function Home({ params }: PageProps<"/[lang]">) {
         <a href={REPO} className="transition hover:text-ink">
           {t.footer.github}
         </a>
-        <Link href={pathFor(lang, "/check")} className="transition hover:text-ink">
-          {t.footer.check}
-        </Link>
         <Link href={pathFor(lang, "/privacy")} className="transition hover:text-ink">
           {t.footer.privacy}
         </Link>
