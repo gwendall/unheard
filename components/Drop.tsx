@@ -10,14 +10,15 @@ import { pathFor } from "@/lib/locales";
 
 export const ACCEPT = "audio/*,video/*";
 /** The door's frame, at one place and size on the home and on /where. */
-export const CARD = "flex min-h-72 flex-col gap-6 rounded-3xl border border-line bg-deep/70 p-5 sm:p-8";
+export const CARD = "flex flex-col gap-6 rounded-3xl border border-line bg-deep/70 p-5 sm:min-h-72 sm:p-8";
 const CHOOSE = "w-full rounded-full bg-amber px-7 py-3 text-lg font-medium text-night transition group-hover:bg-amber-soft sm:w-fit";
 
+/** On a phone there is nothing to drop: the zone is its button, and the way to the example stays on the first screen. */
 export function DropZone({ onFile }: { onFile: (file: File) => void }) {
   const t = useI18n().m.where;
   return (
     <label
-      className="group flex grow cursor-pointer flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-line px-5 py-10 text-center transition hover:border-mute has-[input:focus-visible]:border-amber has-[input:focus-visible]:outline-2 has-[input:focus-visible]:outline-offset-2 has-[input:focus-visible]:outline-amber"
+      className="group flex grow cursor-pointer flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-line px-5 py-10 text-center transition hover:border-mute has-[input:focus-visible]:border-amber has-[input:focus-visible]:outline-2 has-[input:focus-visible]:outline-offset-2 has-[input:focus-visible]:outline-amber max-sm:border-0 max-sm:p-0"
       data-testid="where-drop"
     >
       <input
@@ -31,8 +32,8 @@ export function DropZone({ onFile }: { onFile: (file: File) => void }) {
         data-testid="where-file"
       />
       <span className={CHOOSE}>{t.choose}</span>
-      <span className="text-mute">{t.drop}</span>
-      <span className="text-sm text-faint">{t.formats}</span>
+      <span className="text-mute max-sm:hidden">{t.drop}</span>
+      <span className="text-sm text-faint max-sm:hidden">{t.formats}</span>
     </label>
   );
 }

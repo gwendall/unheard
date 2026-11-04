@@ -46,7 +46,7 @@ export function Hero({ onListen, onExample, error, qr }: { onListen: () => void;
 
   return (
     <div className="flex flex-col gap-8">
-      <DoorHeader title={m.where.title} lead={m.where.lead} note={m.where.private} />
+      <DoorHeader title={m.where.title} lead={m.where.lead} leadShort={m.where.leadShort} note={m.where.private} />
       <PageDrop onFile={onFile} />
       <section className={CARD} data-testid="door">
         {opening ? (
