@@ -301,9 +301,10 @@ export function FindWhere({ picked, archive, few, onSearching, onHeard, onAnswer
       <h3 id="where-planes" className="text-sm font-medium tracking-wide text-mute uppercase">
         {sure ? t.result.planes : t.result.planesGuess}
       </h3>
-      <ul className="flex flex-col gap-6" data-testid="where-planes">
+      {/* Two by two on a wide screen; one left over takes the whole row, so none leaves a hole. */}
+      <ul className="grid grid-cols-1 gap-x-8 gap-y-6 lg:grid-cols-2" data-testid="where-planes">
         {g.planes.map((p) => (
-          <li key={p.hex} className="flex flex-col gap-2">
+          <li key={p.hex} className="flex min-w-0 flex-col gap-2 lg:last:odd:col-span-2">
             <p className="text-pretty tabular-nums">
               <span className="font-medium text-ink">{p.registration || p.hex}</span>{" "}
               <span className="text-mute">{fill(t.result.plane, { type: aircraftType(p.type)?.name ?? (p.type || t.result.noType), distance: f.km(p.metres), time: clockOf(p.at) })}</span>
@@ -363,44 +364,43 @@ export function FindWhere({ picked, archive, few, onSearching, onHeard, onAnswer
 
   /** The answer picked: where it lies, the mirror, the planes and their tones. */
   const answer = (g: Guess, views: Found["views"], sure: boolean, best: boolean, others: { lat: number; lon: number }[]) => (
-    <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
-      <div className="flex flex-col gap-3 lg:sticky lg:top-6 lg:self-start">
+    // One after the other: beside the planes, however many they are, the map would leave a hole under it.
+    <div className="flex flex-col gap-8">
+      <div className="flex flex-col gap-3">
         <PlaceMap guess={g} others={others} sure={sure} shotRef={mapShot} />
         <p className="text-sm text-pretty text-faint">{t.result.credit}</p>
       </div>
-      <div className="flex flex-col gap-8">
-        {(!best || g.mirror) && (
-          <div className="flex flex-col gap-2">
-            {!best && (
-              <>
-                {nearText(g) && (
-                  <p className="text-xl font-semibold tracking-tight text-balance text-ink" data-testid="where-shown-name">
-                    {nearText(g)}
-                  </p>
-                )}
-                <p className={`font-mono tabular-nums ${nearText(g) ? "text-mute" : "text-xl text-ink"}`} data-testid="where-shown-spot">
-                  {coordinates(g)}
+      {(!best || g.mirror) && (
+        <div className="flex flex-col gap-2">
+          {!best && (
+            <>
+              {nearText(g) && (
+                <p className="text-xl font-semibold tracking-tight text-balance text-ink" data-testid="where-shown-name">
+                  {nearText(g)}
                 </p>
-                <p className="text-mute tabular-nums" data-testid="where-shown-start">
-                  {startOf(g, sure)}
-                </p>
-                <a href={osmLink(g)} target="_blank" rel="noreferrer" className={`${QUIET} w-fit`}>
-                  {t.result.osm} <span aria-hidden>→</span>
-                </a>
-              </>
-            )}
-            {g.mirror && (
-              <p className="text-pretty text-mute" data-testid="where-mirror">
-                {fill(t.result.mirror, { place: coordinates(g.mirror) })}{" "}
-                <a href={osmLink(g.mirror)} target="_blank" rel="noreferrer" className="underline underline-offset-4 transition hover:text-ink">
-                  {t.result.osm}
-                </a>
+              )}
+              <p className={`font-mono tabular-nums ${nearText(g) ? "text-mute" : "text-xl text-ink"}`} data-testid="where-shown-spot">
+                {coordinates(g)}
               </p>
-            )}
-          </div>
-        )}
-        {planes(g, views, sure)}
-      </div>
+              <p className="text-mute tabular-nums" data-testid="where-shown-start">
+                {startOf(g, sure)}
+              </p>
+              <a href={osmLink(g)} target="_blank" rel="noreferrer" className={`${QUIET} w-fit`}>
+                {t.result.osm} <span aria-hidden>→</span>
+              </a>
+            </>
+          )}
+          {g.mirror && (
+            <p className="text-pretty text-mute" data-testid="where-mirror">
+              {fill(t.result.mirror, { place: coordinates(g.mirror) })}{" "}
+              <a href={osmLink(g.mirror)} target="_blank" rel="noreferrer" className="underline underline-offset-4 transition hover:text-ink">
+                {t.result.osm}
+              </a>
+            </p>
+          )}
+        </div>
+      )}
+      {planes(g, views, sure)}
     </div>
   );
 
