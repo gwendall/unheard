@@ -136,9 +136,9 @@ test("a file in: what it says at once, its tones, then where and when, and the f
   await expect(page.getByTestId("where-result")).toContainText("© adsb.lol contributors");
   await shoot(page, "where-found");
 
-  // On a wide screen the plot stays beside the planes as they scroll: no hole under it.
+  // On a wide screen the map stays beside the planes as they scroll: no hole under it.
   await page.getByTestId("where-planes").evaluate((el) => window.scrollTo(0, el.getBoundingClientRect().top + window.scrollY - 40));
-  const plot = await page.getByTestId("where-plot").boundingBox();
+  const plot = await page.getByTestId("place-map").boundingBox();
   expect(plot!.y).toBeGreaterThanOrEqual(0);
   expect(plot!.y).toBeLessThan(120);
 
@@ -196,7 +196,7 @@ test("with too little to go on, leads with the best guess and the next answer, a
   await expect(page.getByTestId("where-verdict")).toBeFocused();
   await expect(page.getByTestId("where-start")).toContainText("Would have started");
   await expect(page.getByTestId("where-result")).toContainText("The planes that would explain the tones");
-  await expect(page.getByTestId("where-plot")).toContainText("Guess");
+  await expect(page.getByTestId("place-map")).toBeVisible();
   const guesses = page.getByTestId("where-guesses").getByRole("button");
   await expect(guesses.first()).toHaveAttribute("aria-pressed", "true");
   await expect(guesses.first()).toContainText(/^Best guess: [A-Z][a-z ]+, Arizona$/);

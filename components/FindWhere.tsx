@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useI18n } from "@/components/I18n";
 import { Share } from "@/components/Share";
-import { SpotPlot } from "@/components/SpotPlot";
+import { PlaceMap } from "@/components/PlaceMap";
 import { TonePicture } from "@/components/TonePicture";
 import { decode, troubleOf } from "@/lib/client/decode";
 import type { FileMetadata } from "@/lib/client/metadata";
@@ -314,13 +314,11 @@ export function FindWhere({ picked, archive }: { picked: Picked; archive: string
   };
 
   /** The answer picked: where it lies, the mirror, the planes and their tones. */
-  const answer = (g: Guess, views: Found["views"], sure: boolean, best: boolean) => (
+  const answer = (g: Guess, views: Found["views"], sure: boolean, best: boolean, others: { lat: number; lon: number }[]) => (
     <div className="grid gap-8 lg:grid-cols-2">
       <div className="flex flex-col gap-3 lg:sticky lg:top-6 lg:self-start">
-        <SpotPlot guess={g} sure={sure} />
-        <p className="text-sm text-pretty text-faint">
-          {t.result.credit} {t.placesCredit}
-        </p>
+        <PlaceMap guess={g} others={others} sure={sure} />
+        <p className="text-sm text-pretty text-faint">{t.result.credit}</p>
       </div>
       <div className="flex flex-col gap-8">
         {(!best || g.mirror) && (
@@ -539,6 +537,8 @@ export function FindWhere({ picked, archive }: { picked: Picked; archive: string
   const best = found?.guesses[0];
   const guess = found?.guesses[shown] ?? best;
   const unsure = found && !found.confident;
+  // The map numbers the other answers from 2: they are drawn beside the best one, not beside another.
+  const others = useMemo(() => (found && shown === 0 ? found.guesses.slice(1).map(({ lat, lon }) => ({ lat, lon })) : []), [found, shown]);
 
   return (
     <div ref={panel} className="flex flex-col gap-6" data-testid="where-find-panel">
@@ -599,7 +599,7 @@ export function FindWhere({ picked, archive }: { picked: Picked; archive: string
             </div>
           )}
 
-          {found && guess && answer(guess, found.views, found.confident, guess === best)}
+          {found && guess && answer(guess, found.views, found.confident, guess === best, others)}
 
           <button type="button" onClick={stop} className={`${QUIET} w-fit`} data-testid="where-again">
             {t.result.again}

@@ -83,7 +83,7 @@ export function PlaceMap({
       </div>
       <figcaption className="text-sm text-pretty text-faint" data-testid="place-map-credit">
         {state === "failed" ? (
-          t.failed
+          `${t.failed} ${m.where.placesCredit}`
         ) : (
           <Rich
             text={t.credit}
