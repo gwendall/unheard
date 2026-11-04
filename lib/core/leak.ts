@@ -7,7 +7,7 @@
 
 import { ANALYSIS_RATE } from "./pipeline";
 import { RESAMPLE_REACH, resampleAt } from "./resample";
-import { HARMONICS, scrub, type Curve, type ScrubOptions } from "./scrub";
+import { freeScrub, HARMONICS, scrub, type Curve, type ScrubOptions } from "./scrub";
 import { buildStack, type StackOptions } from "./spectrogram";
 import { findTraces, REAL_RANGE, type Trace, type TraceOptions } from "./trace";
 
@@ -376,6 +376,7 @@ export function clean(audio: Audio, curves: Curve[], options: CleanOptions = {})
     });
   });
   flush(Infinity);
+  freeScrub();
   options.onWindow?.(windows.length, windows.length);
 }
 
