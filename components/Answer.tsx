@@ -31,6 +31,15 @@ function Details({ summary, onToggle, children }: { summary: string; onToggle?: 
   );
 }
 
+/** The map's place while one is on its way: the sentence under it stays where it is when it comes. */
+export function MapToCome() {
+  return (
+    <div aria-hidden className="flex h-60 items-center justify-center rounded-2xl border border-line bg-deep text-4xl text-faint sm:h-96" data-testid="answer-no-map">
+      ?
+    </div>
+  );
+}
+
 export type AnswerProps = {
   /** The map; with none, the place where one would be. */
   map?: ReactNode;
@@ -38,6 +47,8 @@ export type AnswerProps = {
   titleProps?: HTMLAttributes<HTMLHeadingElement> & { "data-testid"?: string };
   titleRef?: Ref<HTMLHeadingElement>;
   when?: string | null;
+  /** One line that belongs with the sentence, whatever state the answer is in. */
+  note?: ReactNode;
   why?: ReactNode;
   rows?: ReactNode;
   actions?: ReactNode;
@@ -56,6 +67,7 @@ export function Answer({
   titleProps,
   titleRef,
   when,
+  note,
   why,
   rows,
   actions,
@@ -85,6 +97,7 @@ export function Answer({
             {when}
           </p>
         )}
+        {note}
         <div className="flex min-h-24 flex-col justify-center text-lg text-pretty text-mute sm:min-h-14" data-testid="answer-why">
           {why}
         </div>

@@ -10,7 +10,7 @@ import type { Guess } from "@/lib/client/where.worker";
  * mirror if there is one, and the path of each plane heard, with a dot at its closest. The rings
  * give the scale; the map itself is one link away (OpenStreetMap), with no map loaded here.
  */
-export function SpotPlot({ guess, sure }: { guess: Guess; sure: boolean }) {
+export function SpotPlot({ guess }: { guess: Guess }) {
   const { m } = useI18n();
   const t = m.plots;
   const here = m.where.result;
@@ -51,7 +51,7 @@ export function SpotPlot({ guess, sure }: { guess: Guess; sure: boolean }) {
           )}
           <circle cx={0} cy={0} r={stroke * 4.5} fill="#e9edf5" />
           <text x={stroke * 7} y={stroke * 3} fill="#e9edf5" fontSize={reach / 18}>
-            {sure ? here.here : here.hereGuess}
+            {here.here}
           </text>
         </svg>
       </div>

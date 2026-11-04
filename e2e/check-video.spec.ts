@@ -311,3 +311,11 @@ test("the French page, for the screenshots", async ({ page }) => {
   await expect(page.getByTestId("check-download")).toBeVisible({ timeout: 300_000 });
   await shoot(page, "check-video-fr-fallback");
 });
+
+test("the example comes to the same named place in this browser", async ({ page }) => {
+  test.setTimeout(300_000);
+  await page.goto("/example");
+  await expect(page.getByTestId("example-chip")).toBeVisible();
+  await expect(page.getByTestId("where-verdict")).toHaveText(/^Probably filmed near /, { timeout: 280_000 });
+  await expect(page.getByTestId("answer-plane").nth(2)).toBeVisible();
+});

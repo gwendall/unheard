@@ -1,7 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import { useContext, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
-import { Answer, type AnswerProps } from "@/components/Answer";
+import { Answer, MapToCome, type AnswerProps } from "@/components/Answer";
 import { Bar } from "@/components/Bar";
 import { CheckParts, type Heard } from "@/components/Check";
 import { useI18n } from "@/components/I18n";
@@ -18,6 +19,7 @@ import type { Guess, WhereEvent, WherePartial, WhereRequest, WhereResult, WhereS
 import { nearestPlace, placeLabel, searchPlaces, type NearPlace, type PlaceHit } from "@/lib/client/places";
 import { paintWhere } from "@/lib/client/where-card";
 import { httpFetcher, readDays } from "@/lib/history";
+import { pathFor } from "@/lib/locales";
 
 // "Find where", once a file is open: what is missing asked for, the day and hour already filled in
 // from the file, then the search in a worker, cancellable, and its answer. The sound is decoded
@@ -29,7 +31,15 @@ import { httpFetcher, readDays } from "@/lib/history";
 type Busy = { step: WhereStep | "open"; done: number; total: number; fraction: number; left: number | null; since: number };
 /** The best guess while the search still refines it. */
 type SoFar = { lat: number; lon: number; start: number; name: string | null };
-export type Picked = { file: File; meta: FileMetadata; prefill: Prefill };
+export type Picked = {
+  file: File;
+  meta: FileMetadata;
+  prefill: Prefill;
+  /** Where to search from when the file does not say. */
+  roughly?: { lat: number; lon: number };
+  /** The simulated file of /example: the same search and the same rule, with no form to fill in and nothing to share as real. */
+  example?: boolean;
+};
 type Found = Extract<WhereResult, { kind: "found" }>;
 
 const FEW: WhereResult = { kind: "few" };
@@ -55,15 +65,18 @@ async function namesOf(result: WhereResult, locale: string): Promise<Map<string,
 
 const QUIET = "text-mute underline-offset-4 transition hover:text-ink hover:underline";
 const SECOND = "rounded-full border border-line px-5 py-3 text-ink transition hover:border-mute disabled:opacity-50";
+/** The same two boxes as the page's main action and its second one, so that nothing moves. */
+const SEE_EXAMPLE = "w-full rounded-full border border-transparent bg-amber px-7 py-3 text-center text-lg font-medium text-night transition hover:bg-amber-soft sm:w-fit";
+const SEE_EXAMPLE_NEXT = "w-full rounded-full border border-line px-7 py-3 text-center text-lg font-medium text-ink transition hover:border-mute sm:w-fit";
 const BUTTON = "w-full rounded-full bg-amber px-7 py-3 text-lg font-medium text-night transition hover:bg-amber-soft disabled:cursor-not-allowed disabled:opacity-40 sm:w-fit";
 const FIELD = "rounded-xl border border-line bg-deep px-4 py-3 text-base text-ink placeholder:text-faint focus:border-amber";
 
-export function FindWhere({ picked, archive, finding, few, silent, when: fileWhen, another, onSearching, onHeard, onAnswered }: { picked: Picked; archive: string; finding?: boolean; few?: boolean; silent?: boolean; when?: string | null; another?: ReactNode; onSearching?: (running: boolean) => void; onHeard?: (heard: Heard) => void; onAnswered?: (answered: boolean) => void }) {
+export function FindWhere({ picked, archive, finding, few, silent, when: fileWhen, another, note, onSearching, onHeard, onAnswered }: { note?: ReactNode; picked: Picked; archive: string; finding?: boolean; few?: boolean; silent?: boolean; when?: string | null; another?: ReactNode; onSearching?: (running: boolean) => void; onHeard?: (heard: Heard) => void; onAnswered?: (answered: boolean) => void }) {
   const { m, f, fill, plural, locale } = useI18n();
   const t = m.where;
   const a = m.answer;
   const part = useContext(CheckParts);
-  const spot = picked.meta.location;
+  const spot = picked.meta.location ?? picked.roughly;
   const [error, setError] = useState<string | null>(null);
   // The days the archive holds: undefined until known, null when it has no list.
   const [days, setDays] = useState<string[] | null | undefined>(undefined);
@@ -432,7 +445,7 @@ export function FindWhere({ picked, archive, finding, few, silent, when: fileWhe
     </p>
   );
 
-  const form = asking && !result && (
+  const form = asking && !result && !picked.example && (
     <div className="flex flex-col gap-5">
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
         <label className="flex min-w-0 flex-col gap-2">
@@ -591,6 +604,8 @@ export function FindWhere({ picked, archive, finding, few, silent, when: fileWhe
     started.current = true;
     // A microtask: the effect only decides, the search sets its own state.
     if (complete) queueMicrotask(() => void search());
+    // The example comes with what the search needs: with its day gone from the archive, it says so rather than wait.
+    else if (picked.example) queueMicrotask(() => setError(m.example.failed));
     else if (!window.matchMedia("(pointer: coarse)").matches) (chosen ? (place ? null : placeField.current) : dayField.current)?.focus();
   });
 
@@ -605,6 +620,8 @@ export function FindWhere({ picked, archive, finding, few, silent, when: fileWhe
   const beside = shown === 0 && (detailsOpen || !found || !found.named);
   const others = found && beside ? found.guesses.slice(1).map(({ lat, lon }) => ({ lat, lon })) : [];
   const named = found?.named && best ? best : null;
+  // The mirror is a detail: with Details closed the map holds one place.
+  const onMap = guess && !detailsOpen ? { ...guess, mirror: null } : guess;
 
   /** A UTC moment in the words of the place it happened: today's date, and a clock with no zone on it. */
   const localOf = (g: Guess, utc: number) => spokenAt(utc, offsetAt({ lon: g.lon, zone: names.get(spotKey(g))?.zone ?? place?.zone }, utc), locale);
@@ -619,7 +636,7 @@ export function FindWhere({ picked, archive, finding, few, silent, when: fileWhe
     return a.why.few;
   };
 
-  const share = named && found && said && (
+  const share = named && found && said && !picked.example && (
     <div className="w-full sm:w-fit" data-testid="where-share">
       <Share
         label={t.result.share}
@@ -675,7 +692,27 @@ export function FindWhere({ picked, archive, finding, few, silent, when: fileWhe
     setDetailsOpen(open);
     if (!open) setShown(0);
   };
-  const answerNow: AnswerProps | null | undefined = result && said ? null : part?.answer;
+  // The example has no form: one line and one bar for its whole wait, or what went wrong.
+  const working: AnswerProps | undefined = picked.example && part?.answer ? {
+    ...part.answer,
+    map: <MapToCome />,
+    title: error ? a.cannot : a.listening,
+    titleProps: undefined,
+    // The date's line, empty until there is one.
+    when: "\u00a0",
+    note,
+    why: error ? (
+      <span role="alert" data-testid="example-failed">{error}</span>
+    ) : (
+      <div className="flex min-h-13.5 w-full flex-col justify-center gap-2" role="status" data-testid="example-progress">
+        <Bar fraction={busy?.fraction ?? 0} label={a.listening} testid="where-bar" />
+      </div>
+    ),
+    actions: error ? another : undefined,
+    quiet: undefined,
+    after: undefined,
+  } : undefined;
+  const answerNow: AnswerProps | null | undefined = result && said ? null : working ?? part?.answer;
 
   return (
     // No box of its own: what it holds goes from the form to the answer, and only that changes on the page.
@@ -686,19 +723,20 @@ export function FindWhere({ picked, archive, finding, few, silent, when: fileWhe
           <Answer {...answerNow} titleRef={verdict} onDetails={onDetails} />
         ) : result && said ? (
           <Answer
-            map={named && guess ? mapOf(guess, others, found!.confident) : undefined}
+            map={named && guess ? mapOf(onMap ?? guess, others, found!.confident) : undefined}
             title={named ? nameOf(named) : a.cannot}
             titleRef={verdict}
             titleProps={{ "data-testid": "where-verdict" }}
             when={named ? fill(a.around, localOf(named, named.start)) : fileWhen}
+            note={note}
             why={<span data-testid="answer-reason">{named ? plural(named.planes.length, a.why.named) : whyOf(result)}</span>}
             rows={
               named && (
                 <ul className="flex flex-col border-b border-line" data-testid="answer-planes">
                   {named.planes.map((p) => (
                     <li key={p.hex} className="flex min-w-0 flex-col gap-0.5 border-t border-line py-3" data-testid="answer-plane">
-                      <span className="font-medium text-ink tabular-nums">{p.registration || p.hex}</span>
-                      <span className="text-sm text-pretty text-mute tabular-nums">{fill(a.plane, { type: aircraftType(p.type)?.name ?? (p.type || t.result.noType), distance: f.km(p.metres), time: localOf(named, p.at).time })}</span>
+                      <span className="font-medium text-ink">{aircraftType(p.type)?.name ?? (p.type || a.planeUnknown)}</span>
+                      <span className="text-sm text-pretty text-mute tabular-nums">{fill(a.plane, { tail: p.registration || p.hex, distance: f.km(p.metres), time: localOf(named, p.at).time })}</span>
                     </li>
                   ))}
                 </ul>
@@ -707,11 +745,17 @@ export function FindWhere({ picked, archive, finding, few, silent, when: fileWhe
             actions={
               <>
                 {share}
+                {/* Most visitors with "can't tell" have seen no named answer yet. */}
+                {!named && !picked.example && (
+                  <Link href={pathFor(locale, "/example")} className={part?.cleaned ? SEE_EXAMPLE_NEXT : SEE_EXAMPLE} data-testid="answer-example">
+                    {t.seeExample}
+                  </Link>
+                )}
                 {another}
               </>
             }
             quiet={
-              <>
+              !picked.example && <>
                 {part?.quietCopy}
                 {part?.clean(!named)}
                 {result.kind === "few" && archive && (
@@ -721,7 +765,7 @@ export function FindWhere({ picked, archive, finding, few, silent, when: fileWhe
                       stop();
                       setAnyway(true);
                     }}
-                    className={`${QUIET} w-fit text-left`}
+                    className={`${QUIET} w-fit text-left underline`}
                     data-testid="where-anyway"
                   >
                     {t.result.anyway}
@@ -755,10 +799,10 @@ export function FindWhere({ picked, archive, finding, few, silent, when: fileWhe
                   {said.text}
                 </p>
                 {(unsure || refused) && searchedDay && <p className="text-pretty text-ink">{t.result.dayHint}</p>}
-                {named && <p className="text-sm text-pretty text-faint">{t.result.shareNote}</p>}
+                {named && !picked.example && <p className="text-sm text-pretty text-faint">{t.result.shareNote}</p>}
                 {named && guessButtons}
                 {named && guess && answer(guess, found!.views, found!.confident, guess === best, others)}
-                {named && again}
+                {named && !picked.example && again}
                 {part?.details}
               </>
             }

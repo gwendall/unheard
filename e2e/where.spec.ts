@@ -147,6 +147,8 @@ test("a file in: what it says at once, its tones, then where and when, and the f
   await expect(page.getByTestId("answer-reason")).toHaveText(/^\d+ planes were passing there at that moment, and we can hear them in the sound\.$/);
   await expect(page.getByTestId("answer-plane").first()).toContainText(/ away, at \d+:\d\d.[AP]M$/);
   await expect(page.getByTestId("answer-planes")).toContainText(scene.aircraft[1].registration);
+  // The kind of plane comes first: a tail number means nothing to most people, and tells two alike apart.
+  await expect(page.getByTestId("answer-plane").first().locator("span").first()).not.toContainText(/^N\d/);
   await shoot(page, "where-found");
 
   // The rest is a tap away.
@@ -273,6 +275,8 @@ test("one pass of a plane: too few says so with no click, no place is named, not
   await page.goto("/where");
   await page.getByTestId("where-file").setInputFiles(wav);
   await expect(page.getByTestId("where-verdict")).toHaveText("Can't tell where this was filmed", { timeout: 90_000 });
+  // With no place to give, the way to see what one looks like.
+  await expect(page.getByTestId("answer-example")).toHaveAttribute("href", "/example");
   await expect(page.getByTestId("answer-reason")).toHaveText("We heard planes, but not enough to be sure of a place. It takes at least three, each clear.");
   // What it can still do stays, quieter.
   await expect(page.getByTestId("check-clean")).toBeEnabled();
@@ -589,9 +593,9 @@ test("nothing jumps from the home to the tones, and what we check comes back und
   await page.getByTestId("where-file").setInputFiles(wav);
   await expect(page).toHaveURL(/\/where$/);
   await expect(page.getByTestId("check-progress")).toBeVisible();
-  await expect(page.getByTestId("where-scope")).toHaveCount(0);
+  await expect(page.getByTestId("where-how")).toHaveCount(0);
   await expect(page.getByTestId("where-verdict")).toBeVisible({ timeout: 90_000 });
-  await expect(page.getByTestId("where-scope")).toBeVisible();
+  await expect(page.getByTestId("where-how")).toBeVisible();
   const shifts = await page.evaluate(() => (window as unknown as { shifts: number[] }).shifts);
   expect(shifts).toEqual([]);
 });
@@ -780,7 +784,7 @@ test("sixty tones: the strongest three, the others a tap away and not drawn, and
   // The strongest, in the file's order.
   const captions = await page.getByTestId("check-tones").locator("li p").allInnerTexts();
   expect(captions).toEqual([...captions].sort());
-  await expect(page.getByTestId("where-scope")).toBeVisible();
+  await expect(page.getByTestId("where-how")).toBeVisible();
   expect(await height()).toBeLessThan(3 * SCREEN);
   await shoot(page, "where-sixty");
 

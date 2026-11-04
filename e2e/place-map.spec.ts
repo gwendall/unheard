@@ -65,7 +65,7 @@ for (const scene of ["oyster", "city", "desert"]) {
       const button = (await page.getByTestId("place-map-in").boundingBox())!;
       const words = JSON.parse((await figure(page).getAttribute("data-words")) ?? "[]") as { label: string; left: number; top: number; right: number; bottom: number }[];
       const labels = words.map((w) => w.label);
-      expect(labels).toContain("Guess");
+      expect(labels).toContain("Here");
       if (scene !== "city") expect(labels).toContain("Mirror");
       const hit = (a: (typeof words)[number], b: Pick<(typeof words)[number], "left" | "top" | "right" | "bottom">) => a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
       const control = { left: button.x - frame.x, top: button.y - frame.y, right: button.x - frame.x + button.width, bottom: button.y - frame.y + button.height * 3 };
