@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { checkPiecesOf, poolOf, poolSize, SILENT_MS, type Piece, type PieceReply, type PoolWorker } from "./pool";
+import { budgetMB, checkPiecesOf, estimatedMB, PHONE_BUDGET_MB, poolOf, poolSize, SILENT_MS, workersFor, type Piece, type PieceReply, type PoolWorker } from "./pool";
 import type { PieceInput, PieceOutput } from "./piece.worker";
 
 /** Workers the test answers by hand, in the order it likes. */
@@ -29,13 +29,58 @@ function workers() {
 const death = (message: string, heard = () => {}) => ({ message, preventDefault: heard }) as unknown as ErrorEvent;
 
 describe("poolSize", () => {
-  it("leaves a core to the page, has a ceiling, and gives little memory two", () => {
+  it("leaves a core to the page, and has a ceiling", () => {
     expect(poolSize(1)).toBe(1);
     expect(poolSize(2)).toBe(1);
     expect(poolSize(4)).toBe(3);
     expect(poolSize(18)).toBe(6);
-    expect(poolSize(8, 4)).toBe(2);
-    expect(poolSize(8, 8)).toBe(6);
+  });
+});
+
+describe("workersFor", () => {
+  const phone = { cores: 6, phone: true };
+  const find = (minutes: number) => ({ kind: "find" as const, seconds: minutes * 60 });
+  const clean = (minutes: number, rate: number) => ({ kind: "clean" as const, seconds: minutes * 60, rate });
+  const search = (minutes: number) => ({ kind: "search" as const, seconds: minutes * 60 });
+
+  it("gives a computer what its cores take, however long the file", () => {
+    for (const job of [find(600), clean(600, 48_000), search(600)]) expect(workersFor({ cores: 18, memoryGb: 8 }, job)).toBe(6);
+    expect(workersFor({ cores: 18 }, find(600))).toBe(6);
+    expect(workersFor({ cores: 2 }, find(1))).toBe(0);
+  });
+
+  it("gives a phone fewer as the file grows, and none in the end", () => {
+    expect(workersFor(phone, find(1))).toBe(4);
+    expect(workersFor(phone, find(60))).toBe(3);
+    expect(workersFor(phone, find(180))).toBe(0);
+    expect(workersFor(phone, clean(1, 8000))).toBe(5);
+    expect(workersFor(phone, clean(1, 22_050))).toBe(4);
+    expect(workersFor(phone, clean(1, 44_100))).toBe(2);
+    expect(workersFor(phone, clean(1, 48_000))).toBe(0);
+    expect(workersFor(phone, clean(60, 8000))).toBe(0);
+  });
+
+  it("never goes past a phone's budget with its workers", () => {
+    for (const minutes of [0.5, 1, 5, 10, 30, 60, 120, 240, 600])
+      for (const job of [find(minutes), clean(minutes, 8000), clean(minutes, 22_050), clean(minutes, 48_000), search(minutes)]) {
+        const workers = workersFor(phone, job);
+        if (workers) expect(estimatedMB(job, workers)).toBeLessThanOrEqual(PHONE_BUDGET_MB);
+      }
+  });
+
+  it("searches on a phone with no worker: the search alone is past the budget", () => {
+    expect(workersFor(phone, search(1))).toBe(0);
+    expect(estimatedMB(search(1), 0)).toBeGreaterThan(PHONE_BUDGET_MB);
+  });
+
+  it("holds any device with 4 GB or less to a budget, tighter with less", () => {
+    expect(budgetMB({ cores: 8, memoryGb: 4 })).toBe(PHONE_BUDGET_MB);
+    expect(budgetMB({ cores: 8, memoryGb: 2 })).toBe(PHONE_BUDGET_MB / 2);
+    expect(budgetMB({ cores: 8, memoryGb: 8 })).toBe(Infinity);
+    expect(workersFor({ cores: 8, memoryGb: 4 }, find(10))).toBe(4);
+    expect(workersFor({ cores: 8, memoryGb: 2 }, find(10))).toBe(0);
+    // A phone with room still goes by a phone's budget: its tab can be closed all the same.
+    expect(workersFor({ cores: 8, memoryGb: 8, phone: true }, find(10))).toBe(4);
   });
 });
 

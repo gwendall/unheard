@@ -8,6 +8,7 @@ import { Share } from "@/components/Share";
 import { PlaceMap, type MapShot } from "@/components/PlaceMap";
 import { TonePicture } from "@/components/TonePicture";
 import { soundOf, troubleOf } from "@/lib/client/decode";
+import { isPhone } from "@/lib/client/device";
 import { timeLeft } from "@/lib/client/format";
 import type { FileMetadata } from "@/lib/client/metadata";
 import { aircraftType } from "@/lib/client/types";
@@ -248,6 +249,7 @@ export function FindWhere({ picked, archive, onSearching, onHeard, onAnswered }:
       ...audio,
       history: new URL(archive, window.location.href).href,
       partial: true,
+      phone: isPhone(),
       window: searched,
       area: { lat: place.lat, lon: place.lon, side: SQUARE },
     };
