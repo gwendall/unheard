@@ -1,6 +1,6 @@
 # Status
 
-Updated 2026-11-03.
+Updated 2026-11-04.
 
 ## Where it is
 
@@ -279,6 +279,33 @@ What the web version needs:
   an MP4, MOV, M4A, WAV or MP3 without loading it; not GPS in timed tracks (GoPro, drones), so an
   empty answer does not mean the file says nothing.
 
+## The level of a tone (2026-11-04)
+
+Can how a tone rises and falls tell the plane that made it from a plane whose curve merely follows
+it? A phone's gain does not matter for the shape, and a far plane's range barely moves. Measured by
+`evals/level.eval.ts` (real audio, the heard plane best at score 9 or more, 36 recordings with a
+line to read). **It does not hold, and no verdict reads it.**
+
+| window | level swing, dB, p50 / p90 / max | same, where the range moves under 1.5 dB | swing veto, margin to lose nobody, dB | far plane it catches | flyby veto, margin to lose nobody, dB rms | far plane it catches |
+|---|---|---|---|---|---|---|
+| whole | 18.7 / 25.0 / 37.8 | none | 6.1 | 0.11 | 0.55 | 0.53 |
+| 60 s | 15.8 / 23.1 / 40.0 | none | 19.3 | 0.00 | 1.13 | 0.22 |
+| 45 s | 14.8 / 23.1 / 43.2 | 13.0 / 23.2 / 32.3 | 26.6 | 0.00 | 1.34 | 0.12 |
+| 30 s | 12.2 / 20.3 / 45.4 | 9.8 / 19.3 / 36.0 | 30.6 | 0.01 | 3.08 | 0.01 |
+
+- Right planes do follow their range, at 2.6 times its swing (median, up to 7 times), and far more
+  loosely than the physics reads: 4.9 dB rms around their own range, 6.1 around a far plane's. Where
+  the range barely moves they still swing 10 dB over 30 s, up to 36. colsto's Cessna 208, 8.4 km
+  away, swings 22 dB while its range moves 3.2. Directivity, the ground and the air swamp it.
+- The swing veto (level past 5 times the range's) loses nobody only past margins no wrong line
+  reaches. The wrong strongs swing 2.7 to 4.6 dB: their planted lines are made-up sound that falls
+  as 1/r near a steady distance, quieter than a right plane's own wobble. It catches 0 of the 6.
+- The flyby veto (the line's own straight flyby explains the level better than the plane's range)
+  catches phoenix-6-22 at the margin of its length, and not phoenix-9-25 (1.5 dB rms, margin 3.08)
+  nor synthetic-3 (no difference). The E2E's JET881 has no line to read at all.
+- Two lines of one recording, against their planes' ranges: one recording of 49 has two to read
+  (Bell 412 and EC135, correlation 0.00). Nothing to calibrate on, and the wrong strongs have one.
+
 ## Next
 
 1. Founder: record real flybys with `?capture=1` on a phone (a light-aircraft field, a heliport,
@@ -294,8 +321,8 @@ What the web version needs:
    real-track and real-audio evals. Left, the three home strongs: home's plane runs along the
    planted line within 2 % for all of it (synthetic-3, phoenix-9-25, tracks known throughout),
    or for 32 s of a 58 s line, wherever its track is known (phoenix-6-22). The curves cannot
-   tell these apart; the next signal is the level (how loud a line can be from a plane that
-   far). STRONG stays at 9 until then. `analyze()` returns `unexplained`, the lines no aircraft
+   tell these apart, and the level does not either (section "The level of a tone"). STRONG stays
+   at 9. `analyze()` returns `unexplained`, the lines no aircraft
    of the data explains, and `ghosts`, those a visitor can be told (`GHOST` in
    `lib/core/explain.ts`, measured by `evals/ghost.eval.ts`): the flyby follows 80 % of it,
    confidence 20, no aircraft of the data follows half of it at any tone, read as a straight pass
@@ -306,7 +333,9 @@ What the web version needs:
    factor of 2 in speed 28 times in 28 and in distance 25 in 28. Left: a line the data's other
    planes could follow at some tone is not told, so a busy sky hides it; and in the E2E's made-up
    sky, the heard plane left out, a jet at 31,000 ft can still go strong (9.9) on its line
-   (`none` or `possible` on other cuts of the same recording): the matcher's limit, not changed.
+   (`none` or `possible` on other cuts of the same recording), with no line found and 6.8 to 9 s of
+   its curve known, since its sound takes 45 s to arrive: the matcher's limit, not changed. See
+   item 10.
 3. Wind: Open-Meteo wind at 10 m and aloft into `Air.wind` (the synthetic eval shows wind costs
    about one score point at 8 m/s).
 4. Two aircraft heard at once (two helicopters at Adelaide, a jet and a Cessna in Livermore
@@ -335,6 +364,20 @@ What the web version needs:
    flyovers at one spot are found 6 times in 20 over a day at 100 km, 8 in 20 over an hour; colsto's
    hour to 55 m with an hour given. Next: two tones per flyover, a flag that can be raised (section
    "Where and when: the search").
+
+10. "Strong must never be wrong", what is left after the level:
+   - The jet of the E2E's recording: strong on 6.8 to 9 s of known curve (3 of 50 cuts, polls only from
+     the first sample; 0 of 50 with 10 s of polls before). The shortest curve of a strong and right plane is
+     23.5 s, on 119 of them across real audio, synthetic, real tracks and somewhere else (colsto's
+     strongs: 100 s). A floor of 15 s of known curve would take those three out with nothing lost:
+     a small lot of its own, not the level.
+   - At home with home's sky, 3 of 30 stay strong (synthetic-3, phoenix-9-25, phoenix-6-22). Nothing
+     found in the sound tells them apart.
+   - colsto's hour read in cuts of 2.5 minutes (`evals/level.eval.ts`): 9 strong in 30. Three are
+     flyovers the where-and-when search also reads (Cessna 208, PA-30, Beech 350), two an R44 4 km off.
+     Three are jets 12 to 13 km away at 71 to 144 Hz (F900, E170, CRJ9), and one an A220 at 49 Hz: no
+     truth for them. A far plane's nearly flat curve may fit a slowly drifting sound. Worth a look
+     before saying strong is never wrong on real audio: no eval has a truth here yet.
 
 ## Needs the founder
 
