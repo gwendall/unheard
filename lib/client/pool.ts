@@ -3,6 +3,7 @@
 // the result is the one the pieces would give one after the other (lib/core holds the loops).
 
 import { shapeOf, stretchOf, type Shape, type Stretch, type StretchRunner } from "../core/flyby";
+import { findChunk, inline, takeOutOf, type ChunkFound, type Pieces } from "../core/leak";
 import { scanPart, type ScanPart } from "../core/tracks";
 import type { WherePieces } from "../core/wherewhen";
 import type { PieceInput, PieceOutput } from "./piece.worker";
@@ -149,6 +150,18 @@ export function wherePiecesOf(pool: Pool<PieceInput, PieceOutput>): WherePieces 
   };
 }
 
+/**
+ * The check's separable work over the workers of a pool. What goes is copied, not handed over: a
+ * worker that dies leaves it here to do again.
+ */
+export function checkPiecesOf(pool: Pool<PieceInput, PieceOutput>): Pieces {
+  return {
+    size: pool.size,
+    chunk: (samples, start, rate, options, onShare) => (pool.run({ do: "chunk", samples, start, rate, options }, [], onShare) as Promise<ChunkFound>).catch(() => findChunk(samples, start, rate, options, onShare)),
+    takeOut: (job, onShare) => (pool.run({ do: "takeOut", job }, [], onShare) as Promise<Float32Array[]>).catch(() => takeOutOf(job, onShare)),
+  };
+}
+
 /** A pool for this device, or none where the work had better stay here. */
 export function poolForDevice(make: () => PoolWorker = pieceWorker): Pool<PieceInput, PieceOutput> | null {
   if (typeof Worker === "undefined") return null;
@@ -168,3 +181,6 @@ export async function withPool<T>(job: (pool: Pool<PieceInput, PieceOutput> | nu
     pool?.close();
   }
 }
+
+/** A check's job over this device's pool, gone with the job. Without one, the pieces run here. */
+export const withPieces = <T>(job: (pieces: Pieces) => Promise<T>): Promise<T> => withPool((pool) => job(pool ? checkPiecesOf(pool) : inline));

@@ -3,7 +3,7 @@
 // look again, and write the cleaned file. The file's sound stays here and on this device, and never
 // leaves it.
 
-import { chunksOf, cleanOut, curvesOf, findTones, pictureOf, viewOf, type Picture, type Tone, type View } from "../core/leak";
+import { chunksOf, cleanOut, curvesOf, findTonesWith, pictureOf, viewOf, type Picture, type Tone, type View } from "../core/leak";
 import { ANALYSIS_RATE } from "../core/rate";
 import { estimator, stagesOf, type Estimate } from "../core/progress";
 import type { Curve } from "../core/scrub";
@@ -11,6 +11,7 @@ import { memorySource, readInto, storedSound, takeOutOfFile, type SoundSource, t
 import { openSink, openStore } from "./disk";
 import { sweep } from "./folder";
 import { openMedia, type MediaFile } from "./media";
+import { withPieces } from "./pool";
 import { pcm16, WAV_HEADER, wavHeader } from "./wav";
 
 export type CheckRequest =
@@ -99,11 +100,13 @@ async function find(s: Session, source: SoundSource) {
   s.length = length;
   s.duration = frames / source.sampleRate;
   job.reach("find", 0, 1);
-  const tones = findTones(s.store.read, chunksOf(length), ANALYSIS_RATE, {
-    onChunk: (done, total) => job.count("find", done, total),
-    onProgress: (part) => job.share(part),
-    onTones: s.partial ? (found) => post({ type: "tones", duration: s.duration, tones: found.map((tone) => ({ tone, view: viewOf(tone, s.duration) })) }) : undefined,
-  });
+  const tones = await withPieces((pieces) =>
+    findTonesWith(pieces, s.store.read, chunksOf(length), ANALYSIS_RATE, {
+      onChunk: (done, total) => job.count("find", done, total),
+      onProgress: (part) => job.share(part),
+      onTones: s.partial ? (found) => post({ type: "tones", duration: s.duration, tones: found.map((tone) => ({ tone, view: viewOf(tone, s.duration) })) }) : undefined,
+    }),
+  );
   s.current = show(s, tones);
   post({ type: "found", duration: s.duration, found: s.current });
 }
@@ -146,27 +149,32 @@ async function cleanUp(s: Session) {
   // Every tone taken out, with how it looked just before its round.
   const shown = new Map<Tone, Found>(s.current.map((f) => [f.tone, f]));
   const job = jobOf(CLEANING);
-  const { cleaned } = cleanOut(
-    storedSound(s.store, s.length),
-    s.current.map((f) => f.tone),
-    {
-      onWindow: (done, total) => job.count("clean", done, total),
-      find: { onChunk: (done, total) => job.count("again", done, total) },
-      onProgress: (part) => job.share(part, "clean"),
-      onRound: (round, tones) => {
-        s.rounds.push(curvesOf(tones));
-        if (round) for (const f of show(s, tones)) shown.set(f.tone, f);
+  const { cleaned, left, written } = await withPieces(async (pieces) => {
+    const { cleaned } = await cleanOut(
+      storedSound(s.store, s.length, ANALYSIS_RATE, pieces),
+      s.current.map((f) => f.tone),
+      {
+        pieces,
+        onWindow: (done, total) => job.count("clean", done, total),
+        find: { onChunk: (done, total) => job.count("again", done, total) },
+        onProgress: (part) => job.share(part, "clean"),
+        onRound: (round, tones) => {
+          s.rounds.push(curvesOf(tones));
+          if (round) for (const f of show(s, tones)) shown.set(f.tone, f);
+        },
       },
-    },
-  );
-  job.reach("write", 0, 1);
-  // What the rounds found comes out of the file's own sound, and what comes out is what is searched.
-  const { left, written } = await writeWav(s, source, (consume) =>
-    takeOutOfFile(source, s.rounds, s.store, s.length, consume, {
-      onProgress: (done, total) => job.reach("write", done, total),
-      find: { onChunk: (done, total) => job.count("again", done, total), onProgress: (part) => job.share(part, "again") },
-    }),
-  );
+    );
+    job.reach("write", 0, 1);
+    // What the rounds found comes out of the file's own sound, and what comes out is what is searched.
+    const { left, written } = await writeWav(s, source, (consume) =>
+      takeOutOfFile(source, s.rounds, s.store, s.length, consume, {
+        pieces,
+        onProgress: (done, total) => job.reach("write", done, total),
+        find: { onChunk: (done, total) => job.count("again", done, total), onProgress: (part) => job.share(part, "again") },
+      }),
+    );
+    return { cleaned, left, written };
+  });
   const after = cleaned.map((tone) => {
     const f = shown.get(tone)!;
     return { ...f, after: pictureOf(s.store.read, s.length, f.view) };

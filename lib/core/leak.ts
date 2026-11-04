@@ -5,6 +5,7 @@
 // stack about 0.5 MB per second, so the search reads overlapping chunks of three minutes and
 // joins what they find; scrub keeps 48 bytes per sample, so it cleans windows of 20 s.
 
+import { inParallel } from "./parallel";
 import { ANALYSIS_RATE } from "./pipeline";
 import { RESAMPLE_REACH, resampleAt } from "./resample";
 import { freeScrub, HARMONICS, scrub, type Curve, type ScrubOptions } from "./scrub";
@@ -224,25 +225,32 @@ export const ALONG: TraceOptions = { ...REAL_RANGE, trimShare: 0, maxTraces: 8 }
  * lines to take out with them (in a tone's `beside`): what the page finds is what evals/leak
  * measures.
  */
-export function findTones(read: Reader, chunks: Chunk[], rate = ANALYSIS_RATE, options: FindOptions = {}): Tone[] {
-  const found: Tone[] = [];
-  const wide: Tone[] = [];
+export type ChunkFound = { found: Tone[]; wide: Tone[] };
+
+/** What a chunk's search is told. */
+export type ChunkOptions = Pick<FindOptions, "trace" | "along" | "stack">;
+
+/** One chunk's search, whatever the others find: a piece a worker of the pool can do. */
+export function findChunk(samples: Float32Array, start: number, rate: number, options: ChunkOptions, onShare?: (share: number) => void): ChunkFound {
   const trace = { ...CHECK_TRACE, ...options.trace };
   const along = options.along === undefined ? ALONG : options.along;
-  chunks.forEach((c, i) => {
-    options.onChunk?.(i, chunks.length);
-    const at = (share: number) => options.onProgress?.((i + share) / chunks.length);
-    const { stack: inStack, trace: inTrace, along: inAlong } = CHUNK_SHARES;
-    const stack = buildStack(read(c.start, c.end - c.start), rate, { ...options.stack, onProgress: (s) => at(inStack * s) });
-    const here = findTraces(stack, trace, (s) => at(inStack + inTrace * s)).traces;
-    for (const t of here) found.push(toneOf(t, stack.base.times, c.start / rate));
-    // On copies: merging marks the tones it keeps, and the last merge below starts from these.
-    if (here.length && options.onTones) options.onTones(mergeTones(found.map((t) => ({ ...t }))));
-    if (along && here.length) for (const t of findTraces(stack, along, (s) => at(inStack + inTrace + inAlong * s)).traces) wide.push(toneOf(t, stack.base.times, c.start / rate));
-    at(1);
-  });
-  options.onChunk?.(chunks.length, chunks.length);
-  const tones = mergeTones(found);
+  const { stack: inStack, trace: inTrace, along: inAlong } = CHUNK_SHARES;
+  const stack = buildStack(samples, rate, { ...options.stack, onProgress: (s) => onShare?.(inStack * s) });
+  const here = findTraces(stack, trace, (s) => onShare?.(inStack + inTrace * s)).traces;
+  const found = here.map((t) => toneOf(t, stack.base.times, start / rate));
+  const wide = along && here.length ? findTraces(stack, along, (s) => onShare?.(inStack + inTrace + inAlong * s)).traces.map((t) => toneOf(t, stack.base.times, start / rate)) : [];
+  onShare?.(1);
+  return { found, wide };
+}
+
+/** The tones so far, when a chunk adds some. On copies: merging marks the tones it keeps, and the last merge starts from these. */
+function tellTones(parts: ChunkFound[], part: ChunkFound, options: FindOptions) {
+  if (part.found.length && options.onTones) options.onTones(mergeTones(parts.flatMap((p) => p.found).map((t) => ({ ...t }))));
+}
+
+/** The chunks' finds, in the file's order, as one list of tones. */
+function joinChunks(parts: ChunkFound[]): Tone[] {
+  const tones = mergeTones(parts.flatMap((p) => p.found));
   // A line found up there goes out with the tones, with the one it runs parallel to if any, unless
   // scrub already takes it: a line already found, or one of the first harmonics of one.
   const taken = (w: Tone) =>
@@ -252,12 +260,78 @@ export function findTones(read: Reader, chunks: Chunk[], rate = ANALYSIS_RATE, o
       const h = Math.round(Math.exp(mid));
       return h >= 1 && h <= HARMONICS && Math.abs(mid - Math.log(h)) < AGREE;
     });
-  for (const w of mergeTones(wide).flatMap(ridgesOf)) {
+  for (const w of mergeTones(parts.flatMap((p) => p.wide)).flatMap(ridgesOf)) {
     if (taken(w)) continue;
     const lead = tones.find((t) => parallel(t, w) !== null) ?? tones[0];
     lead.beside = [...(lead.beside ?? []), w];
   }
   return tones;
+}
+
+export function findTones(read: Reader, chunks: Chunk[], rate = ANALYSIS_RATE, options: FindOptions = {}): Tone[] {
+  const { trace, along, stack } = options;
+  const parts: ChunkFound[] = [];
+  chunks.forEach((c, i) => {
+    options.onChunk?.(i, chunks.length);
+    const part = findChunk(read(c.start, c.end - c.start), c.start, rate, { trace, along, stack }, (s) => options.onProgress?.((i + s) / chunks.length));
+    parts.push(part);
+    tellTones(parts, part, options);
+  });
+  options.onChunk?.(chunks.length, chunks.length);
+  return joinChunks(parts);
+}
+
+/** A stretch of sound with rounds of curves taken out, one round after the other. `channels` start at time 0 of the curves. */
+export type TakeOutJob = { channels: Float32Array[]; rate: number; rounds: Curve[][]; scrub?: ScrubOptions };
+
+/** A stretch's taking out, whatever the others do: a piece a worker of the pool can do. Changes `channels`, and returns them. */
+export function takeOutOf({ channels, rate, rounds, scrub: options }: TakeOutJob, onShare?: (share: number) => void): Float32Array[] {
+  const audio: Audio = { channels, sampleRate: rate };
+  rounds.forEach((round, r) => {
+    if (round.length) clean(audio, round, { scrub: options, window: Infinity, onShare: (s) => onShare?.((r + s) / rounds.length) });
+  });
+  return channels;
+}
+
+/**
+ * Where pieces of the work can run besides here: workers, on the page (lib/client/pool.ts). A piece
+ * depends only on what it is given, and its answer goes back in its place: the result is the one
+ * the pieces give one after the other, as `inline` does.
+ */
+export type Pieces = {
+  /** Pieces at a time. */
+  size: number;
+  chunk: (samples: Float32Array, start: number, rate: number, options: ChunkOptions, onShare: (share: number) => void) => Promise<ChunkFound>;
+  takeOut: (job: TakeOutJob, onShare: (share: number) => void) => Promise<Float32Array[]>;
+};
+
+/** The pieces run here, one at a time: a device with no workers to spare, one piece of work, and the evals. */
+export const inline: Pieces = {
+  size: 1,
+  chunk: async (samples, start, rate, options, onShare) => findChunk(samples, start, rate, options, onShare),
+  takeOut: async (job, onShare) => takeOutOf(job, onShare),
+};
+
+/** `findTones`, its chunks over `pieces`: they may finish in any order, and the tones are the same. */
+export async function findTonesWith(pieces: Pieces, read: Reader, chunks: Chunk[], rate = ANALYSIS_RATE, options: FindOptions = {}): Promise<Tone[]> {
+  // One chunk is as well done here: no worker to start, nothing to copy.
+  const runner = chunks.length > 1 ? pieces : inline;
+  const { trace, along, stack } = options;
+  const parts = new Array<ChunkFound>(chunks.length);
+  const shares = new Float64Array(chunks.length);
+  let done = 0;
+  options.onChunk?.(0, chunks.length);
+  // Read as a place comes free: a long file's chunks are not all held at once.
+  await inParallel(chunks, runner.size, async (c, i) => {
+    const part = await runner.chunk(read(c.start, c.end - c.start), c.start, rate, { trace, along, stack }, (share) => {
+      shares[i] = share;
+      options.onProgress?.(shares.reduce((a, x) => a + x, 0) / chunks.length);
+    });
+    parts[i] = part;
+    options.onChunk?.(++done, chunks.length);
+    tellTones(parts.filter(Boolean), part, options);
+  });
+  return joinChunks(parts);
 }
 
 /** Seconds the end of a tone is carried on: where it fades under what the search sees, it may still be heard. */
@@ -386,6 +460,8 @@ export const ROUNDS = 6;
 export type CleanOutOptions = CleanOptions & {
   find?: FindOptions;
   rounds?: number;
+  /** Where looking again can run besides here. */
+  pieces?: Pieces;
   /** Called with the tones of each round, before they are taken out (round 0: the ones given). */
   onRound?: (round: number, tones: Tone[]) => void;
   /**
@@ -400,7 +476,7 @@ export type CleanOutOptions = CleanOptions & {
 const CLEAN_SHARE = 0.8;
 
 /** What the rounds of take out and look again work on: a sound read at the analysis rate, changed in place. */
-export type Sound = { read: Reader; length: number; clean: (curves: Curve[], options: CleanOptions) => void };
+export type Sound = { read: Reader; length: number; clean: (curves: Curve[], options: CleanOptions) => void | Promise<void> };
 
 /** What a round takes out for its tones. */
 export const curvesOf = (tones: Tone[]): Curve[] => tones.flatMap(ridgesOf).map((t) => curveOf(t));
@@ -410,8 +486,8 @@ export const curvesOf = (tones: Tone[]): Curve[] => tones.flatMap(ridgesOf).map(
  * finds, up to `rounds` times. Elsewhere nothing changed, so nothing new can be found. Returns
  * every tone taken out, and the ones still found after the last round.
  */
-export function cleanOut(sound: Audio | Sound, tones: Tone[], options: CleanOutOptions = {}): { cleaned: Tone[]; left: Tone[] } {
-  const { rounds = ROUNDS } = options;
+export async function cleanOut(sound: Audio | Sound, tones: Tone[], options: CleanOutOptions = {}): Promise<{ cleaned: Tone[]; left: Tone[] }> {
+  const { rounds = ROUNDS, pieces = inline } = options;
   const { read, length, clean: takeOut }: Sound = "channels" in sound ? { ...readerOf(sound), clean: (curves, o) => clean(sound, curves, o) } : sound;
   const chunks = chunksOf(length);
   const cleaned: Tone[] = [];
@@ -419,7 +495,7 @@ export function cleanOut(sound: Audio | Sound, tones: Tone[], options: CleanOutO
   for (let round = 0; round < rounds && current.length; round++) {
     options.onRound?.(round, current);
     const inRound = (share: number) => options.onProgress?.((round + share) / (round + 2));
-    takeOut(curvesOf(current), {
+    await takeOut(curvesOf(current), {
       ...options,
       onShare: (s) => {
         options.onShare?.(s);
@@ -430,7 +506,7 @@ export function cleanOut(sound: Audio | Sound, tones: Tone[], options: CleanOutO
     // The chunks whose sound changed: those that reach a tone just taken out, its curve's ends included.
     const touched = current.flatMap(ridgesOf).map((t) => ({ start: t.times[0] - EXTEND - 1, end: t.times[t.times.length - 1] + EXTEND + 1 }));
     const changed = chunks.filter((c) => touched.some((s) => s.start * ANALYSIS_RATE <= c.end && s.end * ANALYSIS_RATE >= c.start));
-    current = findTones(read, changed, ANALYSIS_RATE, {
+    current = await findTonesWith(pieces, read, changed, ANALYSIS_RATE, {
       ...options.find,
       onProgress: (s) => {
         options.find?.onProgress?.(s);

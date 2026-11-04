@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { inParallel } from "./parallel";
+import { inOrder, inParallel } from "./parallel";
 
 describe("inParallel", () => {
   it("keeps the items' order whatever order they finish in, and holds to the cap", async () => {
@@ -34,5 +34,60 @@ describe("inParallel", () => {
         return x;
       }),
     ).rejects.toThrow("no");
+  });
+});
+
+describe("inOrder", () => {
+  /** Work the test ends by hand. */
+  function hand() {
+    const ends: ((value: number) => void)[] = [];
+    const start = () => new Promise<number>((resolve) => void ends.push(resolve));
+    return { ends, start };
+  }
+
+  it("hands results out in the items' order, whichever ends first", async () => {
+    const { ends, start } = hand();
+    const out = inOrder([0, 1, 2], 3, start);
+    const first = out.next();
+    for (let wait = 0; wait < 20; wait++) await null;
+    expect(ends.length).toBe(3);
+    ends[2](2);
+    for (let wait = 0; wait < 20; wait++) await null;
+    ends[1](1);
+    ends[0](0);
+    expect((await first).value).toBe(0);
+    expect((await out.next()).value).toBe(1);
+    expect((await out.next()).value).toBe(2);
+    expect((await out.next()).done).toBe(true);
+  });
+
+  it("takes items as they come, the next one before the result of the one ahead", async () => {
+    const log: string[] = [];
+    async function* items() {
+      for (let i = 0; i < 4; i++) {
+        log.push(`take ${i}`);
+        yield i;
+      }
+    }
+    for await (const x of inOrder(items(), 1, async (i) => i)) log.push(`out ${x}`);
+    expect(log).toEqual(["take 0", "take 1", "out 0", "take 2", "out 1", "take 3", "out 2", "out 3"]);
+  });
+
+  it("says a failure in its turn, and stops taking items when told to", async () => {
+    let taken = 0;
+    function* items() {
+      for (let i = 0; i < 100; i++) {
+        taken++;
+        yield i;
+      }
+    }
+    const out = inOrder(items(), 1, async (i) => {
+      if (i === 1) throw new Error("no");
+      return i;
+    });
+    expect((await out.next()).value).toBe(0);
+    await expect(out.next()).rejects.toThrow("no");
+    expect((await out.next()).done).toBe(true);
+    expect(taken).toBeLessThan(4);
   });
 });

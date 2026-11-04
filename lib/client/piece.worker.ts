@@ -2,15 +2,18 @@
 // given and nothing else. Its answers are handed over, not copied.
 
 import { shapeOf, stretchOf, type Shape, type Stretch } from "../core/flyby";
+import { findChunk, takeOutOf, type ChunkFound, type ChunkOptions, type TakeOutJob } from "../core/leak";
 import { scanPart, type Path, type ScanOptions, type ScanPart, type Tone as ScanTone } from "../core/tracks";
 import type { Piece, PieceReply } from "./pool";
 
 export type PieceInput =
+  | { do: "chunk"; samples: Float32Array; start: number; rate: number; options: ChunkOptions }
+  | { do: "takeOut"; job: TakeOutJob }
   | { do: "stretch"; samples: Float32Array; rate: number }
   | { do: "shape"; t: Float64Array; y: Float64Array; c: number }
   | { do: "scan"; tones: ScanTone[]; paths: Path[]; jets: Uint8Array; options: Omit<ScanOptions, "onProgress">; longest: number };
 
-export type PieceOutput = Stretch | Shape | ScanPart;
+export type PieceOutput = ChunkFound | Float32Array[] | Stretch | Shape | ScanPart;
 
 // The worker's own global, typed by what this file uses of it (the DOM and webworker libs clash).
 const scope = self as unknown as { postMessage: (reply: PieceReply<PieceOutput>, transfer?: Transferable[]) => void; onmessage: ((e: MessageEvent<Piece<PieceInput>>) => void) | null };
@@ -25,6 +28,10 @@ function buffersIn(value: unknown, found = new Set<ArrayBuffer>()): ArrayBuffer[
 
 async function work(input: PieceInput, onShare: (share: number) => void): Promise<PieceOutput> {
   switch (input.do) {
+    case "chunk":
+      return findChunk(input.samples, input.start, input.rate, input.options, onShare);
+    case "takeOut":
+      return takeOutOf(input.job, onShare);
     case "stretch":
       return stretchOf(input.samples, input.rate, onShare);
     case "shape":
