@@ -31,6 +31,7 @@ type SoFar = { lat: number; lon: number; start: number; name: string | null };
 export type Picked = { file: File; meta: FileMetadata; prefill: Prefill };
 type Found = Extract<WhereResult, { kind: "found" }>;
 
+const FEW: WhereResult = { kind: "few" };
 /** Planes a guess names in its lead, the rest counted. */
 const NAMED = 6;
 /** How long an answer waits for its name before it comes with its coordinates alone: nothing moves later. */
@@ -56,7 +57,7 @@ const BUTTON = "w-full rounded-full bg-amber px-7 py-3 text-lg font-medium text-
 const FIELD = "rounded-xl border border-line bg-deep px-4 py-3 text-base text-ink placeholder:text-faint focus:border-amber";
 const TITLE = "text-3xl font-semibold tracking-tight text-balance sm:text-4xl";
 
-export function FindWhere({ picked, archive, onSearching, onHeard, onAnswered }: { picked: Picked; archive: string; onSearching?: (running: boolean) => void; onHeard?: (heard: Heard) => void; onAnswered?: (answered: boolean) => void }) {
+export function FindWhere({ picked, archive, few, onSearching, onHeard, onAnswered }: { picked: Picked; archive: string; few?: boolean; onSearching?: (running: boolean) => void; onHeard?: (heard: Heard) => void; onAnswered?: (answered: boolean) => void }) {
   const { m, f, fill, plural, locale } = useI18n();
   const t = m.where;
   const spot = picked.meta.location;
@@ -75,7 +76,12 @@ export function FindWhere({ picked, archive, onSearching, onHeard, onAnswered }:
   const [locating, setLocating] = useState(false);
   const [busy, setBusy] = useState<Busy | null>(null);
   const [now, setNow] = useState(0);
-  const [result, setResult] = useState<WhereResult | null>(null);
+  const [reply, setResult] = useState<WhereResult | null>(null);
+  // Too few passes known already: the answer, unless the visitor asks to look anyway. A search that
+  // came back first keeps its own answer: the check counts its own tones, cut differently.
+  const [anyway, setAnyway] = useState(false);
+  const [candidates, setCandidates] = useState(false);
+  const result = reply ?? (few && !anyway ? FEW : null);
   const [searchedDay, setSearchedDay] = useState(false);
   const [shown, setShown] = useState(0);
   const worker = useRef<Worker | null>(null);
@@ -87,9 +93,14 @@ export function FindWhere({ picked, archive, onSearching, onHeard, onAnswered }:
   const atStart = useRef(0);
   const verdict = useRef<HTMLHeadingElement>(null);
   const mapShot = useRef<MapShot | null>(null);
-  const watching = useRef(false);
+  const watching = useRef(!!few);
+  const wrongTitle = useRef<HTMLHeadingElement>(null);
 
   useEffect(() => () => worker.current?.terminate(), []);
+  // The button asked for them is gone: the visitor goes on from what it opened.
+  useEffect(() => {
+    if (candidates) wrongTitle.current?.focus({ preventScroll: true });
+  }, [candidates]);
 
   // The days the archive holds, to offer only those. Without the list, any day can be typed, and
   // the search says when the archive has none for it.
@@ -114,6 +125,7 @@ export function FindWhere({ picked, archive, onSearching, onHeard, onAnswered }:
     setResult(null);
     onAnswered?.(false);
     setShown(0);
+    setCandidates(false);
     setError(null);
   };
 
@@ -252,6 +264,7 @@ export function FindWhere({ picked, archive, onSearching, onHeard, onAnswered }:
       phone: isPhone(),
       window: searched,
       area: { lat: place.lat, lon: place.lon, side: SQUARE },
+      anyway,
     };
     w.postMessage(request, audio.channels.map((c) => c.buffer as ArrayBuffer));
   };
@@ -393,8 +406,10 @@ export function FindWhere({ picked, archive, onSearching, onHeard, onAnswered }:
 
   const showing = (r: WhereResult) => {
     if (r.kind === "none") return { title: t.result.none, text: t.result.noneText };
+    if (r.kind === "few") return { title: t.result.few, text: t.result.fewText };
     if (r.kind === "missing") return { title: fill(t.result.missing, { day: r.day }), text: t.result.missingText };
     if (!r.guesses.length) return { title: t.result.nothing, text: t.result.nothingText };
+    if (!r.named) return { title: t.result.thin, text: t.result.thinText };
     if (r.confident) return { title: t.result.sure, text: t.result.sureText };
     return { title: t.result.best, text: t.result.honest };
   };
@@ -568,10 +583,12 @@ export function FindWhere({ picked, archive, onSearching, onHeard, onAnswered }:
   });
 
   const said = result && showing(result);
-  const found = result?.kind === "found" && result.guesses.length ? result : null;
+  // Answers that may not lead stay out of sight until asked for, and never lead then either.
+  const refused = result?.kind === "found" && !result.named && result.guesses.length > 0;
+  const found = result?.kind === "found" && result.guesses.length && (result.named || candidates) ? result : null;
   const best = found?.guesses[0];
   const guess = found?.guesses[shown] ?? best;
-  const unsure = found && !found.confident;
+  const unsure = found && found.named && !found.confident;
   // The map numbers the other answers from 2: they are drawn beside the best one, not beside another.
   const others = useMemo(() => (found && shown === 0 ? found.guesses.slice(1).map(({ lat, lon }) => ({ lat, lon })) : []), [found, shown]);
 
@@ -586,15 +603,43 @@ export function FindWhere({ picked, archive, onSearching, onHeard, onAnswered }:
             <h2 ref={verdict} tabIndex={-1} className={`${TITLE} scroll-mt-4 outline-none`} data-testid="where-verdict">
               {said.title}
             </h2>
-            {found && best && lead(best, found.confident)}
-            <p className={`text-pretty text-mute ${found ? "" : "max-w-prose text-lg"}`} data-testid="where-said">
+            {found?.named && best && lead(best, found.confident)}
+            <p className={`text-pretty text-mute ${found?.named ? "" : "max-w-prose text-lg"}`} data-testid="where-said">
               {said.text}
             </p>
-            {unsure && found.passes < 2 && <p className="text-pretty text-mute">{t.result.onePass}</p>}
-            {unsure && searchedDay && <p className="text-pretty text-ink">{t.result.dayHint}</p>}
+            {(unsure || refused) && searchedDay && <p className="text-pretty text-ink">{t.result.dayHint}</p>}
           </header>
 
-          {found && best && (
+          {result.kind === "few" && (
+            <button
+              type="button"
+              onClick={() => {
+                stop();
+                setAnyway(true);
+              }}
+              className={`${QUIET} w-fit`}
+              data-testid="where-anyway"
+            >
+              {t.result.anyway}
+            </button>
+          )}
+
+          {refused && !candidates && (
+            <button type="button" onClick={() => setCandidates(true)} aria-expanded={false} className={`${QUIET} w-fit`} data-testid="where-candidates">
+              {t.result.candidates}
+            </button>
+          )}
+
+          {refused && candidates && (
+            <div className="flex flex-col gap-1" data-testid="where-probably-wrong">
+              <h3 ref={wrongTitle} tabIndex={-1} className="text-xl font-semibold tracking-tight text-balance text-ink outline-none">
+                {t.result.wrongTitle}
+              </h3>
+              <p className="max-w-prose text-pretty text-mute">{t.result.wrongText}</p>
+            </div>
+          )}
+
+          {found?.named && best && (
             <div className="flex flex-col gap-2" data-testid="where-share">
               <Share
                 label={t.result.share}
@@ -633,7 +678,7 @@ export function FindWhere({ picked, archive, onSearching, onHeard, onAnswered }:
                     aria-pressed={i === shown}
                     className={`rounded-xl border px-4 py-2 text-left text-sm tabular-nums transition ${i === shown ? "border-amber text-ink" : "border-line text-mute hover:border-mute"}`}
                   >
-                    {fill(i === 0 ? t.result.first : i === 1 ? t.result.next : t.result.later, values)}
+                    {fill(!found.named ? (i === 0 ? t.result.candidateOne : t.result.candidate) : i === 0 ? t.result.first : i === 1 ? t.result.next : t.result.later, values)}
                   </button>
                 );
               })}
@@ -642,9 +687,11 @@ export function FindWhere({ picked, archive, onSearching, onHeard, onAnswered }:
 
           {found && guess && answer(guess, found.views, found.confident, guess === best, others)}
 
-          <button type="button" onClick={stop} className={`${QUIET} w-fit`} data-testid="where-again">
-            {t.result.again}
-          </button>
+          {result.kind !== "few" && (
+            <button type="button" onClick={stop} className={`${QUIET} w-fit`} data-testid="where-again">
+              {t.result.again}
+            </button>
+          )}
         </div>
       )}
     </div>

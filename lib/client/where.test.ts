@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { clockOf, coordinates, daysOf, distinctAnswers, metresApart, offsetAt, osmLink, parseCoordinates, passesOf, prefillOf, townOf, windowOf, partsOf } from "./where";
+import { clockOf, coordinates, daysOf, distinctAnswers, metresApart, namesAPlace, offsetAt, osmLink, parseCoordinates, passesOf, prefillOf, townOf, windowOf, partsOf } from "./where";
 
 const at = (iso: string) => Date.parse(iso) / 1000;
 
@@ -103,6 +103,25 @@ describe("the window searched", () => {
     expect(daysOf([at("2026-05-16T18:00:00Z"), at("2026-05-16T19:00:00Z")], 170)).toEqual(["2026-05-16"]);
     expect(daysOf([at("2026-05-16T23:30:00Z"), at("2026-05-16T23:59:00Z")], 3600)).toEqual(["2026-05-16", "2026-05-17"]);
     expect(daysOf([at("2026-05-16T07:00:00Z"), at("2026-05-17T07:00:00Z")], 60)).toEqual(["2026-05-16", "2026-05-17"]);
+  });
+});
+
+describe("namesAPlace", () => {
+  it("takes three passes and three planes heard well on the best answer", () => {
+    expect(namesAPlace(3, 3, 20, 20)).toBe(true);
+    expect(namesAPlace(2, 3, 20, 20)).toBe(false);
+    expect(namesAPlace(3, 2, 20, 20)).toBe(false);
+  });
+
+  it("takes a third of the file's passes: a long file holds three chance fits", () => {
+    expect(namesAPlace(9, 3, 20, 20)).toBe(true);
+    expect(namesAPlace(10, 3, 20, 20)).toBe(false);
+    expect(namesAPlace(31, 3, 20, 20)).toBe(false);
+  });
+
+  it("takes a rank the search's size does not make by chance", () => {
+    expect(namesAPlace(6, 3, 15.7, 19.6)).toBe(false);
+    expect(namesAPlace(6, 3, 19.6, 19.6)).toBe(true);
   });
 });
 

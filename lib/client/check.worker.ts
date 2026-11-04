@@ -5,6 +5,7 @@
 // leaves it.
 
 import { chunksOf, cleanOut, curvesOf, findTonesWith, inline, pictureOf, viewOf, type Picture, type Pieces, type Reader, type Tone, type View } from "../core/leak";
+import { flybyOfTone } from "../core/flyby";
 import { ANALYSIS_RATE } from "../core/rate";
 import { estimator, stagesOf, type Estimate } from "../core/progress";
 import type { Curve } from "../core/scrub";
@@ -14,6 +15,7 @@ import { sweep } from "./folder";
 import { openMedia, type MediaFile } from "./media";
 import { readMetadata, type CreatedAt, type Place } from "./metadata";
 import { openVideoWriter, planVideo, type Refusal, type VideoPlan } from "./remux";
+import { MIN_PASSES, passesOf } from "./where";
 import { withPieces, type Job as PoolJob } from "./pool";
 import { pcm16, WAV_HEADER, wavHeader } from "./wav";
 
@@ -27,6 +29,16 @@ export type CheckRequest =
   | { type: "draw"; id: number };
 
 export type Step = "open" | "find" | "clean" | "again" | "write";
+
+/** Separate passes of a plane in the tones, read strongest first, and only until there are enough: a real hour holds dozens of tones. */
+function passesHeard(tones: Tone[]): number {
+  const closest: number[] = [];
+  for (const tone of [...tones].sort((a, b) => b.confidence - a.confidence)) {
+    closest.push(flybyOfTone(tone).closest);
+    if (passesOf(closest) >= MIN_PASSES) break;
+  }
+  return passesOf(closest);
+}
 
 /** A tone the page can show, and where it lies. `gone`: it was taken out, so it has a picture of after as well. */
 export type Found = { id: number; tone: Tone; view: View; gone?: boolean };
@@ -53,6 +65,8 @@ export type CheckEvent =
   /** How many workers this device and this file leave room for in the job that starts. */
   | { type: "workers"; count: number }
   | { type: "found"; duration: number; found: Found[] }
+  /** How many separate passes of a plane the tones make: what a search of this file could stand on. */
+  | { type: "passes"; passes: number }
   | ({ type: "cleaned"; cleaned: Found[]; left: Found[] } & Written)
   /** How a tone looks, and how it looks once taken out. */
   | { type: "drawn"; id: number; before: Picture; after?: Picture }
@@ -164,6 +178,7 @@ async function find(s: Session, source: SoundSource) {
   );
   s.current = told(s, tones, s.store.read);
   post({ type: "found", duration: s.duration, found: s.current });
+  post({ type: "passes", passes: passesHeard(tones) });
 }
 
 async function open(file: File, folder: string, partial: boolean, phone: boolean) {

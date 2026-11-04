@@ -71,7 +71,7 @@ const OUTLINE = "w-full rounded-full border border-line px-7 py-3 text-lg font-m
 const PRIMARY = "w-full rounded-full bg-amber px-7 py-3 text-center text-lg font-medium text-night transition hover:bg-amber-soft sm:w-fit";
 const QUIET = "text-mute underline-offset-4 transition hover:text-ink hover:underline";
 
-export function Check({ file, elsewhere, note, facts, find, fold, hold, heard, answered, onSettled, children }: { file: File; elsewhere?: Route; note?: string | null; facts?: ReactNode; find?: ReactNode; fold?: boolean; hold?: boolean; heard?: Heard | null; answered?: boolean; onSettled?: () => void; children?: ReactNode }) {
+export function Check({ file, elsewhere, note, facts, find, fold, hold, heard, answered, onSettled, onPasses, children }: { file: File; elsewhere?: Route; note?: string | null; facts?: ReactNode; find?: ReactNode; fold?: boolean; hold?: boolean; heard?: Heard | null; answered?: boolean; onSettled?: () => void; onPasses?: (passes: number) => void; children?: ReactNode }) {
   const { m, fill, plural, locale } = useI18n();
   const t = m.check;
   const [state, setState] = useState<State>({ kind: "open", busy: { step: "open", done: 0, total: 1 } });
@@ -108,6 +108,7 @@ export function Check({ file, elsewhere, note, facts, find, fold, hold, heard, a
     else if (e.type === "no-sound") setState({ kind: "failed", error: t.errors.noSound });
     else if (e.type === "found") setState({ kind: "found", found: e.found });
     else if (e.type === "workers") setWorkers(e.count);
+    else if (e.type === "passes") onPasses?.(e.passes);
     else if (e.type === "drawn") setDrawn((d) => ({ ...d, [e.id]: { before: e.before, after: e.after } }));
     else if (e.type === "cleaned") setState({ kind: "cleaned", cleaned: e.cleaned, left: e.left, url: URL.createObjectURL(e.file), written: e });
     else setState({ kind: "failed", error: fill(t.errors.failed, { message: e.message }) });
@@ -248,7 +249,7 @@ export function Check({ file, elsewhere, note, facts, find, fold, hold, heard, a
           )}
           {state.kind !== "open" && state.kind !== "failed" && (
             <h2 className="text-2xl font-semibold tracking-tight text-balance" role="status" data-testid="check-verdict">
-              {none ? t.none : state.kind === "found" ? plural(state.found.length, t.found) : state.left.length ? plural(state.left.length, t.left) : plural(state.cleaned.length, t.gone)}
+              {none ? t.none : state.kind === "found" ? plural(state.found.length, answered ? t.foundIn : t.found) : state.left.length ? plural(state.left.length, t.left) : plural(state.cleaned.length, t.gone)}
             </h2>
           )}
         </div>

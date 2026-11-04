@@ -228,6 +228,8 @@ const JET_TONE = 500;
 const GOOD = 0.4;
 /** What an aircraft that passed close but explains nothing costs, in nats. */
 const SILENT = 4;
+/** What an answer ranks by: what its flyovers are worth by the sound alone, then the prior against the open water. */
+export const rankOf = (h: { worth: number; silent: string[]; atSea: boolean }) => h.worth - SILENT * h.silent.length - (h.atSea ? AT_SEA : 0);
 /** Flyovers scanned at most, one tone each. */
 const LEADS = 12;
 /** Each tone's best fits that look for the other tones' fits next to them. */
@@ -493,7 +495,6 @@ export async function whereWhen(segments: Segment[], flights: Flight[], options:
   }
   // What a spot is worth by the sound alone, then with the prior against the open water.
   const heardOf = (h: { worth: number; silent: string[] }) => h.worth - SILENT * h.silent.length;
-  const rankOf = (h: { worth: number; silent: string[]; atSea: boolean }) => heardOf(h) - (h.atSea ? AT_SEA : 0);
   // The best of them read with every trace, silence counted.
   const hypotheses: Hypothesis[] = [];
   const everyTrace = shapes.map((_, ti) => ti);
