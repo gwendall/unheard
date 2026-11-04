@@ -9,7 +9,9 @@ import { wavBlob } from "./wav";
 
 export type CheckRequest =
   /** `partial`: also send each tone as soon as it is found. */
-  { type: "find"; channels: Float32Array[]; sampleRate: number; partial?: boolean } | { type: "clean" };
+  | { type: "find"; channels: Float32Array[]; sampleRate: number; partial?: boolean }
+  /** `sound`, the first time: at the rate the cleaned file is written at. Finding needs only the analysis rate. */
+  | { type: "clean"; sound?: Audio };
 
 export type Step = "find" | "clean" | "again" | "write";
 
@@ -90,8 +92,9 @@ scope.onmessage = (e: MessageEvent<CheckRequest>) => {
     if (e.data.type === "find") {
       audio = { channels: e.data.channels, sampleRate: e.data.sampleRate };
       find(audio, !!e.data.partial);
-    } else if (audio) {
-      cleanUp(audio);
+    } else {
+      if (e.data.sound) audio = e.data.sound;
+      if (audio) cleanUp(audio);
     }
   } catch (err) {
     post({ type: "error", message: err instanceof Error ? err.message : String(err) });

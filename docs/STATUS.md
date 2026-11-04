@@ -73,8 +73,8 @@ What a visitor goes through, and where it lives:
   whole page takes a drop. In order, each as soon as it is known: what the file says about itself
   (`lib/client/metadata.ts`: GPS first and big, then date, time, device), its aircraft tones, each
   as it is found (its curve at once, its picture at the end), in the file's order, with a one-line verdict, then two actions side by side, "Find where" and "Take them out", and the link
-  to Somewhere else. A clear state for each failure: no sound (`check.errors.open`), a file past 2
-  GB (`lib/client/decode.ts`), no tone (no action offered, and never "safe"), a day not in the
+  to Somewhere else. "Find where" is there from the start and waits for nothing. The sound is decoded once, at 8 kHz (`soundOf`), for the check and the search; a running search stops the check, shows the tones it finds in the check's place, and the check starts again after it, so a phone never does both. The 48 kHz sound is decoded only when "Take them out" is pressed. A clear state for each failure: no sound (`check.errors.open`), a file past 2
+  GB (`lib/client/decode.ts`), no tone (no action offered unless a search is already open, and never "safe"), a day not in the
   archive, no flight fitting. With no tag found it says only that, and that some cameras keep GPS
   where we do not look, never that the file is silent. The verdict and actions keep their places as
   results arrive, checked by rect in `e2e/where.spec.ts`; "What we check" comes back under the card
