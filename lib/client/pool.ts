@@ -39,6 +39,13 @@ export function poolSize(cores: number, memoryGb?: number): number {
   return Math.max(1, Math.min(most, Math.floor(cores) - 1));
 }
 
+/**
+ * A worker silent this long is taken for lost, and its piece fails: a job must never wait on what
+ * will not answer. Too soon only costs doing the piece again here, with the same result; a piece
+ * tells how far it has got many times a second, and a worker loading under load takes seconds.
+ */
+export const SILENT_MS = 60_000;
+
 /** Workers made as pieces arrive, never more than `size`, stopped by `close`. */
 export function poolOf<In, Out>(make: () => PoolWorker, size: number): Pool<In, Out> {
   type Waiting = { input: In; transfer: Transferable[]; onShare?: (share: number) => void; resolve: (out: Out) => void; reject: (err: Error) => void };
@@ -63,11 +70,35 @@ export function poolOf<In, Out>(make: () => PoolWorker, size: number): Pool<In, 
       const id = nextId++;
       running.set(id, job);
       owner.set(worker, id);
+      watch(worker);
       worker.postMessage({ id, input: job.input } satisfies Piece<In>, job.transfer);
     }
   };
 
   const owner = new Map<PoolWorker, number>();
+  const watches = new Map<PoolWorker, ReturnType<typeof setTimeout>>();
+  const unwatch = (worker: PoolWorker) => {
+    clearTimeout(watches.get(worker));
+    watches.delete(worker);
+  };
+  const watch = (worker: PoolWorker) => {
+    unwatch(worker);
+    watches.set(worker, setTimeout(() => lose(worker, new Error("silent")), SILENT_MS));
+  };
+  /** A worker gone: it never gets another piece, the one it held fails, and the pool goes on with one less. */
+  const lose = (worker: PoolWorker, why: Error) => {
+    unwatch(worker);
+    const id = owner.get(worker);
+    const job = id === undefined ? undefined : running.get(id);
+    if (id !== undefined) running.delete(id);
+    owner.delete(worker);
+    workers.splice(workers.indexOf(worker), 1);
+    if (idle.includes(worker)) idle.splice(idle.indexOf(worker), 1);
+    lost++;
+    worker.terminate();
+    job?.reject(why);
+    pump();
+  };
   const start = (): PoolWorker | undefined => {
     let worker: PoolWorker;
     try {
@@ -82,9 +113,11 @@ export function poolOf<In, Out>(make: () => PoolWorker, size: number): Pool<In, 
       const job = running.get(reply.id);
       if (!job) return;
       if ("share" in reply) {
+        watch(worker);
         job.onShare?.(reply.share);
         return;
       }
+      unwatch(worker);
       running.delete(reply.id);
       owner.delete(worker);
       if ("error" in reply) job.reject(new Error(reply.error));
@@ -92,19 +125,10 @@ export function poolOf<In, Out>(make: () => PoolWorker, size: number): Pool<In, 
       idle.push(worker);
       pump();
     };
-    // A worker that dies takes its piece with it: that piece fails, and the pool goes on with one less.
     // Heard here, so it goes no further: unheard, it would reach the page as this job's own failure.
     worker.onerror = (e: ErrorEvent) => {
       e.preventDefault();
-      const id = owner.get(worker);
-      const job = id === undefined ? undefined : running.get(id);
-      if (id !== undefined) running.delete(id);
-      owner.delete(worker);
-      workers.splice(workers.indexOf(worker), 1);
-      lost++;
-      worker.terminate();
-      job?.reject(new Error(e.message || "worker"));
-      pump();
+      lose(worker, new Error(e.message || "worker"));
     };
     return worker;
   };
@@ -113,11 +137,14 @@ export function poolOf<In, Out>(make: () => PoolWorker, size: number): Pool<In, 
     size,
     run: (input, transfer = [], onShare) =>
       new Promise<Out>((resolve, reject) => {
+        if (closed) return reject(new Error("closed"));
         queue.push({ input, transfer, onShare, resolve, reject });
         pump();
       }),
     close: () => {
       closed = true;
+      for (const worker of watches.keys()) clearTimeout(watches.get(worker));
+      watches.clear();
       for (const worker of workers) worker.terminate();
       workers.length = 0;
       idle.length = 0;
