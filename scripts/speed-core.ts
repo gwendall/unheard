@@ -201,10 +201,20 @@ async function benchWhere() {
   const stages = { traces, search: Infinity };
   let ms: WhereWhen["ms"] | null = null;
   for (let run = 0; run < runs; run++) {
-    const [ww, cpu] = await measure(() => whereWhen(segments, flights, options));
+    // CPU by stage, from the search's own progress: `ms` is wall time, and the machine is shared.
+    const byStage: Record<string, number> = {};
+    let stage = "";
+    let mark = process.cpuUsage();
+    const close = () => {
+      const { user, system } = process.cpuUsage(mark);
+      if (stage) byStage[stage] = Number(fixed((byStage[stage] ?? 0) + (user + system) / 1e6));
+      mark = process.cpuUsage();
+    };
+    const [ww, cpu] = await measure(() => whereWhen(segments, flights, { ...options, onProgress: (s) => { if (s !== stage) { close(); stage = s; } } }));
+    close();
     stages.search = Math.min(stages.search, cpu);
     ms = ww.ms;
-    console.log(`run ${run + 1}: ${fixed(cpu)} s CPU, ${ww.answers.length} answers, ${ww.candidates} fits, stages (wall ms) ${JSON.stringify(ww.ms)}`);
+    console.log(`run ${run + 1}: ${fixed(cpu)} s CPU, ${ww.answers.length} answers, ${ww.candidates} fits, CPU by stage ${JSON.stringify(byStage)}, stages (wall ms) ${JSON.stringify(ww.ms)}`);
   }
   console.log(JSON.stringify({ window, segments: segments.length, flights: flights.length, cpu: { traces: Number(fixed(stages.traces, 3)), search: Number(fixed(stages.search, 3)) }, ms, peakMB: peakMB() }));
 }
@@ -227,7 +237,7 @@ const analysisGolden = async (id: string, rec: Recording) => {
 
 async function golden() {
   const out: Record<string, unknown> = {};
-  const scenarios = plan(30).slice(0, Number(flag("first") ?? 1e9));
+  const scenarios = args.includes("--where-only") ? [] : plan(30).slice(0, Number(flag("first") ?? 1e9));
   const analyses: unknown[] = [];
   for (const [kind, seed] of scenarios) {
     const s = syntheticScenario(seed, kind);
@@ -236,7 +246,7 @@ async function golden() {
   }
   out.analyze = analyses;
   const flyby = new URL("../e2e/fixtures/flyby.wav", import.meta.url);
-  if (existsSync(flyby)) {
+  if (existsSync(flyby) && !args.includes("--where-only")) {
     const { read, length } = readerOf(readWav(flyby.pathname));
     out.tones = findTones(read, chunksOf(length)).map(toneOfGolden);
     console.log("tones");

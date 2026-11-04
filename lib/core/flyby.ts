@@ -69,8 +69,6 @@ export type Flyby = {
   candidates: number;
 };
 
-const rho = (x: number) => Math.log1p(0.5 * x * x);
-
 /** Speeds tried, m/s: a glider's tow to a jet on approach. */
 export const SPEEDS = Array.from({ length: 36 }, (_, i) => 20 + 4 * i);
 /** d / v, seconds: how long the pass takes, 1 s (low and fast) to 3 min (far and slow). */
@@ -104,14 +102,6 @@ function curveOf(beta: number): Float64Array {
   curves.set(key, table);
   return table;
 }
-const lookup = (table: Float64Array, eta: number) => {
-  const x = (eta + ETA) / ETA_STEP;
-  if (x <= 0) return table[0];
-  if (x >= table.length - 1) return table[table.length - 1];
-  const i = Math.floor(x);
-  return table[i] + (x - i) * (table[i + 1] - table[i]);
-};
-
 export type Shape = {
   /** File seconds and log frequency of the trace frames used (every second). */
   times: Float64Array;
@@ -139,30 +129,56 @@ export function framesOf(trace: Trace, times: Float64Array, offset: number): { t
 
 export function shapeOf(t: Float64Array, y: Float64Array, c: number): Shape {
   const n = t.length;
+  const table = curveOf(SPEEDS[0] / c);
   const V = SPEEDS.length;
   const W = WIDTHS.length;
   const at = new Float32Array(V * W).fill(NaN);
   const loss = new Float32Array(V * W).fill(Infinity);
   const r = new Float64Array(n);
+  const last = table.length - 1;
   let best = Infinity;
   let logF0 = NaN;
   let cell = 0;
   for (let vi = 0; vi < V; vi++) {
-    const table = curveOf(SPEEDS[vi] / c);
+    const curve = curveOf(SPEEDS[vi] / c);
     for (let wi = 0; wi < W; wi++) {
       const w = WIDTHS[wi];
       const step = Math.max(0.25, w / 8);
+      const here = vi * W + wi;
+      let top = Infinity;
       for (let sc = t[0] - 2 * w; sc <= t[n - 1] + 2 * w; sc += step) {
         let mean = 0;
-        for (let i = 0; i < n; i++) mean += r[i] = y[i] - lookup(table, (t[i] - sc) / w);
+        for (let i = 0; i < n; i++) {
+          // lookup(curve, (t[i] - sc) / w), in place: this loop runs a hundred million times an hour of sound.
+          const q = ((t[i] - sc) / w + ETA) / ETA_STEP;
+          let v: number;
+          if (q <= 0) v = curve[0];
+          else if (q >= last) v = curve[last];
+          else {
+            const a = q | 0;
+            v = curve[a] + (q - a) * (curve[a + 1] - curve[a]);
+          }
+          mean += r[i] = y[i] - v;
+        }
         mean /= n;
+        // No term is negative: past what this cell has already done, nothing can come of this try.
+        const limit = top * n;
         let l = 0;
-        for (let i = 0; i < n; i++) l += rho((r[i] - mean) / SHAPE_SIGMA);
+        for (let i = 0; i < n && l < limit; i++) {
+          const z = (r[i] - mean) / SHAPE_SIGMA;
+          l += Math.log1p(0.5 * z * z);
+        }
+        if (l >= limit) continue;
         l /= n;
-        if (l < loss[vi * W + wi]) {
-          loss[vi * W + wi] = l;
-          at[vi * W + wi] = sc;
-          if (l < best) [best, logF0, cell] = [l, mean, vi * W + wi];
+        if (l < top) {
+          top = l;
+          loss[here] = l;
+          at[here] = sc;
+          if (l < best) {
+            best = l;
+            logF0 = mean;
+            cell = here;
+          }
         }
       }
     }
