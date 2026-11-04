@@ -127,9 +127,9 @@ export function Where({ archive, elsewhere, example, scope }: { archive: string 
       {m.example.chip}
     </span>
   );
-  // Next to the result and from the first moment: a named place is what this file was made to get, and most real ones do not.
+  // Next to the result and from the first moment: this file was mixed to get a named place, and no real test recording got one.
   const exampleNote = (
-    <p className="text-lg text-pretty text-amber-soft" data-testid="example-note">
+    <p className="text-base text-pretty text-amber-soft" data-testid="example-note">
       {m.example.note}
     </p>
   );

@@ -26,7 +26,7 @@
     "label": "Voir un exemple de résultat : un Cessna 172 Skyhawk retrouvé dans un enregistrement simulé",
     "chip": "Exemple simulé",
     "file": "enregistrement-simule.wav",
-    "note": "Simulé : de vrais avions, un son fabriqué. La plupart des vrais extraits donnent « Impossible de dire ».",
+    "note": "Simulé : vrais avions, son fabriqué, mélangé pour montrer un cas net. Aucun de nos vrais enregistrements de test n'a obtenu de lieu : ils reçoivent « Impossible de dire ».",
     "own": "Essayer avec votre fichier",
     "failed": "L'exemple n'a pas pu se charger. Réessayez, ou utilisez votre fichier.",
     "found": "Trouvé",

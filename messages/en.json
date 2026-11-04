@@ -26,7 +26,7 @@
     "label": "See an example result: a Cessna 172 Skyhawk found in a simulated recording",
     "chip": "Simulated example",
     "file": "simulated-recording.wav",
-    "note": "Simulated: real planes, made-up sound. Most real clips get \"Can't tell\".",
+    "note": "Simulated: real planes, made-up sound, mixed to show a clean case. None of our real test recordings got a place: they get \"Can't tell\".",
     "own": "Try your own file",
     "failed": "The example did not load. Try again, or use your own file.",
     "found": "Found it",

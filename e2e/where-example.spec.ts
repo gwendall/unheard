@@ -3,7 +3,7 @@ import { expect, test, type Page } from "@playwright/test";
 // /example: no file to drop, the same page, the same search on the same archive, the same rule. What
 // is simulated says so from the first moment to the last, and most real files do not end like this.
 
-const NOTE = `Simulated: real planes, made-up sound. Most real clips get "Can't tell".`;
+const NOTE = `Simulated: real planes, made-up sound, mixed to show a clean case. None of our real test recordings got a place: they get "Can't tell".`;
 const STAY = ["where-name", "example-chip", "example-note", "answer-why"];
 const rectsOf = (page: Page) =>
   page.evaluate((ids) => Object.fromEntries(ids.map((id) => [id, document.querySelector(`[data-testid="${id}"]`)?.getBoundingClientRect().toJSON()])), STAY);
