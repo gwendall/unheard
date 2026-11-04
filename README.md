@@ -85,8 +85,10 @@ aircraft's sound, a better matcher, or build a listening station. See
 
 ## Data and licenses
 
-- Code: [MIT](LICENSE). The check page reads video files with
-  [Mediabunny](https://mediabunny.dev) (MPL-2.0, used as it is published).
+- Code: [MIT](LICENSE). The check page reads and writes video files with
+  [Mediabunny](https://mediabunny.dev) (MPL-2.0, used as it is published). Where a browser has no AAC
+  encoder it loads `@mediabunny/aac-encoder` (MPL-2.0), a WebAssembly build of FFmpeg's AAC encoder
+  (LGPL 2.1 or later, license files and build steps in that package).
 - Flight track fixtures in `evals/fixtures/sky/`: from [adsb.lol](https://adsb.lol), under the
   [ODbL 1.0](https://opendatacommons.org/licenses/odbl/1-0/). Attribution: adsb.lol and its
   feeders.

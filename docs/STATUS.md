@@ -93,13 +93,19 @@ What a visitor goes through, and where it lives:
   3.4 kHz in the same chunk). "Take them out" runs the rounds of take out and look again on that copy
   (scrub, the emptied band filled with noise at its neighbours' level), then takes every curve out of
   the file's own sound in one more pass, 20 s at a time, and searches what comes out again: that is
-  what is shown before and after and downloaded as a WAV, written to the private files as it goes.
+  what is shown before and after and written to the private files as it goes. A video comes back as
+  a video (`lib/client/remux.ts`, MP4, MOV, WebM, Matroska): the same packets, never re-encoded, under
+  the cleaned sound (AAC or Opus from the browser's encoder, AAC from a WebAssembly one where it has
+  none, loaded only then), in a new file with no tag, no date and no other track; the page names what
+  was left out. A sound file comes back as a WAV, and so does a video the browser cannot write (MPEG-TS,
+  AVI, no encoder), with one line saying why. A video with no sound track says so.
   The verdict and the tones go to the page as soon as they are known; a tone's pictures are drawn
   when the page shows it (the three strongest, the others when opened), the "before" from a copy of
   the sound made when taking out starts, so nothing waits for them.
   Nothing leaves the device; those files go when the visitor moves on, or on a later visit if a tab
   died. Measured by `evals/leak.eval.ts`, which runs that same path: on AeroSonicDB, tones found in
-  9 of 9 clips, 6 named before, none after.
+  9 of 9 clips, 6 named before, none after. On a 30-minute, 1.83 GB video in Chrome the browser peaks
+  at 1.7 GB finding its tones and 2.2 GB taking them out (5 GB and 4.5 GB when the file was decoded whole).
 
 - **Find where** (`components/FindWhere.tsx`, `components/PlaceMap.tsx`,
   `lib/client/where.ts`, `lib/client/where.worker.ts`): a spot and a start

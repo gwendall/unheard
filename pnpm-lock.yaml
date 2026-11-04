@@ -8,6 +8,9 @@ importers:
 
   .:
     dependencies:
+      '@mediabunny/aac-encoder':
+        specifier: 1.65.1
+        version: 1.65.1(mediabunny@1.65.1)
       '@protomaps/basemaps':
         specifier: 5.7.2
         version: 5.7.2
@@ -569,6 +572,11 @@ packages:
 
   '@maplibre/vt-pbf@4.3.3':
     resolution: {integrity: sha512-dEe5XUd64RQbxNxy2OzIkJnwNDWjVmSXjCd0A7zLirm7QJ/WWbmtDFIkfsiM4yt1cplqzG6oSivRYeWx1SM1yg==}
+
+  '@mediabunny/aac-encoder@1.65.1':
+    resolution: {integrity: sha512-lhKI04oePfkGcsIic/cgaGQgO6ICcAz1v/dxTNnvpm8vI3I2lm3/8yVn/i1Kkrrnq4W+sU2uYVxPFsZAVW28/g==}
+    peerDependencies:
+      mediabunny: ^1.0.0
 
   '@next/env@16.4.2':
     resolution: {integrity: sha512-nTUTFH7G5/J/fmpkjVLegOkqyKOP0CEsJcMsyO4UCYeN1su+YMW/MfaSErnJskL7XM+UDK6aTvslxsRCyya/sA==}
@@ -3059,6 +3067,10 @@ snapshots:
       '@mapbox/point-geometry': 1.1.0
       '@types/geojson': 7946.0.16
       pbf: 5.1.2
+
+  '@mediabunny/aac-encoder@1.65.1(mediabunny@1.65.1)':
+    dependencies:
+      mediabunny: 1.65.1
 
   '@next/env@16.4.2': {}
 

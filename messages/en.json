@@ -345,7 +345,7 @@
       "find": "Listening for aircraft tones, {n} %",
       "clean": "Taking the tones out, {n} %",
       "again": "Checking again, {n} %",
-      "write": "Writing the cleaned sound, {n} %",
+      "write": "Writing the cleaned file, {n} %",
       "held": "Waiting for the search to finish."
     },
     "found": { "one": "An aircraft tone that could place this file.", "other": "{n} aircraft tones that could place this file." },
@@ -363,6 +363,24 @@
     "leftText": "Taking a tone out can bring a fainter one to light. You can take them out again.",
     "download": "Download the cleaned sound",
     "remux": "A WAV file. To put it back in your video: in your editor, mute the video's own sound and place this WAV at the very start. It has the same length, so it lines up.",
+    "video": {
+      "download": "Download the cleaned video",
+      "kept": "This new file holds the same picture, copied without re-encoding, and the cleaned sound. Nothing else comes across: no other tag, no GPS track.",
+      "removed": "Left out of this copy: {list}.",
+      "nothing": "We found no date, place or device in your file, and this copy holds none.",
+      "place": "the place it named ({place})",
+      "date": "the date it named ({date})",
+      "device": "the device it named ({device})",
+      "tracks": {
+        "one": "one more track",
+        "other": "{n} more tracks"
+      },
+      "seen": "The picture itself can still give the place away: a street sign, a skyline, a shop. A few cameras also write their position into the picture data, which we copy as it is.",
+      "why": {
+        "encoder": "This browser cannot encode the sound of a video, so here is the cleaned sound alone. Your video still holds any date, place or device it had.",
+        "container": "We cannot write this kind of video, so here is the cleaned sound alone. Your video still holds any date, place or device it had."
+      }
+    },
     "suffix": "cleaned",
     "tone": "{start} to {end} in the file, {from} to {to} Hz, {sure}",
     "sure": { "clear": "stands out clearly", "likely": "stands out", "faint": "faint, but there" },
@@ -371,6 +389,7 @@
     "picture": "Spectrum of the recording around the tone",
     "errors": {
       "open": "This file has no sound we can read: it may have no sound track, or one this browser cannot open. Try another browser, or the sound alone as an M4A, MP3 or WAV.",
+      "noSound": "This video has no sound track: no aircraft tone to find, nothing to take out. That does not make it safe: what it says about itself and its picture can still give it away.",
       "tooBig": "This file is too big for a browser to open whole, and this one could not read it piece by piece. Try a shorter part of it, or its sound alone as an M4A, MP3 or WAV.",
       "failed": "Something went wrong while checking this file: {message}"
     },

@@ -1,9 +1,10 @@
 // The check page's work, off the page's thread so a long file never freezes it: read the file's
 // sound once into a store (lib/core/stream.ts), find the tones (lib/core/leak.ts), take them out,
-// look again, and write the cleaned file. The file's sound stays here and on this device, and never
+// look again, and write the cleaned file: the same video under the cleaned sound (lib/client/remux.ts),
+// or the sound alone when it cannot be. The file's sound stays here and on this device, and never
 // leaves it.
 
-import { chunksOf, cleanOut, curvesOf, findTonesWith, pictureOf, viewOf, type Picture, type Reader, type Tone, type View } from "../core/leak";
+import { chunksOf, cleanOut, curvesOf, findTonesWith, pictureOf, viewOf, type Picture, type Pieces, type Reader, type Tone, type View } from "../core/leak";
 import { ANALYSIS_RATE } from "../core/rate";
 import { estimator, stagesOf, type Estimate } from "../core/progress";
 import type { Curve } from "../core/scrub";
@@ -11,6 +12,8 @@ import { copySound, memorySource, readInto, storedSound, takeOutOfFile, type Sou
 import { openSink, openStore } from "./disk";
 import { sweep } from "./folder";
 import { openMedia, type MediaFile } from "./media";
+import { readMetadata, type CreatedAt, type Place } from "./metadata";
+import { openVideoWriter, planVideo, type Refusal, type VideoPlan } from "./remux";
 import { withPieces } from "./pool";
 import { pcm16, WAV_HEADER, wavHeader } from "./wav";
 
@@ -31,14 +34,22 @@ export type Found = { id: number; tone: Tone; view: View; gone?: boolean };
 /** What comes before the end when the request asks (`partial`): the tones so far, strongest first, and where each lies. */
 export type CheckPartial = { type: "tones"; duration: number; tones: { tone: Tone; view: View }[] };
 
+/** What the visitor's video said about itself, and the new file does not. */
+export type Removed = { createdAt?: CreatedAt; location?: Place; device?: string; tracks: number };
+
+/** What the cleaned file is: a video, or the sound alone and why. */
+export type Kind = { extension: string } & ({ video: true; removed: Removed } | { video: false; why?: Refusal });
+
 /** The cleaned file, ready to download. */
-export type Written = { file: Blob; extension: string };
+export type Written = { file: Blob } & Kind;
 
 export type CheckEvent =
   /** `done` of `total` within the step; `fraction` and `secondsLeft` for what was asked, find or clean (lib/core/progress.ts). */
   | ({ type: "progress"; step: Step; done: number; total: number } & Estimate)
   /** The worker cannot read this file: the page decodes it, at the rate its container says if it says one. */
   | { type: "decode-here"; sampleRate?: number }
+  /** A video with no sound track: no tone to find, nothing to clean. */
+  | { type: "no-sound" }
   | { type: "found"; duration: number; found: Found[] }
   | ({ type: "cleaned"; cleaned: Found[]; left: Found[] } & Written)
   /** How a tone looks, and how it looks once taken out. */
@@ -73,6 +84,7 @@ function jobOf(stages: (stage: Step, share: number) => number) {
 }
 
 type Session = {
+  file: File;
   folder: string;
   media: MediaFile | null;
   source: SoundSource | null;
@@ -145,7 +157,11 @@ async function find(s: Session, source: SoundSource) {
 async function open(file: File, folder: string, partial: boolean) {
   void sweep().catch(() => {});
   const media = await openMedia(file);
-  session = { folder, media, source: null, store: await openStore(folder), partial, length: 0, duration: 0, rounds: [], current: [], writes: 0, drawable: [] };
+  if (media?.video && !media.audio) {
+    post({ type: "no-sound" });
+    return;
+  }
+  session = { file, folder, media, source: null, store: await openStore(folder), partial, length: 0, duration: 0, rounds: [], current: [], writes: 0, drawable: [] };
   if (media?.source) {
     try {
       await find(session, media.source);
@@ -157,21 +173,67 @@ async function open(file: File, folder: string, partial: boolean) {
   post({ type: "decode-here", sampleRate: media?.audio?.sampleRate });
 }
 
+/** A pass over the file's own sound, each cleaned block handed on. With `look`, returns what is still found in it. */
+type Pass = (consume: (block: Float32Array[]) => void | Promise<void>, look: boolean) => Promise<Tone[]>;
+type Outcome = { left: Tone[]; written: Written };
+type Job = ReturnType<typeof jobOf>;
+
 /** The sound as a WAV, written as it is cleaned. */
-async function writeWav(s: Session, source: SoundSource, onDone: (consume: (block: Float32Array[]) => void) => Promise<Tone[]>): Promise<{ left: Tone[]; written: Written }> {
+async function writeWav(s: Session, source: SoundSource, pass: Pass, why?: Refusal): Promise<Outcome> {
   const sink = await openSink(s.folder, `cleaned-${++s.writes}.wav`, WAV_HEADER + source.length * source.channels * 2);
-  const blank = new Uint8Array(WAV_HEADER);
-  sink.write(blank, 0);
+  sink.write(new Uint8Array(WAV_HEADER), 0);
   let at = WAV_HEADER;
   let frames = 0;
-  const left = await onDone((block) => {
+  const left = await pass((block) => {
     const bytes = new Uint8Array(pcm16(block));
     sink.write(bytes, at);
     at += bytes.length;
     frames += block[0]?.length ?? 0;
-  });
+  }, true);
   sink.write(new Uint8Array(wavHeader(source.channels, source.sampleRate, frames)), 0);
-  return { left, written: { file: await sink.finish("audio/wav"), extension: "wav" } };
+  return { left, written: { file: await sink.finish("audio/wav"), extension: "wav", video: false, why } };
+}
+
+/** What this file really holds: an encoder does not give back quite what it was given, and this is what anyone will hear. */
+async function heardIn(s: Session, file: Blob, job: Job, pieces: Pieces): Promise<Tone[]> {
+  const back = await openMedia(file);
+  if (back?.source) {
+    await readInto(back.source, s.store, (done, total) => {
+      job.count("again", done, total);
+      job.share(done / (2 * Math.max(1, total)));
+    });
+  }
+  return findTonesWith(pieces, s.store.read, chunksOf(s.length), ANALYSIS_RATE, { onChunk: (done, total) => job.count("again", done, total), onProgress: (part) => job.share(0.5 + part / 2) });
+}
+
+/** The same video under the cleaned sound, written as it is cleaned. */
+async function writeVideo(s: Session, media: MediaFile, plan: VideoPlan, source: SoundSource, pass: Pass, job: Job, pieces: Pieces): Promise<Outcome> {
+  const sink = await openSink(s.folder, `cleaned-${++s.writes}.${plan.extension}`, s.file.size);
+  const writer = await openVideoWriter(media.video!, plan, sink, { sampleRate: source.sampleRate, channels: source.channels, origin: media.origin });
+  try {
+    await pass((block) => writer.add(block), false);
+    const file = await writer.finish();
+    const left = await heardIn(s, file, job, pieces);
+    const { createdAt, location, device } = await readMetadata(s.file);
+    return { left, written: { file, extension: plan.extension, video: true, removed: { createdAt, location, device, tracks: (await media.input.getTracks()).length - 2 } } };
+  } catch (err) {
+    await writer.cancel().catch(() => {});
+    throw err;
+  }
+}
+
+/** A video back as a video when it can be, the sound alone when not. */
+async function writeFile(s: Session, source: SoundSource, pass: Pass, job: Job, pieces: Pieces): Promise<Outcome> {
+  const media = s.media;
+  if (!media?.video) return writeWav(s, source, pass);
+  const plan = await planVideo(media.input, media.video, source);
+  if ("refused" in plan) return writeWav(s, source, pass, plan.refused);
+  try {
+    return await writeVideo(s, media, plan, source, pass, job, pieces);
+  } catch {
+    // The browser said it could, and then could not: the sound is still worth having.
+    return writeWav(s, source, pass, "encoder");
+  }
 }
 
 async function cleanUp(s: Session) {
@@ -200,12 +262,18 @@ async function cleanUp(s: Session) {
     );
     job.reach("write", 0, 1);
     // What the rounds found comes out of the file's own sound, and what comes out is what is searched.
-    const { left, written } = await writeWav(s, source, (consume) =>
-      takeOutOfFile(source, s.rounds, s.store, s.length, consume, {
-        pieces,
-        onProgress: (done, total) => job.reach("write", done, total),
-        find: { onChunk: (done, total) => job.count("again", done, total), onProgress: (part) => job.share(part, "again") },
-      }),
+    const { left, written } = await writeFile(
+      s,
+      source,
+      (consume, look) =>
+        takeOutOfFile(source, s.rounds, s.store, s.length, consume, {
+          look,
+          pieces,
+          onProgress: (done, total) => job.reach("write", done, total),
+          find: { onChunk: (done, total) => job.count("again", done, total), onProgress: (part) => job.share(part, "again") },
+        }),
+      job,
+      pieces,
     );
     return { cleaned, left, written };
   });

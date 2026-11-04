@@ -345,7 +345,7 @@
       "find": "Recherche de sons d'avion, {n} %",
       "clean": "Retrait des sons, {n} %",
       "again": "Nouvelle vérification, {n} %",
-      "write": "Écriture du son nettoyé, {n} %",
+      "write": "Écriture du fichier nettoyé, {n} %",
       "held": "En attente de la fin de la recherche."
     },
     "found": { "one": "Un son d'avion qui pourrait situer ce fichier.", "other": "{n} sons d'avion qui pourraient situer ce fichier." },
@@ -363,6 +363,24 @@
     "leftText": "Retirer un son peut en faire apparaître un plus faible. Vous pouvez les retirer encore.",
     "download": "Télécharger le son nettoyé",
     "remux": "Un fichier WAV. Pour le remettre dans votre vidéo : dans votre logiciel de montage, coupez le son d'origine et placez ce WAV tout au début. Il a la même durée, il tombe donc juste.",
+    "video": {
+      "download": "Télécharger la vidéo nettoyée",
+      "kept": "Ce nouveau fichier contient la même image, copiée sans réencodage, et le son nettoyé. Rien d'autre ne passe : ni autre tag, ni piste GPS.",
+      "removed": "Absents de cette copie : {list}.",
+      "nothing": "Nous n'avons trouvé ni date, ni lieu, ni appareil dans votre fichier, et cette copie n'en contient aucun.",
+      "place": "le lieu qu'elle nommait ({place})",
+      "date": "la date qu'elle nommait ({date})",
+      "device": "l'appareil qu'elle nommait ({device})",
+      "tracks": {
+        "one": "une autre piste",
+        "other": "{n} autres pistes"
+      },
+      "seen": "L'image elle-même peut encore trahir le lieu : une plaque de rue, une ligne d'horizon, une boutique. Quelques caméras écrivent aussi leur position dans les données de l'image, que nous copions telles quelles.",
+      "why": {
+        "encoder": "Ce navigateur ne sait pas encoder le son d'une vidéo : voici donc le son nettoyé seul. Votre vidéo garde la date, le lieu ou l'appareil qu'elle contenait.",
+        "container": "Nous ne savons pas écrire ce type de vidéo : voici donc le son nettoyé seul. Votre vidéo garde la date, le lieu ou l'appareil qu'elle contenait."
+      }
+    },
     "suffix": "nettoye",
     "tone": "De {start} à {end} dans le fichier, de {from} à {to} Hz, {sure}",
     "sure": { "clear": "ressort nettement", "likely": "ressort", "faint": "faible, mais présent" },
@@ -371,6 +389,7 @@
     "picture": "Spectre de l'enregistrement autour du son",
     "errors": {
       "open": "Ce fichier n'a pas de son que nous puissions lire : il n'a peut-être pas de piste son, ou une piste que ce navigateur ne sait pas ouvrir. Essayez un autre navigateur, ou le son seul en M4A, MP3 ou WAV.",
+      "noSound": "Cette vidéo n'a pas de piste son : aucun son d'avion à trouver, rien à retirer. Elle n'est pas sûre pour autant : ce qu'elle dit d'elle-même et son image peuvent encore la trahir.",
       "tooBig": "Ce fichier est trop lourd pour être ouvert en entier par un navigateur, et celui-ci n'a pas su le lire morceau par morceau. Essayez-en une partie plus courte, ou le son seul en M4A, MP3 ou WAV.",
       "failed": "Un problème est survenu pendant la vérification de ce fichier : {message}"
     },
