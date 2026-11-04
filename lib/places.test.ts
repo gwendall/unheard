@@ -76,6 +76,35 @@ describe("nearest", () => {
     expect((await world().nearest(40.758, -73.9855))?.name).toBe("Manhattan");
   });
 
+  it("calls a town's numbered district by the town's name", async () => {
+    // GeoNames files them as towns. Issy is closer to the 15th's edge than the centre of Paris is.
+    const districts: Line[] = [
+      ...WORLD,
+      { id: 21, name: "Paris 01 Louvre", lat: 48.8592, lon: 2.3417, country: "FR", admin: "11", population: 15114 },
+      { id: 22, name: "Paris 15 Vaugirard", lat: 48.8417, lon: 2.3, country: "FR", admin: "11", population: 229713 },
+      { id: 23, name: "Issy-les-Moulineaux", lat: 48.82104, lon: 2.27718, country: "FR", admin: "11", population: 68000 },
+    ];
+    const near = gazetteer(fetcherOf(files(districts)));
+    const louvre = await near.nearest(48.8606, 2.3376);
+    expect(louvre).toMatchObject({ name: "Paris", region: "Île-de-France" });
+    expect(louvre!.distance).toBeLessThan(400);
+    expect((await near.nearest(48.832, 2.289))?.name).toBe("Paris");
+    // Its own name still finds it, behind the town.
+    expect((await near.search("paris"))[0]).toMatchObject({ name: "Paris", countryCode: "FR" });
+    expect((await near.search("paris 01")).map((h) => h.name)).toEqual(["Paris 01 Louvre"]);
+  });
+
+  it("leaves a number in a name alone when no larger town has the rest of it", async () => {
+    const lines: Line[] = [
+      { id: 1, name: "Colonia 5", lat: 19.1, lon: -99.1, country: "MX", population: 2000 },
+      { id: 2, name: "Sector 9 Norte", lat: 19.1, lon: -99.2, country: "MX", population: 900 },
+      { id: 3, name: "Sector", lat: 19.3, lon: -99.2, country: "ES", population: 90000 },
+    ];
+    const near = gazetteer(fetcherOf(files(lines)));
+    expect((await near.nearest(19.1, -99.1))?.name).toBe("Colonia 5");
+    expect((await near.nearest(19.1, -99.2))?.name).toBe("Sector 9 Norte");
+  });
+
   it("never names a place that is gone", async () => {
     expect((await world().nearest(40.8701, -73.5301))?.name).not.toBe("Old Town");
   });
