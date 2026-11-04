@@ -1,6 +1,7 @@
 // The share card: a 1080 x 1350 picture (4:5, what feeds and chats show whole) of what the phone
-// found, drawn on a canvas in the page. It names the aircraft and shows the curve, never where or
-// when: no place, no time.
+// found, drawn on a canvas in the page. The listening card names the aircraft and shows the curve,
+// never where or when: no place, no time. The where page's card (lib/client/where-card.ts) says
+// both, because that is its answer and the sharer asked for it.
 
 export type Card = {
   lead: string;

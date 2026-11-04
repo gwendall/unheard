@@ -98,6 +98,8 @@ What a visitor goes through, and where it lives:
   "Take them out" stay usable meanwhile. "Probably here" only under the confidence flag, else "Best guess" and
   up to two more answers; the plot, the start in UTC and local time, each plane with its registration
   (the history keeps no callsign), type, distance and passing time, its spectrum with the curve.
+  A share card (`lib/client/where-card.ts`, the same `drawCard`) holds the plot, one curve, the place
+  and the time; it is drawn only on the sharer's click, and nothing is sent until they choose where.
   Local time comes from the place's zone (geocoder) or, for typed coordinates, the longitude.
   - **The flight archive is one setting**, `NEXT_PUBLIC_HISTORY_URL` (`lib/archive.ts`, read at
     build time): without it the page says the archive is not connected and offers no search; what

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useI18n } from "@/components/I18n";
+import { Share } from "@/components/Share";
 import { SpotPlot } from "@/components/SpotPlot";
 import { TonePicture } from "@/components/TonePicture";
 import { decode, troubleOf } from "@/lib/client/decode";
@@ -10,6 +11,7 @@ import { aircraftType } from "@/lib/client/types";
 import { clockOf, coordinates, geocode, metresApart, offsetAt, OLDEST_DAY, osmLink, parseCoordinates, secondsLeft, SQUARE, windowOf, type Place, type Prefill, type Zone } from "@/lib/client/where";
 import type { Guess, WhereEvent, WhereRequest, WhereResult, WhereStep } from "@/lib/client/where.worker";
 import { ANALYSIS_RATE } from "@/lib/core/pipeline";
+import { paintWhere } from "@/lib/client/where-card";
 import { httpFetcher, readDays } from "@/lib/history";
 
 // "Find where", once a file is open: what is missing asked for, the day and hour already filled in
@@ -442,6 +444,26 @@ export function FindWhere({ picked, archive }: { picked: Picked; archive: string
             {unsure && found.passes < 2 && <p className="text-pretty text-mute">{t.result.onePass}</p>}
             {unsure && searchedDay && <p className="text-pretty text-ink">{t.result.dayHint}</p>}
           </header>
+
+          {found && best && (
+            <div className="flex flex-col gap-2" data-testid="where-share">
+              <Share
+                label={t.result.share}
+                text={fill(t.result.shareText, { verdict: said.title, place: coordinates(best, 2) })}
+                card={{
+                  lead: said.title,
+                  name: coordinates(best, 2),
+                  detail: new Date(best.start * 1000).toISOString().slice(0, 10),
+                  facts: [
+                    [`${clockOf(best.start).slice(0, 5)} UTC`, t.result.cardStart],
+                    [String(best.planes.length), t.result.cardFlyovers],
+                  ],
+                  paint: (ctx, w, h) => paintWhere(ctx, w, h, best, found.views[best.planes[0]?.tone]),
+                }}
+              />
+              <p className="text-sm text-pretty text-faint">{t.result.shareNote}</p>
+            </div>
+          )}
 
           {found && best && found.guesses.length > 1 && (
             <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap" role="group" aria-label={t.result.guesses} data-testid="where-guesses">

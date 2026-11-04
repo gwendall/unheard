@@ -1,4 +1,4 @@
-import { truncateSync, writeFileSync } from "node:fs";
+import { copyFileSync, statSync, truncateSync, writeFileSync } from "node:fs";
 import { expect, test, type Page } from "@playwright/test";
 import { encodeWav } from "../lib/bundle";
 import { STANDARD_AIR } from "../lib/core/doppler";
@@ -138,6 +138,27 @@ test("a file in: what it says at once, its tones, then where and when, and the f
   expect(plot!.y).toBeGreaterThanOrEqual(0);
   expect(plot!.y).toBeLessThan(120);
 
+  expect(sent).toEqual([]);
+});
+
+test("a result's card is made only on the sharer's click, and nothing is sent", async ({ page }, info) => {
+  const wav = info.outputPath("one-pass.wav");
+  writeFileSync(wav, await sceneWav(90));
+  const sent: string[] = [];
+  page.on("request", (r) => {
+    if (r.method() !== "GET" && r.method() !== "HEAD") sent.push(`${r.method()} ${r.url()}`);
+  });
+  await page.goto("/where");
+  await page.getByTestId("where-file").setInputFiles(wav);
+  await openForm(page);
+  await fillIn(page);
+  await page.getByTestId("where-search").click();
+  await expect(page.getByTestId("where-share")).toContainText("Nothing leaves this page until you choose", { timeout: 170_000 });
+  const [download] = await Promise.all([page.waitForEvent("download"), page.getByTestId("where-share").getByRole("button").click()]);
+  expect(download.suggestedFilename()).toBe("unheard.png");
+  const png = await download.path();
+  if (SHOTS) copyFileSync(png, `${SHOTS}/where-card.png`);
+  expect(statSync(png).size).toBeGreaterThan(50_000);
   expect(sent).toEqual([]);
 });
 

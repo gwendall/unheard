@@ -449,6 +449,11 @@
       "plane": "{type}, à {distance}, passé à {time} UTC",
       "noType": "type inconnu",
       "again": "Changer la recherche",
+      "share": "Partager ce résultat",
+      "shareText": "{verdict} : {place}, d'après les avions dans son son.",
+      "shareNote": "L'image montre ce lieu et ce moment. Rien ne quitte cette page tant que vous ne choisissez pas où la partager.",
+      "cardStart": "début de l'enregistrement",
+      "cardFlyovers": "survols expliqués",
       "credit": "Données de vol © contributeurs adsb.lol (ODbL). Rien n'est conservé."
     },
     "errors": {
