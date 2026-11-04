@@ -417,6 +417,7 @@
     "place": "À peu près où",
     "placePlaceholder": "Une ville, ou des coordonnées : 48.85, 2.35",
     "placeHint": "Nous cherchons dans un carré de 100 km autour. Un nom saisi part chez Open-Meteo pour le trouver, et seulement le nom.",
+    "placesCredit": "Noms de lieux : GeoNames (CC BY 4.0).",
     "placeChosen": "{place} : nous cherchons dans un carré de 100 km autour.",
     "noPlace": "Aucun lieu à ce nom. Essayez une ville proche, ou des coordonnées.",
     "search": "Chercher",

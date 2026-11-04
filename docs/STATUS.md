@@ -105,6 +105,9 @@ What a visitor goes through, and where it lives:
     update it with the eval.
   - **Terrain**: AWS's open terrain tiles allow browsers (`access-control-allow-origin: *`, checked
     03/11), so the search uses real ground height, and falls back to flat if a tile fails.
+  - **Place names**: `lib/client/places.ts` (`nearestPlace`, `searchPlaces`, `placeLabel`), an offline
+    gazetteer from GeoNames in the bucket under `places/v1/`, so naming a spot or typing a town
+    reaches no third party. Layout, the build and the upload: `docs/places-format.md`.
   - **Development**: `next dev` defaults to `/dev-history` (`app/dev-history`, 404 in production),
     which serves `e2e/history` or `DEV_HISTORY_DIR` (say `evals/.cache/history`). `e2e/where.spec.ts`
     runs a made-up recording over one committed tile: 70 minutes of real adsb.lol flights (ODbL)

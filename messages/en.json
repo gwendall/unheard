@@ -414,6 +414,7 @@
     "place": "Roughly where",
     "placePlaceholder": "A town, or coordinates: 48.85, 2.35",
     "placeHint": "We search a 100 km square around it. A name you type goes to Open-Meteo to find it, and only the name.",
+    "placesCredit": "Place names: GeoNames (CC BY 4.0).",
     "placeChosen": "{place}: we search a 100 km square around it.",
     "noPlace": "No place by that name. Try a town nearby, or coordinates.",
     "search": "Search",

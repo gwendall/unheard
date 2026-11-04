@@ -1,0 +1,5 @@
+*
+!lib/history.ts
+!lib/places.ts
+!scripts/history-job.ts
+!scripts/places-build.ts
