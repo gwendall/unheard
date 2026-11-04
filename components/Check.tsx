@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import type { Route } from "next";
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { createContext, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { Answer } from "@/components/Answer";
 import { Bar } from "@/components/Bar";
 import { useI18n } from "@/components/I18n";
 import { TonePicture } from "@/components/TonePicture";
@@ -10,6 +11,7 @@ import { decode, troubleOf } from "@/lib/client/decode";
 import { isPhone } from "@/lib/client/device";
 import { forget, newFolder } from "@/lib/client/folder";
 import { clock, timeLeft } from "@/lib/client/format";
+import type { SoundGate } from "@/lib/client/where";
 import type { CheckEvent, CheckPartial, CheckRequest, Found, Kind, Removed, Step } from "@/lib/client/check.worker";
 import type { StripEvent, StripRequest } from "@/lib/client/strip.worker";
 import type { Picture, Tone, View } from "@/lib/core/leak";
@@ -78,16 +80,28 @@ const inOrder = <T extends Shown>(list: T[]) => [...list].sort((a, b) => a.tone.
 const SHOWN = 3;
 
 /** The verdict's place, at the height of its longest wording, so nothing under it moves. */
-const VERDICT = "flex min-h-16 items-center sm:min-h-13.5";
 /** At one width whether it says "it" or "them", so the link beside it stays. */
 const OUTLINE = "w-full rounded-full border border-line px-7 py-3 text-lg font-medium text-ink transition enabled:hover:border-mute disabled:cursor-not-allowed disabled:opacity-40 sm:w-fit sm:min-w-52";
 /** With the border of the others, in the same colour as nothing: the row is one height in every state. */
 const PRIMARY = "w-full rounded-full border border-transparent bg-amber px-7 py-3 text-center text-lg font-medium text-night transition hover:bg-amber-soft sm:w-fit";
 const QUIET = "text-mute underline-offset-4 transition hover:text-ink hover:underline";
 
-export function Check({ file, elsewhere, note, facts, tagged, find, fold, hold, heard, answered, onSettled, onPasses, children }: { file: File; elsewhere?: Route; note?: string | null; facts?: ReactNode; tagged?: boolean; find?: (leads: boolean) => ReactNode; fold?: boolean; hold?: boolean; heard?: Heard | null; answered?: boolean; onSettled?: () => void; onPasses?: (passes: number) => void; children?: ReactNode }) {
+/** What the check hands to the answer that takes its place: its copy, its cleaning, and the rest for "Details". */
+export type CheckPart = {
+  copyButton: (look: "primary" | "second" | "quiet") => ReactNode;
+  copyNote: ReactNode;
+  quietCopy: ReactNode;
+  clean: (leads: boolean) => ReactNode;
+  details: ReactNode;
+  cleaned: boolean;
+};
+/** For an answer given under the check, which it knows nothing of. */
+export const CheckParts = createContext<CheckPart | null>(null);
+
+export function Check({ file, elsewhere, note, facts, tagged, find, fold, hold, heard, answered, when, another, lead, gate, onSettled, onRefused, children }: { file: File; elsewhere?: Route; note?: string | null; facts?: ReactNode; tagged?: boolean; find?: (leads: boolean) => ReactNode; fold?: boolean; hold?: boolean; heard?: Heard | null; answered?: boolean; when?: string | null; another?: ReactNode; lead?: (part: CheckPart) => ReactNode; gate?: boolean; onSettled?: () => void; onRefused?: (refused: SoundGate["refused"]) => void; children?: ReactNode }) {
   const { m, fill, plural, locale } = useI18n();
   const t = m.check;
+  const a = m.answer;
   const [state, setState] = useState<State>({ kind: "open", busy: { step: "open", done: 0, total: 1 } });
   const [drawn, setDrawn] = useState<Record<number, Drawn>>({});
   const [workers, setWorkers] = useState<number | undefined>();
@@ -150,6 +164,7 @@ export function Check({ file, elsewhere, note, facts, tagged, find, fold, hold, 
     else if (e.type === "no-sound") setState({ kind: "failed", error: t.errors.noSound });
     else if (e.type === "found") {
       setState({ kind: "found", found: e.found });
+      onRefused?.(e.refused);
       if (takeOut.current && e.found.length) {
         takeOut.current = false;
         cleanUp();
@@ -157,7 +172,6 @@ export function Check({ file, elsewhere, note, facts, tagged, find, fold, hold, 
     }
     else if (e.type === "workers") setWorkers(e.count);
     else if (e.type === "tags") setCopy(e);
-    else if (e.type === "passes") onPasses?.(e.passes);
     else if (e.type === "drawn") setDrawn((d) => ({ ...d, [e.id]: { before: e.before, after: e.after } }));
     else if (e.type === "cleaned") setState({ kind: "cleaned", cleaned: e.cleaned, left: e.left, url: URL.createObjectURL(e.file), written: e });
     else setState({ kind: "failed", error: fill(t.errors.failed, { message: e.message }) });
@@ -179,7 +193,7 @@ export function Check({ file, elsewhere, note, facts, tagged, find, fold, hold, 
       w.onerror = (e) => setState({ kind: "failed", error: fill(t.errors.failed, { message: e.message || "worker" }) });
       worker.current = w;
       folder.current = newFolder();
-      const request: CheckRequest = { type: "open", file, folder: folder.current, partial: true, phone: isPhone() };
+      const request: CheckRequest = { type: "open", file, folder: folder.current, partial: true, phone: isPhone(), gate: gate && !answered };
       w.postMessage(request);
     };
     let off: () => void;
@@ -313,38 +327,41 @@ export function Check({ file, elsewhere, note, facts, tagged, find, fold, hold, 
           : plural(state.cleaned.length, t.gone)
         : null;
 
-  // With what the file says, the one part of the panel the check never changes: a verdict landing
-  // under it cannot move it out from under a click. Its place is held from the first paint when the
-  // tags are already known, so that the actions below do not move when the worker answers.
-  const stripLook = `${QUIET} w-fit`;
-  const withoutTags = (tagged || copy?.holds) && (
-    <div className={`flex flex-col gap-2 ${copy ? "" : "invisible"}`} data-testid="check-tags">
-      {copy?.can ?? true ? (
-        <>
-          <div className="flex min-h-6 items-center">
-            {stripping.kind === "busy" ? (
-              <p className="font-mono text-sm text-mute tabular-nums" role="status" data-testid="check-tags-progress">
-                {fill(t.tags.copying, { n: Math.round(100 * stripping.fraction) })}
-              </p>
-            ) : stripping.kind === "ready" ? (
-              <a href={stripping.url} download={stripping.filename} className={stripLook} data-testid="check-tags-download">
-                {t.tags.download}
-              </a>
-            ) : (
-              <button type="button" onClick={stripTags} className={stripLook} data-testid="check-tags-download">
-                {t.tags.download}
-              </button>
-            )}
-          </div>
-          {stripping.kind === "failed" && (
-            <p role="alert" className="text-sm text-pretty text-amber-soft" data-testid="check-tags-failed">
-              {t.tags.failed}
-            </p>
-          )}
-          <p className="max-w-prose text-sm text-pretty text-faint" data-testid="check-tags-note">
-            {copy ? (copy.picture && copy.sound ? t.tags.video : copy.picture ? t.tags.picture : t.tags.sound) : file.type.startsWith("audio/") ? t.tags.sound : t.tags.video}
-          </p>
-        </>
+  // Offered from the moment the tags are known, and its place held before that when the page already
+  // knows of some, so that nothing under it moves when the worker answers.
+  const offered = tagged || copy?.holds;
+  const writable = copy?.can ?? true;
+  const copyButton = (look: "primary" | "second" | "quiet") => {
+    if (!offered || !writable) return null;
+    const hidden = copy ? "" : " invisible";
+    if (stripping.kind === "busy")
+      return (
+        <p className={`flex items-center font-mono text-sm text-mute tabular-nums ${look === "quiet" ? "min-h-6" : "min-h-13.5"}`} role="status" data-testid="check-tags-progress">
+          {fill(t.tags.copying, { n: Math.round(100 * stripping.fraction) })}
+        </p>
+      );
+    const shape = (look === "primary" ? PRIMARY : look === "second" ? `${OUTLINE} text-center hover:border-mute` : `${QUIET} w-fit`) + hidden;
+    return stripping.kind === "ready" ? (
+      <a href={stripping.url} download={stripping.filename} className={shape} data-testid="check-tags-download">
+        {t.tags.download}
+      </a>
+    ) : (
+      <button type="button" onClick={stripTags} className={shape} data-testid="check-tags-download">
+        {t.tags.download}
+      </button>
+    );
+  };
+  const copyNote = offered && (
+    <div className={`flex flex-col gap-2 ${copy ? "" : "invisible"}`}>
+      {stripping.kind === "failed" && (
+        <p role="alert" className="text-sm text-pretty text-amber-soft" data-testid="check-tags-failed">
+          {t.tags.failed}
+        </p>
+      )}
+      {writable ? (
+        <p className="max-w-prose text-sm text-pretty text-faint" data-testid="check-tags-note">
+          {copy ? (copy.picture && copy.sound ? t.tags.video : copy.picture ? t.tags.picture : t.tags.sound) : file.type.startsWith("audio/") ? t.tags.sound : t.tags.video}
+        </p>
       ) : (
         <p className="text-sm text-pretty text-faint" data-testid="check-tags-why">
           {t.tags.cannot}
@@ -352,154 +369,222 @@ export function Check({ file, elsewhere, note, facts, tagged, find, fold, hold, 
       )}
     </div>
   );
-
-  const findings = (
-    <div className="flex flex-col gap-6">
-      <div className="flex flex-col gap-3">
-        {facts}
-        {withoutTags}
-      </div>
-      <div className="flex flex-col gap-4">
-        <div className={VERDICT} data-testid="check-slot">
-          {state.kind === "open" &&
-            !known &&
-            (hold ? (
-              <p className="font-mono text-sm text-pretty text-mute" role="status" data-testid="check-held">
-                {t.steps.held}
-              </p>
-            ) : (
-              progress(state.busy, true)
-            ))}
-          {state.kind === "failed" && (
-            <p role="alert" className="text-xl font-medium text-pretty text-amber-soft" data-testid="check-trouble">
-              {state.error}
-            </p>
-          )}
-          {verdict && (
-            <h2 className="text-2xl font-semibold tracking-tight text-balance" role="status" data-testid="check-verdict">
-              {verdict}
-            </h2>
-          )}
-        </div>
-
-        {none && !fold && <p className="max-w-prose text-lg text-pretty text-mute">{t.noneText}</p>}
-
-        {/* A search already open keeps its place, whatever this look comes to. */}
-        {(fold || (state.kind !== "failed" && !none)) && (
-          // While it works, the progress line takes the button's place, at its height.
-          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-4">
-            {/* One primary at a time: the download once there is one, a form's own button while the form is open. */}
-            {find?.(state.kind !== "cleaned" && !fold)}
-            {/* Held in its place with nothing to take out, so that a search open under it does not move. */}
-            {((state.kind === "open" && !known) || (none && !answered)) && (
-              <button type="button" disabled className={OUTLINE}>
-                {t.clean.other}
-              </button>
-            )}
-            {fromSearch &&
-              (takingOut ? (
-                progress(state.busy)
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => {
-                    takeOut.current = true;
-                    setTakingOut(true);
-                  }}
-                  className={OUTLINE}
-                  data-testid="check-clean"
-                >
-                  {plural(list.length, t.clean)}
-                </button>
-              ))}
-            {state.kind === "found" &&
-              !none &&
-              (busy ? (
-                progress(busy)
-              ) : (
-                <button type="button" onClick={cleanUp} className={OUTLINE} data-testid="check-clean">
-                  {plural(state.found.length, t.clean)}
-                </button>
-              ))}
-            {state.kind === "cleaned" &&
-              (busy ? (
-                progress(busy)
-              ) : (
-                <>
-                  <a href={state.url} download={`${name}-${t.suffix}.${state.written.extension}`} className={answered || fold ? `${OUTLINE} text-center hover:border-mute` : PRIMARY} data-testid="check-download">
-                    {state.written.video ? t.video.download : t.download}
-                  </a>
-                  {state.left.length > 0 && (
-                    <button type="button" onClick={cleanUp} className={OUTLINE} data-testid="check-clean">
-                      {plural(state.left.length, t.clean)}
-                    </button>
-                  )}
-                </>
-              ))}
-            {elsewhere && (
-              // At the row's far end: the button before it changes width with its words, and this stays.
-              <Link href={elsewhere} className={`${QUIET} sm:ml-auto`} data-testid="check-elsewhere">
-                {t.elsewhere} <span aria-hidden>→</span>
-              </Link>
-            )}
-          </div>
-        )}
-
-        {note && (
-          <p className="text-pretty text-amber-soft" data-testid="where-offline">
-            {note}
-          </p>
-        )}
-        {state.kind === "cleaned" && (
-          <div className="flex max-w-prose flex-col gap-2 text-sm text-pretty text-faint" data-testid="check-about">
-            {state.left.length > 0 && <p>{t.leftText}</p>}
-            {state.written.video ? (
-              <>
-                <p>{t.video.kept}</p>
-                <p data-testid="check-removed">{removedLine(state.written.removed)}</p>
-                <p data-testid="check-seen">{t.video.seen}</p>
-              </>
-            ) : (
-              <>
-                {state.written.why && <p data-testid="check-why">{t.video.why[state.written.why]}</p>}
-                <p>{t.remux}</p>
-              </>
-            )}
-          </div>
-        )}
-      </div>
+  const quietCopy = offered && (
+    <div className="flex flex-col gap-2" data-testid="check-tags">
+      {writable && <div className="flex min-h-6 items-center">{copyButton("quiet")}</div>}
+      {copyNote}
     </div>
   );
 
+  const about = state.kind === "cleaned" && (
+    <div className="flex max-w-prose flex-col gap-2 text-sm text-pretty text-faint" data-testid="check-about">
+      {state.left.length > 0 && <p>{t.leftText}</p>}
+      {state.written.video ? (
+        <>
+          <p>{t.video.kept}</p>
+          <p data-testid="check-removed">{removedLine(state.written.removed)}</p>
+          <p data-testid="check-seen">{t.video.seen}</p>
+        </>
+      ) : (
+        <>
+          {state.written.why && <p data-testid="check-why">{t.video.why[state.written.why]}</p>}
+          <p>{t.remux}</p>
+        </>
+      )}
+    </div>
+  );
+
+  /** Take them out, how far it has got, then the new file. `leads`: its download is the one primary on the page. */
+  const cleaning = (quietly: boolean, leads: boolean) => {
+    const look = quietly ? `${QUIET} w-fit text-left underline` : OUTLINE;
+    return (
+      <>
+        {state.kind === "open" &&
+          known &&
+          (takingOut ? (
+            progress(state.busy)
+          ) : (
+            <button
+              type="button"
+              onClick={() => {
+                takeOut.current = true;
+                setTakingOut(true);
+              }}
+              className={look}
+              data-testid="check-clean"
+            >
+              {plural(list.length, t.clean)}
+            </button>
+          ))}
+        {state.kind === "found" &&
+          !none &&
+          (busy ? (
+            progress(busy)
+          ) : (
+            <button type="button" onClick={cleanUp} className={look} data-testid="check-clean">
+              {plural(state.found.length, t.clean)}
+            </button>
+          ))}
+        {state.kind === "cleaned" &&
+          (busy ? (
+            progress(busy)
+          ) : (
+            <>
+              <a href={state.url} download={`${name}-${t.suffix}.${state.written.extension}`} className={leads ? PRIMARY : `${OUTLINE} text-center hover:border-mute`} data-testid="check-download">
+                {state.written.video ? t.video.download : t.download}
+              </a>
+              {state.left.length > 0 && (
+                <button type="button" onClick={cleanUp} className={look} data-testid="check-clean">
+                  {plural(state.left.length, t.clean)}
+                </button>
+              )}
+            </>
+          ))}
+      </>
+    );
+  };
+
+  const elsewhereLink = elsewhere && (
+    <Link href={elsewhere} className={QUIET} data-testid="check-elsewhere">
+      {t.elsewhere} <span aria-hidden>→</span>
+    </Link>
+  );
+  const offline = note && (
+    <p className="text-pretty text-amber-soft" data-testid="where-offline">
+      {note}
+    </p>
+  );
+  const trouble = state.kind === "failed" && (
+    <p role="alert" className="text-pretty text-amber-soft" data-testid="check-trouble">
+      {state.error}
+    </p>
+  );
+  const held = (
+    <p className="font-mono text-sm text-pretty text-mute" role="status" data-testid="check-held">
+      {t.steps.held}
+    </p>
+  );
+  /** One thing happening, in words a title or `captioned` gives. How far it has got is the bar's: no number, no step. */
+  const working = (captioned: boolean) =>
+    state.kind === "open" &&
+    !known &&
+    (hold ? (
+      held
+    ) : (
+      <div className="flex min-h-13.5 w-full flex-col justify-center gap-2" role="status" data-testid="check-progress">
+        <p className={captioned ? "text-sm text-pretty text-mute" : "sr-only"}>{a.listening}</p>
+        <Bar fraction={state.busy.fraction ?? 0} label={a.listening} testid="check-bar" />
+      </div>
+    ));
+
+  const tonesBlock =
+    list.length > 0 &&
+    (answered ? (
+      <Folded summary={state.kind !== "open" ? plural(list.length, t.fold) : known ? plural(list.length, t.foldSearch) : t.soFar} testid="check-fold">
+        {tones(inOrder(list))}
+      </Folded>
+    ) : (
+      <div className="flex flex-col gap-6">
+        {tones(inOrder(strongest))}
+        {others.length > 0 && (
+          <Folded summary={state.kind === "open" ? t.soFar : fill(t.all, { n: list.length })} testid="check-all">
+            {tones(inOrder(others), "check-others")}
+          </Folded>
+        )}
+      </div>
+    ));
+
+  const part: CheckPart = {
+    copyButton,
+    copyNote,
+    quietCopy,
+    clean: (leads) => (
+      <div className="flex w-full flex-col items-start gap-3" data-testid="check-slot">
+        {working(true)}
+        {trouble}
+        {verdict && (
+          <p className="text-pretty text-ink" role="status" data-testid="check-verdict">
+            {verdict}
+          </p>
+        )}
+        {cleaning(true, leads)}
+        {about}
+      </div>
+    ),
+    details: (
+      <>
+        {facts}
+        {offline}
+        {elsewhereLink}
+        {tonesBlock}
+      </>
+    ),
+    cleaned: state.kind === "cleaned" && !state.busy,
+  };
+
+  if (lead)
+    return (
+      <div className="flex flex-col gap-6" data-testid="check" data-workers={workers}>
+        {lead({
+          ...part,
+          details: (
+            <>
+              {facts}
+              {offline}
+              {find && <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-4">{find(false)}</div>}
+              {children}
+              {none && fold && <p className="text-pretty text-mute">{t.noneSearch}</p>}
+              {elsewhereLink}
+              {tonesBlock}
+            </>
+          ),
+        })}
+      </div>
+    );
+
   return (
     <div className="flex flex-col gap-6" data-testid="check" data-workers={workers}>
-      {/* Above what the search opens until it has its answer, then under it. `children` keeps its place, and its state, between the two. */}
-      {!answered && findings}
-
-      {children}
-
-      {answered && findings}
-
-      {/* Under the search, so that what it has on the page stays where it is. */}
-      {none && fold && <p className="max-w-prose text-lg text-pretty text-mute">{t.noneSearch}</p>}
-
-      {/* The search's own answer shows the tones it explains: here they step aside, a tap away, so its answer stays together. */}
-      {/* No count before the check's own: pieces of one tone may still be joined, and the search's come cut differently. */}
-      {list.length > 0 &&
-        (answered ? (
-          <Folded summary={state.kind !== "open" ? plural(list.length, t.fold) : known ? plural(list.length, t.foldSearch) : t.soFar} testid="check-fold">
-            {tones(inOrder(list))}
-          </Folded>
-        ) : (
-          <div className="flex flex-col gap-6">
-            {tones(inOrder(strongest))}
-            {others.length > 0 && (
-              <Folded summary={state.kind === "open" ? t.soFar : fill(t.all, { n: list.length })} testid="check-all">
-                {tones(inOrder(others), "check-others")}
-              </Folded>
-            )}
-          </div>
-        ))}
+      <CheckParts.Provider value={part}>
+        {/* Until something else answers, this one does; `children` keeps its place, and its state, when it does. */}
+        {!answered && (
+          <Answer
+            title={verdict ?? (state.kind === "failed" ? a.cannot : a.listening)}
+            titleProps={verdict ? { role: "status", "data-testid": "check-verdict" } : undefined}
+            when={when}
+            why={working(false) || trouble || offline || (state.kind === "found" && !none && find ? a.why.compare : null)}
+            actions={
+              <>
+                {/* One primary at a time: the download once there is one, a form's own button while the form is open. */}
+                {state.kind !== "failed" && find?.(state.kind !== "cleaned" && !fold)}
+                {/* Its place held with nothing to take out, seen by no one: nothing moves when there is. */}
+                {((state.kind === "open" && !known) || none) && (
+                  <button type="button" disabled aria-hidden className={`${OUTLINE} invisible`}>
+                    {t.clean.other}
+                  </button>
+                )}
+                {cleaning(false, !fold)}
+                {state.kind === "failed" && another}
+              </>
+            }
+            quiet={
+              <>
+                {quietCopy}
+                {elsewhereLink}
+              </>
+            }
+            after={about}
+            summary={a.details.working}
+            details={
+              <>
+                {facts}
+                {tonesBlock}
+              </>
+            }
+          />
+        )}
+        {children}
+        {!answered && none && fold && <p className="max-w-prose text-lg text-pretty text-mute">{t.noneSearch}</p>}
+      </CheckParts.Provider>
     </div>
   );
 }

@@ -342,7 +342,8 @@
   "check": {
     "steps": {
       "open": "Ouverture du fichier, {n} %",
-      "find": "Recherche de sons d'avion, {n} %",
+      "find": "On écoute s'il y a des avions, {n} %",
+      "gate": "On écoute s'il y a des avions, {n} %",
       "clean": "Retrait des sons, {n} %",
       "again": "Nouvelle vérification, {n} %",
       "write": "Écriture du fichier nettoyé, {n} %",
@@ -388,7 +389,7 @@
       "download": "Télécharger sans ses tags",
       "copying": "Copie du fichier, {n} %",
       "suffix": "sans-tags",
-      "video": "Une copie avec la même image et le même son, copiés tels quels, sans tags ni autres pistes. Le son ne change pas, donc tout son d'avion y reste, et l'image peut encore trahir le lieu : ce qu'elle montre, ou une position que certaines caméras y écrivent.",
+      "video": "Une copie sans tags ni autres pistes. Le son ne change pas, donc tout son d'avion y reste, et l'image peut encore trahir le lieu : ce qu'elle montre, ou une position que certaines caméras y écrivent.",
       "picture": "Une copie avec la même image, copiée telle quelle, sans tags ni autres pistes. L'image peut encore trahir le lieu : ce qu'elle montre, ou une position que certaines caméras y écrivent.",
       "sound": "Une copie avec le même son, copié tel quel, sans tags ni autres pistes. Le son ne change pas, donc tout son d'avion y reste.",
       "cannot": "Nous ne savons pas écrire ce type de fichier : il garde la date, le lieu ou l'appareil qu'il contenait.",
@@ -523,6 +524,38 @@
     },
     "errors": {
       "failed": "Un problème est survenu pendant la recherche : {message}"
+    }
+  },
+  "answer": {
+    "gps": "Filmé près de {place}",
+    "gpsAt": "Filmé à {place}",
+    "named": "Probablement filmé près de {place}",
+    "namedAt": "Probablement filmé à {place}",
+    "namedSea": "Probablement filmé en mer",
+    "cannot": "Impossible de dire où ça a été filmé",
+    "listening": "On écoute s'il y a des avions dans le son",
+    "when": "{date}, {time}",
+    "around": "{date}, vers {time}",
+    "plane": "{type}, à {distance}, à {time}",
+    "another": "Un autre fichier",
+    "mapNote": "La carte et le nom du lieu viennent de notre propre stockage, et votre fichier n'est jamais envoyé. Notre hébergeur voit quelle zone a été demandée : quelques dizaines de km, jusqu'à environ un kilomètre si vous zoomez.",
+    "why": {
+      "gps": "C'est écrit dans le fichier, et n'importe qui peut le lire si vous le partagez tel quel.",
+      "named": {
+        "one": "{n} avion passait là à ce moment, et on l'entend dans le son.",
+        "other": "{n} avions passaient là à ce moment, et on les entend dans le son."
+      },
+      "few": "On a entendu des avions, mais pas assez pour être sûr d'un lieu. Il en faudrait au moins trois bien nets.",
+      "none": "On n'a entendu aucun avion dans le son, et le fichier ne dit rien.",
+      "nothing": "On a entendu des avions, mais aucun vol connu ne leur correspond dans cette zone à ce moment.",
+      "missing": "Nous n'avons pas encore les vols du {day}.",
+      "compare": "Pour savoir où, on le compare aux vols de ce jour-là."
+    },
+    "details": {
+      "working": "Détails",
+      "gps": "Détails : coordonnées, ce que contient le son",
+      "named": "Détails : coordonnées, autres réponses, courbes du son",
+      "cannot": "Détails"
     }
   }
 }

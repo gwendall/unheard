@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useContext, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { Answer } from "@/components/Answer";
 import { Bar } from "@/components/Bar";
-import type { Heard } from "@/components/Check";
+import { CheckParts, type Heard } from "@/components/Check";
 import { useI18n } from "@/components/I18n";
 import { Share } from "@/components/Share";
 import { PlaceMap, type MapShot } from "@/components/PlaceMap";
@@ -12,7 +13,7 @@ import { isPhone } from "@/lib/client/device";
 import { timeLeft } from "@/lib/client/format";
 import type { FileMetadata } from "@/lib/client/metadata";
 import { aircraftType } from "@/lib/client/types";
-import { clockOf, coordinates, metresApart, offsetAt, OLDEST_DAY, osmLink, parseCoordinates, SQUARE, townOf, windowOf, type Place, type Prefill, type Zone } from "@/lib/client/where";
+import { clockOf, coordinates, metresApart, offsetAt, OLDEST_DAY, osmLink, parseCoordinates, spokenAt, SQUARE, townOf, windowOf, type Place, type Prefill, type Zone } from "@/lib/client/where";
 import type { Guess, WhereEvent, WherePartial, WhereRequest, WhereResult, WhereStep } from "@/lib/client/where.worker";
 import { nearestPlace, placeLabel, searchPlaces, type NearPlace, type PlaceHit } from "@/lib/client/places";
 import { paintWhere } from "@/lib/client/where-card";
@@ -32,6 +33,7 @@ export type Picked = { file: File; meta: FileMetadata; prefill: Prefill };
 type Found = Extract<WhereResult, { kind: "found" }>;
 
 const FEW: WhereResult = { kind: "few" };
+const NONE: WhereResult = { kind: "none" };
 /** Planes a guess names in its lead, the rest counted. */
 const NAMED = 6;
 /** How long an answer waits for its name before it comes with its coordinates alone: nothing moves later. */
@@ -55,11 +57,12 @@ const QUIET = "text-mute underline-offset-4 transition hover:text-ink hover:unde
 const SECOND = "rounded-full border border-line px-5 py-3 text-ink transition hover:border-mute disabled:opacity-50";
 const BUTTON = "w-full rounded-full bg-amber px-7 py-3 text-lg font-medium text-night transition hover:bg-amber-soft disabled:cursor-not-allowed disabled:opacity-40 sm:w-fit";
 const FIELD = "rounded-xl border border-line bg-deep px-4 py-3 text-base text-ink placeholder:text-faint focus:border-amber";
-const TITLE = "text-3xl font-semibold tracking-tight text-balance sm:text-4xl";
 
-export function FindWhere({ picked, archive, few, onSearching, onHeard, onAnswered }: { picked: Picked; archive: string; few?: boolean; onSearching?: (running: boolean) => void; onHeard?: (heard: Heard) => void; onAnswered?: (answered: boolean) => void }) {
+export function FindWhere({ picked, archive, few, silent, when: fileWhen, another, onSearching, onHeard, onAnswered }: { picked: Picked; archive: string; few?: boolean; silent?: boolean; when?: string | null; another?: ReactNode; onSearching?: (running: boolean) => void; onHeard?: (heard: Heard) => void; onAnswered?: (answered: boolean) => void }) {
   const { m, f, fill, plural, locale } = useI18n();
   const t = m.where;
+  const a = m.answer;
+  const part = useContext(CheckParts);
   const spot = picked.meta.location;
   const [error, setError] = useState<string | null>(null);
   // The days the archive holds: undefined until known, null when it has no list.
@@ -81,7 +84,10 @@ export function FindWhere({ picked, archive, few, onSearching, onHeard, onAnswer
   // came back first keeps its own answer: the check counts its own tones, cut differently.
   const [anyway, setAnyway] = useState(false);
   const [candidates, setCandidates] = useState(false);
-  const result = reply ?? (few && !anyway ? FEW : null);
+  // Nothing heard at all, with no search asked for: the same answer, and nothing to look up.
+  const result = reply ?? (few && !anyway ? FEW : silent ? NONE : null);
+  // An answer with no search behind it has nothing to read from the archive.
+  const asking = !!reply || !result;
   const [searchedDay, setSearchedDay] = useState(false);
   const [shown, setShown] = useState(0);
   const worker = useRef<Worker | null>(null);
@@ -93,7 +99,10 @@ export function FindWhere({ picked, archive, few, onSearching, onHeard, onAnswer
   const atStart = useRef(0);
   const verdict = useRef<HTMLHeadingElement>(null);
   const mapShot = useRef<MapShot | null>(null);
-  const watching = useRef(!!few);
+  // Set by a search: an answer that came on its own takes neither the focus nor the scroll.
+  const watching = useRef(false);
+  const top = useRef<HTMLDivElement>(null);
+  const [detailsOpen, setDetailsOpen] = useState(false);
   const wrongTitle = useRef<HTMLHeadingElement>(null);
 
   useEffect(() => () => worker.current?.terminate(), []);
@@ -105,8 +114,8 @@ export function FindWhere({ picked, archive, few, onSearching, onHeard, onAnswer
   // The days the archive holds, to offer only those. Without the list, any day can be typed, and
   // the search says when the archive has none for it.
   useEffect(() => {
-    if (archive) void readDays(httpFetcher(new URL(archive, window.location.href).href)).then(setDays);
-  }, [archive]);
+    if (archive && asking) void readDays(httpFetcher(new URL(archive, window.location.href).href)).then(setDays);
+  }, [archive, asking]);
 
   const chosen = days === null || days?.includes(day) ? day : "";
   // A date field can hold a year of six digits, which no clock reads: not a day to search.
@@ -134,8 +143,10 @@ export function FindWhere({ picked, archive, few, onSearching, onHeard, onAnswer
     const line = verdict.current;
     if (!result || !watching.current || !line) return;
     line.focus({ preventScroll: true });
-    const { top } = line.getBoundingClientRect();
-    if (top < 0 || top > window.innerHeight / 2) line.scrollIntoView({ block: "start", behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth" });
+    // From the map down: the answer's first line is under it.
+    const first = top.current ?? line;
+    const y = first.getBoundingClientRect().top;
+    if (y < 0 || y > window.innerHeight / 2) first.scrollIntoView({ block: "start", behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth" });
   }, [result]);
 
   // The clock of the estimate, only while something runs.
@@ -362,14 +373,15 @@ export function FindWhere({ picked, archive, few, onSearching, onHeard, onAnswer
     );
   };
 
+  const mapOf = (g: Guess, others: { lat: number; lon: number }[], sure: boolean) => (
+    <PlaceMap guess={g} others={others} sure={sure} shotRef={mapShot} className="h-60 sm:h-96" />
+  );
+
   /** The answer picked: where it lies, the mirror, the planes and their tones. */
   const answer = (g: Guess, views: Found["views"], sure: boolean, best: boolean, others: { lat: number; lon: number }[]) => (
     // One after the other: beside the planes, however many they are, the map would leave a hole under it.
     <div className="flex flex-col gap-8">
-      <div className="flex flex-col gap-3">
-        <PlaceMap guess={g} others={others} sure={sure} shotRef={mapShot} />
-        <p className="text-sm text-pretty text-faint">{t.result.credit}</p>
-      </div>
+      {!found?.named && mapOf(g, others, sure)}
       {(!best || g.mirror) && (
         <div className="flex flex-col gap-2">
           {!best && (
@@ -575,7 +587,7 @@ export function FindWhere({ picked, archive, few, onSearching, onHeard, onAnswer
   const known = days !== undefined;
   const complete = !!span && !!time;
   useEffect(() => {
-    if (!known || started.current) return;
+    if (!known || started.current || (result && !reply)) return;
     started.current = true;
     // A microtask: the effect only decides, the search sets its own state.
     if (complete) queueMicrotask(() => void search());
@@ -590,7 +602,74 @@ export function FindWhere({ picked, archive, few, onSearching, onHeard, onAnswer
   const guess = found?.guesses[shown] ?? best;
   const unsure = found && found.named && !found.confident;
   // The map numbers the other answers from 2: they are drawn beside the best one, not beside another.
-  const others = useMemo(() => (found && shown === 0 ? found.guesses.slice(1).map(({ lat, lon }) => ({ lat, lon })) : []), [found, shown]);
+  const beside = shown === 0 && (detailsOpen || !found || !found.named);
+  const others = found && beside ? found.guesses.slice(1).map(({ lat, lon }) => ({ lat, lon })) : [];
+  const named = found?.named && best ? best : null;
+
+  /** A UTC moment in the words of the place it happened: today's date, and a clock with no zone on it. */
+  const localOf = (g: Guess, utc: number) => spokenAt(utc, offsetAt({ lon: g.lon, zone: names.get(spotKey(g))?.zone ?? place?.zone }, utc), locale);
+  const nameOf = (g: Guess) => {
+    const near = townOf(g, names.get(spotKey(g)));
+    return near ? fill(a.named, { place: placeLabel(near) }) : g.atSea ? a.namedSea : fill(a.namedAt, { place: coordinates(g, 2) });
+  };
+  const whyOf = (r: WhereResult): string => {
+    if (r.kind === "none") return a.why.none;
+    if (r.kind === "missing") return fill(a.why.missing, { day: r.day });
+    if (r.kind === "found" && !r.guesses.length) return a.why.nothing;
+    return a.why.few;
+  };
+
+  const share = named && found && said && (
+    <div className="w-full sm:w-fit" data-testid="where-share">
+      <Share
+        label={t.result.share}
+        look="w-full rounded-full border border-transparent bg-amber px-7 py-3 text-lg font-medium text-night sm:w-fit"
+        text={fill(t.result.shareText, { verdict: nameOf(named), place: nearText(named) ?? coordinates(named, 2) })}
+        card={async () => {
+          // The card is about the best answer: the map goes on it while the map shows that one.
+          const map = shown === 0 ? await mapShot.current?.() : null;
+          return {
+            lead: said.title,
+            name: nearText(named) ?? coordinates(named, 2),
+            // The day, and the coordinates once the name has taken their place above.
+            detail: `${new Date(named.start * 1000).toISOString().slice(0, 10)}${nearText(named) ? ` - ${coordinates(named)}` : ""}`,
+            facts: [
+              [`${clockOf(named.start).slice(0, 5)} UTC`, t.result.cardStart],
+              [String(named.planes.length), t.result.cardFlyovers],
+            ],
+            credit: map ? t.result.cardCredit : undefined,
+            paint: (ctx, w, h) => paintWhere(ctx, w, h, named, found.views[named.planes[0]?.tone], map),
+          };
+        }}
+      />
+    </div>
+  );
+
+  const guessButtons = found && best && found.guesses.length > 1 && (
+    <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap" role="group" aria-label={t.result.guesses} data-testid="where-guesses">
+      {found.guesses.map((g, i) => {
+        const near = townOf(g, names.get(spotKey(g)));
+        const values = { n: i + 1, place: near ? placeLabel(near) : g.atSea ? t.result.atSea : coordinates(g, 2), distance: f.km(metresApart(best, g)) };
+        return (
+          <button
+            key={`${g.lat},${g.lon},${g.start}`}
+            type="button"
+            onClick={() => setShown(i)}
+            aria-pressed={i === shown}
+            className={`rounded-xl border px-4 py-2 text-left text-sm tabular-nums transition ${i === shown ? "border-amber text-ink" : "border-line text-mute hover:border-mute"}`}
+          >
+            {fill(!found.named ? (i === 0 ? t.result.candidateOne : t.result.candidate) : i === 0 ? t.result.first : i === 1 ? t.result.next : t.result.later, values)}
+          </button>
+        );
+      })}
+    </div>
+  );
+
+  const again = result && result !== NONE && (
+    <button type="button" onClick={stop} className={`${QUIET} w-fit underline`} data-testid="where-again">
+      {t.result.again}
+    </button>
+  );
 
   return (
     // No box of its own: what it holds goes from the form to the answer, and only that changes on the page.
@@ -598,100 +677,88 @@ export function FindWhere({ picked, archive, few, onSearching, onHeard, onAnswer
       {form}
 
       {result && said && (
-        <div className="flex flex-col gap-8" data-testid="where-result">
-          <header className="flex flex-col gap-3">
-            <h2 ref={verdict} tabIndex={-1} className={`${TITLE} scroll-mt-4 outline-none`} data-testid="where-verdict">
-              {said.title}
-            </h2>
-            {found?.named && best && lead(best, found.confident)}
-            <p className={`text-pretty text-mute ${found?.named ? "" : "max-w-prose text-lg"}`} data-testid="where-said">
-              {said.text}
-            </p>
-            {(unsure || refused) && searchedDay && <p className="text-pretty text-ink">{t.result.dayHint}</p>}
-          </header>
-
-          {result.kind === "few" && (
-            <button
-              type="button"
-              onClick={() => {
-                stop();
-                setAnyway(true);
-              }}
-              className={`${QUIET} w-fit`}
-              data-testid="where-anyway"
-            >
-              {t.result.anyway}
-            </button>
-          )}
-
-          {refused && !candidates && (
-            <button type="button" onClick={() => setCandidates(true)} aria-expanded={false} className={`${QUIET} w-fit underline`} data-testid="where-candidates">
-              {t.result.candidates}
-            </button>
-          )}
-
-          {refused && candidates && (
-            <div className="flex flex-col gap-1" data-testid="where-probably-wrong">
-              <h3 ref={wrongTitle} tabIndex={-1} className="text-xl font-semibold tracking-tight text-balance text-ink outline-none">
-                {t.result.wrongTitle}
-              </h3>
-              <p className="max-w-prose text-pretty text-mute">{t.result.wrongText}</p>
-            </div>
-          )}
-
-          {found?.named && best && (
-            <div className="flex flex-col gap-2" data-testid="where-share">
-              <Share
-                label={t.result.share}
-                text={fill(t.result.shareText, { verdict: said.title, place: nearText(best) ?? coordinates(best, 2) })}
-                card={async () => {
-                  // The card is about the best answer: the map goes on it while the map shows that one.
-                  const map = shown === 0 ? await mapShot.current?.() : null;
-                  return {
-                    lead: said.title,
-                    name: nearText(best) ?? coordinates(best, 2),
-                    // The day, and the coordinates once the name has taken their place above.
-                    detail: `${new Date(best.start * 1000).toISOString().slice(0, 10)}${nearText(best) ? ` - ${coordinates(best)}` : ""}`,
-                    facts: [
-                      [`${clockOf(best.start).slice(0, 5)} UTC`, t.result.cardStart],
-                      [String(best.planes.length), t.result.cardFlyovers],
-                    ],
-                    credit: map ? t.result.cardCredit : undefined,
-                    paint: (ctx, w, h) => paintWhere(ctx, w, h, best, found.views[best.planes[0]?.tone], map),
-                  };
-                }}
-              />
-              <p className="text-sm text-pretty text-faint">{t.result.shareNote}</p>
-            </div>
-          )}
-
-          {found && best && found.guesses.length > 1 && (
-            <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap" role="group" aria-label={t.result.guesses} data-testid="where-guesses">
-              {found.guesses.map((g, i) => {
-                const near = townOf(g, names.get(spotKey(g)));
-                const values = { n: i + 1, place: near ? placeLabel(near) : g.atSea ? t.result.atSea : coordinates(g, 2), distance: f.km(metresApart(best, g)) };
-                return (
+        <div ref={top} className="flex scroll-mt-4 flex-col gap-8" data-testid="where-result">
+          <Answer
+            map={named && guess ? mapOf(guess, others, found!.confident) : undefined}
+            title={named ? nameOf(named) : a.cannot}
+            titleRef={verdict}
+            titleProps={{ "data-testid": "where-verdict" }}
+            when={named ? fill(a.around, localOf(named, named.start)) : fileWhen}
+            why={<span data-testid="answer-reason">{named ? plural(named.planes.length, a.why.named) : whyOf(result)}</span>}
+            rows={
+              named && (
+                <ul className="flex flex-col border-b border-line" data-testid="answer-planes">
+                  {named.planes.map((p) => (
+                    <li key={p.hex} className="flex min-w-0 flex-col gap-0.5 border-t border-line py-3" data-testid="answer-plane">
+                      <span className="font-medium text-ink tabular-nums">{p.registration || p.hex}</span>
+                      <span className="text-sm text-pretty text-mute tabular-nums">{fill(a.plane, { type: aircraftType(p.type)?.name ?? (p.type || t.result.noType), distance: f.km(p.metres), time: localOf(named, p.at).time })}</span>
+                    </li>
+                  ))}
+                </ul>
+              )
+            }
+            actions={
+              <>
+                {share}
+                {another}
+              </>
+            }
+            quiet={
+              <>
+                {part?.quietCopy}
+                {part?.clean(!named)}
+                {result.kind === "few" && (
                   <button
-                    key={`${g.lat},${g.lon},${g.start}`}
                     type="button"
-                    onClick={() => setShown(i)}
-                    aria-pressed={i === shown}
-                    className={`rounded-xl border px-4 py-2 text-left text-sm tabular-nums transition ${i === shown ? "border-amber text-ink" : "border-line text-mute hover:border-mute"}`}
+                    onClick={() => {
+                      stop();
+                      setAnyway(true);
+                    }}
+                    className={`${QUIET} w-fit text-left`}
+                    data-testid="where-anyway"
                   >
-                    {fill(!found.named ? (i === 0 ? t.result.candidateOne : t.result.candidate) : i === 0 ? t.result.first : i === 1 ? t.result.next : t.result.later, values)}
+                    {t.result.anyway}
                   </button>
-                );
-              })}
-            </div>
-          )}
-
-          {found && guess && answer(guess, found.views, found.confident, guess === best, others)}
-
-          {result.kind !== "few" && (
-            <button type="button" onClick={stop} className={`${QUIET} w-fit underline`} data-testid="where-again">
-              {t.result.again}
-            </button>
-          )}
+                )}
+                {refused && !candidates && (
+                  <button type="button" onClick={() => setCandidates(true)} aria-expanded={false} className={`${QUIET} w-fit underline`} data-testid="where-candidates">
+                    {t.result.candidates}
+                  </button>
+                )}
+                {refused && candidates && (
+                  <div className="flex flex-col gap-1" data-testid="where-probably-wrong">
+                    <h3 ref={wrongTitle} tabIndex={-1} className="text-xl font-semibold tracking-tight text-balance text-ink outline-none">
+                      {t.result.wrongTitle}
+                    </h3>
+                    <p className="max-w-prose text-pretty text-mute">{t.result.wrongText}</p>
+                  </div>
+                )}
+                {refused && candidates && guessButtons}
+                {refused && candidates && guess && found && answer(guess, found.views, found.confident, guess === best, others)}
+                {!named && result.kind !== "few" && again}
+              </>
+            }
+            foot={named && <p className="text-sm text-pretty text-faint">{t.result.credit}</p>}
+            summary={named ? a.details.named : a.details.cannot}
+            onDetails={(open) => {
+              setDetailsOpen(open);
+              if (!open) setShown(0);
+            }}
+            details={
+              <>
+                {named && lead(named, found!.confident)}
+                <p className={`text-pretty text-mute ${named ? "" : "max-w-prose"}`} data-testid="where-said">
+                  {said.text}
+                </p>
+                {(unsure || refused) && searchedDay && <p className="text-pretty text-ink">{t.result.dayHint}</p>}
+                {named && <p className="text-sm text-pretty text-faint">{t.result.shareNote}</p>}
+                {named && guessButtons}
+                {named && guess && answer(guess, found!.views, found!.confident, guess === best, others)}
+                {named && again}
+                {part?.details}
+              </>
+            }
+          />
         </div>
       )}
     </div>

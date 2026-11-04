@@ -1,4 +1,6 @@
+import { writeFileSync } from "node:fs";
 import { expect, test, type Page } from "@playwright/test";
+import { phoneVideo } from "./where-scene";
 
 // The map in a real Chromium, from the real bucket: serve the app with the archive set, and point
 // BASE_URL at it.
@@ -185,4 +187,20 @@ test("the home and the search load none of it", async ({ page }) => {
   await page.goto("/where");
   await page.waitForTimeout(3000);
   expect(heavy).toEqual([]);
+});
+
+test("a file that says where it was made: the map stays at the area, with no fit or flight closer, until the visitor zooms", async ({ page }, info) => {
+  const mov = info.outputPath("phone.mov");
+  writeFileSync(mov, phoneVideo());
+  await page.goto("/where");
+  await page.getByTestId("where-file").setInputFiles(mov);
+  const map = page.getByTestId("place-map");
+  await expect(map).toHaveAttribute("data-state", "ready", { timeout: 60_000 });
+  await expect(map).toHaveAttribute("data-zoom", "11.00");
+  await page.waitForTimeout(3000);
+  await expect(map).toHaveAttribute("data-zoom", "11.00");
+  await expect(page.getByTestId("answer-map-note")).toContainText("down to about a kilometre if you zoom in");
+  await expect(page.getByTestId("place-map-credit")).toContainText("OpenStreetMap");
+  await page.getByTestId("place-map-in").click();
+  await expect.poll(() => map.getAttribute("data-zoom"), { timeout: 10_000 }).toBe("12.00");
 });

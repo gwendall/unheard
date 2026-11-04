@@ -3,6 +3,22 @@
 
 import type { CreatedAt, FileMetadata } from "./metadata";
 
+/** Above this, a line is not a propeller's: what the page reports as an aircraft sound. */
+export const REPORTED_HZ = 400;
+
+/** What the sound alone says, before any flight is read: too few passes or no aircraft sound at all (`refused`), or a search can stand on it. */
+export type SoundGate = { passes: number; low: number; refused: "few" | "none" | null };
+
+/**
+ * The rule's first gate, from the flybys of a file's segments. The one count of a file's passes: the
+ * search reads it, and so does the check before it says "too few" with no search behind it.
+ */
+export function soundGate(heard: readonly { f0: number; closest: number }[]): SoundGate {
+  const low = heard.filter((h) => h.f0 <= REPORTED_HZ);
+  const passes = passesOf((low.length ? low : heard).map((h) => h.closest));
+  return { passes, low: low.length, refused: passes >= MIN_PASSES ? null : low.length ? "few" : "none" };
+}
+
 /** The square searched around the place given, metres. */
 export const SQUARE = 100_000;
 
@@ -108,6 +124,25 @@ export function passesOf(closest: number[]): number {
     first = t;
   }
   return n;
+}
+
+/** A UTC moment the way the language says it, at this offset from UTC: "16 May 2026", "2:03 PM". */
+export function spokenAt(utc: number, offsetMinutes: number, locale: string): { date: string; time: string } {
+  const at = new Date((utc + offsetMinutes * 60) * 1000);
+  return { date: new Intl.DateTimeFormat(locale, { dateStyle: "long", timeZone: "UTC" }).format(at), time: new Intl.DateTimeFormat(locale, { timeStyle: "short", timeZone: "UTC" }).format(at) };
+}
+
+/**
+ * When a file says it was made, in plain words. A clock with its zone reads as that clock did; an
+ * absolute time with no zone needs a place to turn into a local one, and without a place only its
+ * day is said, never a UTC clock. A clock with no zone reads as it is.
+ */
+export function madeInWords(c: CreatedAt | undefined, place: Pick<Place, "lon" | "zone"> | undefined, locale: string): { date: string; time?: string } | null {
+  if (!c || c.precision === "year" || c.precision === "month") return null;
+  const absolute = c.offsetMinutes !== undefined || c.source === "mvhd";
+  const offset = c.offsetMinutes ?? (!absolute ? 0 : place ? offsetAt(place, c.utc) : null);
+  const { date, time } = spokenAt(c.utc, offset ?? 0, locale);
+  return c.precision === "day" || offset === null ? { date } : { date, time };
 }
 
 /** The time of day at a UTC moment, offset by some minutes: "18:03:44". */

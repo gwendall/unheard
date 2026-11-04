@@ -1,6 +1,8 @@
 "use client";
 
-import { lazy, Suspense, useEffect, useState, useSyncExternalStore, type ComponentType, type RefObject } from "react";
+import { lazy, Suspense, useContext, useEffect, useState, useSyncExternalStore, type ComponentType, type RefObject } from "react";
+import { createPortal } from "react-dom";
+import { CreditSlot } from "@/components/Answer";
 import { Rich, useI18n } from "@/components/I18n";
 import { SpotPlot } from "@/components/SpotPlot";
 import { ARCHIVE_URL } from "@/lib/archive";
@@ -13,7 +15,7 @@ import type { Guess } from "@/lib/client/where.worker";
 // bucket only. The box keeps its height from the first frame to the last, and SpotPlot, today's
 // diagram, takes the same box when there is no WebGL or the tiles cannot be read.
 
-type CanvasProps = { archive: string; guess: Guess; others: Spot[]; sure: boolean; onReady: () => void; onFail: () => void; shotRef?: RefObject<MapShot | null> };
+type CanvasProps = { archive: string; guess: Guess; others: Spot[]; sure: boolean; zoom?: number; onReady: () => void; onFail: () => void; shotRef?: RefObject<MapShot | null> };
 
 /** The map as it stands, as a picture: null when it does not show the answer. Set once it has drawn. */
 export type MapShot = () => Promise<MapPicture | null>;
@@ -50,6 +52,7 @@ export function PlaceMap({
   sure = false,
   className = "h-[22.5rem] sm:h-[33.75rem]",
   archive = ARCHIVE_URL,
+  zoom,
   shotRef,
 }: {
   guess: Guess;
@@ -59,6 +62,8 @@ export function PlaceMap({
   className?: string;
   /** Where the map's files are: the flight archive's base, unless a test says otherwise. */
   archive?: string;
+  /** How close it goes on its own. Past that, only when the visitor zooms: the tiles it asks for name the area. */
+  zoom?: number;
   /** Filled with a way to take the map's picture while there is a map to take. */
   shotRef?: RefObject<MapShot | null>;
 }) {
@@ -66,7 +71,38 @@ export function PlaceMap({
   const t = m.placeMap;
   const gl = useSyncExternalStore(neverChanges, webgl, () => null);
   const [progress, setProgress] = useState<"loading" | "ready" | "failed">("loading");
+  const slot = useContext(CreditSlot);
   const state = gl === false || !archive ? "failed" : progress;
+  const credit =
+    state === "failed" ? (
+      `${t.failed} ${m.where.placesCredit}`
+    ) : (
+      <Rich
+        text={t.credit}
+        parts={{
+          osm: (
+            <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer" className={LINK}>
+              OpenStreetMap
+            </a>
+          ),
+          protomaps: (
+            <a href="https://protomaps.com" target="_blank" rel="noreferrer" className={LINK}>
+              Protomaps
+            </a>
+          ),
+          geonames: (
+            <a href="https://www.geonames.org" target="_blank" rel="noreferrer" className={LINK}>
+              GeoNames
+            </a>
+          ),
+          terrain: (
+            <a href="https://github.com/tilezen/joerd/blob/master/docs/attribution.md" target="_blank" rel="noreferrer" className={LINK}>
+              Terrain Tiles
+            </a>
+          ),
+        }}
+      />
+    );
 
   return (
     <figure className="m-0 flex flex-col gap-2" data-testid="place-map" data-state={state}>
@@ -78,7 +114,7 @@ export function PlaceMap({
         ) : (
           gl && (
             <Suspense fallback={null}>
-              <Canvas archive={archive} guess={guess} others={others} sure={sure} onReady={() => setProgress("ready")} onFail={() => setProgress("failed")} shotRef={shotRef} />
+              <Canvas archive={archive} guess={guess} others={others} sure={sure} zoom={zoom} onReady={() => setProgress("ready")} onFail={() => setProgress("failed")} shotRef={shotRef} />
             </Suspense>
           )
         )}
@@ -87,38 +123,25 @@ export function PlaceMap({
             {t.loading}
           </p>
         )}
-      </div>
-      <figcaption className="text-sm text-pretty text-faint" data-testid="place-map-credit">
-        {state === "failed" ? (
-          `${t.failed} ${m.where.placesCredit}`
-        ) : (
-          <Rich
-            text={t.credit}
-            parts={{
-              osm: (
-                <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer" className={LINK}>
-                  OpenStreetMap
-                </a>
-              ),
-              protomaps: (
-                <a href="https://protomaps.com" target="_blank" rel="noreferrer" className={LINK}>
-                  Protomaps
-                </a>
-              ),
-              geonames: (
-                <a href="https://www.geonames.org" target="_blank" rel="noreferrer" className={LINK}>
-                  GeoNames
-                </a>
-              ),
-              terrain: (
-                <a href="https://github.com/tilezen/joerd/blob/master/docs/attribution.md" target="_blank" rel="noreferrer" className={LINK}>
-                  Terrain Tiles
-                </a>
-              ),
-            }}
-          />
+        {/* The full credits are at the foot of the answer: the map still says whose it is, in its corner. */}
+        {slot && state !== "failed" && (
+          <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer" className="absolute right-1.5 bottom-1.5 rounded bg-night/70 px-1.5 py-0.5 text-xs text-mute transition hover:text-ink">
+            © OpenStreetMap
+          </a>
         )}
-      </figcaption>
+      </div>
+      {slot ? (
+        createPortal(
+          <p className="text-sm text-pretty text-faint" data-testid="place-map-credit">
+            {credit}
+          </p>,
+          slot,
+        )
+      ) : (
+        <figcaption className="text-sm text-pretty text-faint" data-testid="place-map-credit">
+          {credit}
+        </figcaption>
+      )}
     </figure>
   );
 }

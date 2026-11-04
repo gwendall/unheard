@@ -342,28 +342,29 @@
   "check": {
     "steps": {
       "open": "Opening the file, {n} %",
-      "find": "Listening for aircraft tones, {n} %",
-      "clean": "Taking the tones out, {n} %",
+      "find": "Listening for planes, {n} %",
+      "gate": "Listening for planes, {n} %",
+      "clean": "Taking the sound out, {n} %",
       "again": "Checking again, {n} %",
       "write": "Writing the cleaned file, {n} %",
       "held": "Waiting for the search to finish."
     },
-    "found": { "one": "An aircraft tone that could place this file.", "other": "{n} aircraft tones that could place this file." },
-    "foundIn": { "one": "An aircraft tone in this file.", "other": "{n} aircraft tones in this file." },
+    "found": { "one": "An aircraft sound that could place this file.", "other": "{n} aircraft sounds that could place this file." },
+    "foundIn": { "one": "An aircraft sound in this file.", "other": "{n} aircraft sounds in this file." },
     "clean": { "one": "Take it out", "other": "Take them out" },
-    "fold": { "one": "See the tone in this file", "other": "See the {n} tones in this file" },
-    "all": "See all {n} tones",
-    "soFar": "See the tones found so far",
-    "foundSearch": { "one": "An aircraft tone in this file.", "other": "Aircraft tones in this file." },
-    "foldSearch": { "one": "See the tone in this file", "other": "See the tones in this file" },
+    "fold": { "one": "See the sound in this file", "other": "See the {n} sounds in this file" },
+    "all": "See all {n} sounds",
+    "soFar": "See the sounds found so far",
+    "foundSearch": { "one": "An aircraft sound in this file.", "other": "Aircraft sounds in this file." },
+    "foldSearch": { "one": "See the sound in this file", "other": "See the sounds in this file" },
     "elsewhere": "Or make it sound like you are somewhere else",
-    "none": "No aircraft tone found.",
+    "none": "No aircraft sound found.",
     "noneText": "We looked for the hum of planes and helicopters and found none that stands out, so there is nothing to search or take out. That does not make the file safe: below is what we do not check.",
     "noneSearch": "We looked for the hum of planes and helicopters and found none that stands out. The search above still says what it finds on its own. That does not make the file safe: below is what we do not check.",
-    "gone": { "one": "The tone is gone.", "other": "The tones are gone." },
-    "goneText": "We searched the cleaned sound again and no longer find an aircraft tone. Someone holding the flight data of that moment may still match a plane: in our tests the plane was still identified in 8 of 36 phone recordings of planes passing within 6 km (the Livermore set) and in 0 of 6 from AeroSonicDB.",
-    "left": { "one": "One tone is still there.", "other": "{n} tones are still there." },
-    "leftText": "Taking a tone out can bring a fainter one to light. You can take them out again.",
+    "gone": { "one": "The sound is gone.", "other": "The sounds are gone." },
+    "goneText": "We searched the cleaned sound again and no longer find an aircraft sound. Someone holding the flight data of that moment may still match a plane: in our tests the plane was still identified in 8 of 36 phone recordings of planes passing within 6 km (the Livermore set) and in 0 of 6 from AeroSonicDB.",
+    "left": { "one": "One sound is still there.", "other": "{n} sounds are still there." },
+    "leftText": "Taking a sound out can bring a fainter one to light. You can take them out again.",
     "download": "Download the cleaned sound",
     "remux": "A WAV file. To put it back in your video: in your editor, mute the video's own sound and place this WAV at the very start. It has the same length, so it lines up.",
     "video": {
@@ -388,9 +389,9 @@
       "download": "Download without its tags",
       "copying": "Copying the file, {n} %",
       "suffix": "no-tags",
-      "video": "A copy with the same picture and sound, copied as they are, and no tags or other tracks. The sound is unchanged, so any aircraft tone stays in it, and the picture can still give the place away: what it shows, or a position some cameras write into it.",
+      "video": "A copy with no tags or other tracks. The sound is unchanged, so any aircraft sound stays in it, and the picture can still give the place away: what it shows, or a position some cameras write into it.",
       "picture": "A copy with the same picture, copied as it is, and no tags or other tracks. The picture can still give the place away: what it shows, or a position some cameras write into it.",
-      "sound": "A copy with the same sound, copied as it is, and no tags or other tracks. The sound is unchanged, so any aircraft tone stays in it.",
+      "sound": "A copy with the same sound, copied as it is, and no tags or other tracks. The sound is unchanged, so any aircraft sound stays in it.",
       "cannot": "We cannot write this kind of file, so it keeps any date, place or device it had.",
       "failed": "We could not write this copy. Your file still holds its tags."
     },
@@ -402,7 +403,7 @@
     "picture": "Spectrum of the recording around the tone",
     "errors": {
       "open": "This file has no sound we can read: it may have no sound track, or one this browser cannot open. Try another browser, or the sound alone as an M4A, MP3 or WAV.",
-      "noSound": "This video has no sound track: no aircraft tone to find, nothing to take out. That does not make it safe: what it says about itself and its picture can still give it away.",
+      "noSound": "This video has no sound track: no aircraft sound to find, nothing to take out. That does not make it safe: what it says about itself and its picture can still give it away.",
       "tooBig": "This file is too big for a browser to open whole, and this one could not read it piece by piece. Try a shorter part of it, or its sound alone as an M4A, MP3 or WAV.",
       "failed": "Something went wrong while checking this file: {message}"
     },
@@ -466,7 +467,7 @@
     "window": "Start between {from} and {to} UTC",
     "steps": {
       "open": "Opening the file...",
-      "find": "1 of 4: listening for aircraft tones...",
+      "find": "1 of 4: listening for planes...",
       "flights": "2 of 4: loading the flights of that day and area...",
       "search": "3 of 4: searching, {n} %",
       "refine": "4 of 4: refining the best answers, {n} %"
@@ -477,7 +478,7 @@
       "best": "Best guess",
       "honest": "A place is named only when at least three planes, and a third of the flyovers heard, fit it clearly, better than chance would over the square and time searched. On our test files, the places named were right 12 times in 12 with the hour known and 9 times in 9 with the day only, and most files name none.",
       "dayHint": "You searched a whole day. Give the hour, even roughly, and search again: the answers get better.",
-      "none": "No aircraft tone found.",
+      "none": "No aircraft sound found.",
       "noneText": "We looked for the hum of planes and helicopters and found none that stands out. Without one, there is nothing to match to the flights.",
       "few": "This file holds too few flyovers to place it.",
       "fewText": "To name a place we need at least three planes, each heard clearly at its own moment. With fewer, the answer would most likely be wrong: in our tests, even with the hour known, one flyover gave the right spot 2 times in 46 and two flyovers 7 times in 23. More minutes only help if they bring more clear flyovers.",
@@ -523,6 +524,38 @@
     },
     "errors": {
       "failed": "Something went wrong while searching: {message}"
+    }
+  },
+  "answer": {
+    "gps": "Filmed near {place}",
+    "gpsAt": "Filmed at {place}",
+    "named": "Probably filmed near {place}",
+    "namedAt": "Probably filmed at {place}",
+    "namedSea": "Probably filmed at sea",
+    "cannot": "Can't tell where this was filmed",
+    "listening": "Listening for planes in the sound",
+    "when": "{date}, {time}",
+    "around": "{date}, around {time}",
+    "plane": "{type}, {distance} away, at {time}",
+    "another": "Another file",
+    "mapNote": "The map and the place name come from our own storage, and your file is never sent. Our host sees which area was asked for: a few dozen km across, down to about a kilometre if you zoom in.",
+    "why": {
+      "gps": "It is written in the file, and anyone can read it if you share it as it is.",
+      "named": {
+        "one": "{n} plane was passing there at that moment, and we can hear it in the sound.",
+        "other": "{n} planes were passing there at that moment, and we can hear them in the sound."
+      },
+      "few": "We heard planes, but not enough to be sure of a place. It takes at least three, each clear.",
+      "none": "We did not hear any plane in the sound, and the file does not say.",
+      "nothing": "We heard planes, but no flight we know of fits them in that area at that time.",
+      "missing": "We have no flights yet for {day}.",
+      "compare": "To know where, we compare it with that day's flights."
+    },
+    "details": {
+      "working": "Details",
+      "gps": "Details: coordinates, what the sound holds",
+      "named": "Details: coordinates, other answers, the sound's curves",
+      "cannot": "Details"
     }
   }
 }

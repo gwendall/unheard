@@ -31,14 +31,17 @@ const MANY = 2000;
 test("finds the plane's tone in a file, takes it out, and hands back the cleaned sound", async ({ page }) => {
   await page.goto("/where");
   await page.getByTestId("where-file").setInputFiles(FLYBY);
-  await expect(page.getByTestId("check-verdict")).toHaveText(/^(An aircraft tone|\d+ aircraft tones) that could place this file\.$/, { timeout: 90_000 });
+  await expect(page.getByTestId("check-verdict")).toHaveText(/^(An aircraft sound|\d+ aircraft sounds) in this file\.$/, { timeout: 90_000 });
+  // One pass of a plane, so the answer is that it cannot tell: the sound is two taps away, its removal one.
+  await page.getByTestId("answer-details").locator("summary").first().click();
+  await page.getByTestId("check-fold").locator("summary").click();
   const first = page.getByTestId("check-tones").locator("li").first();
   await expect(first).toContainText(/\d:\d\d to \d:\d\d in the file, \d+ to \d+ Hz/);
   // The verdict does not wait for the pictures: they come after it, without being asked twice.
   await expect.poll(() => coloursOf(first.locator("canvas").first()), { timeout: 30_000 }).toBeGreaterThan(MANY);
 
   await page.getByTestId("check-clean").click();
-  await expect(page.getByTestId("check-verdict")).toHaveText(/^The tones? (is|are) gone\.$/, { timeout: 120_000 });
+  await expect(page.getByTestId("check-verdict")).toHaveText(/^The sounds? (is|are) gone\.$/, { timeout: 120_000 });
   for (const picture of [first.locator("canvas").first(), first.locator("canvas").last()]) await expect.poll(() => coloursOf(picture), { timeout: 30_000 }).toBeGreaterThan(MANY);
   await shoot(page, "check-cleaned");
 
@@ -52,7 +55,7 @@ test("the French page, for the screenshots", async ({ page }) => {
   test.skip(!SHOTS, "screenshots only");
   await page.goto("/fr/where");
   await page.getByTestId("where-file").setInputFiles(FLYBY);
-  await expect(page.getByTestId("check-verdict")).toContainText("qui pourrai", { timeout: 90_000 });
+  await expect(page.getByTestId("check-verdict")).toBeVisible({ timeout: 90_000 });
   await page.getByTestId("check-clean").click();
   await expect(page.getByTestId("check-download")).toBeVisible({ timeout: 120_000 });
   await shoot(page, "check-fr-cleaned");
@@ -84,7 +87,7 @@ test.describe("on a phone", () => {
       await page.waitForTimeout(100);
     }
     expect(most).toBeLessThanOrEqual(1);
-    await expect(page.getByTestId("check-verdict")).toHaveText(/^The tones? (is|are) gone\.$/);
+    await expect(page.getByTestId("check-verdict")).toHaveText(/^The sounds? (is|are) gone\.$/);
   });
 });
 
