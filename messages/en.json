@@ -361,7 +361,7 @@
     "noneText": "We looked for the hum of planes and helicopters and found none that stands out, so there is nothing to search or take out. That does not make the file safe: below is what we do not check.",
     "noneSearch": "We looked for the hum of planes and helicopters and found none that stands out. The search above still says what it finds on its own. That does not make the file safe: below is what we do not check.",
     "gone": { "one": "The tone is gone.", "other": "The tones are gone." },
-    "goneText": "We searched the cleaned sound again and no longer find an aircraft tone.",
+    "goneText": "We searched the cleaned sound again and no longer find an aircraft tone. Someone holding the flight data of that moment may still match a plane: in our tests the plane was still identified in 8 of 36 phone recordings of planes passing within 6 km (the Livermore set) and in 0 of 6 from AeroSonicDB.",
     "left": { "one": "One tone is still there.", "other": "{n} tones are still there." },
     "leftText": "Taking a tone out can bring a fainter one to light. You can take them out again.",
     "download": "Download the cleaned sound",

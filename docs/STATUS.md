@@ -105,7 +105,7 @@ What a visitor goes through, and where it lives:
   the sound made when taking out starts, so nothing waits for them.
   Nothing leaves the device; those files go when the visitor moves on, or on a later visit if a tab
   died. Measured by `evals/leak.eval.ts`, which runs that same path: on AeroSonicDB, tones found in
-  9 of 9 clips, 6 named before, none after. On a 30-minute, 1.83 GB video in Chrome the browser peaks
+  9 of 9 clips, 6 named before, none after. On the Livermore set, phone recordings of planes passing within 6 km, 36 named before and 8 after: the tone is gone from a blind search, not from what someone with the flight data can add up, and the page says so with these numbers (`check.goneText`). On a 30-minute, 1.83 GB video in Chrome the browser peaks
   at 1.7 GB finding its tones and 2.2 GB taking them out (5 GB and 4.5 GB when the file was decoded whole).
 
 - **Find where** (`components/FindWhere.tsx`, `components/PlaceMap.tsx`,
