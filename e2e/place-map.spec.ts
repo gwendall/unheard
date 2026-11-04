@@ -204,3 +204,23 @@ test("a file that says where it was made: the map stays at the area, with no fit
   await page.getByTestId("place-map-in").click();
   await expect.poll(() => map.getAttribute("data-zoom"), { timeout: 10_000 }).toBe("12.00");
 });
+
+for (const [width, height] of [[1440, 900], [390, 844]]) {
+  test(`the example, on the real archive, comes to its named place with nothing moving, at ${width} px`, async ({ page }) => {
+    test.setTimeout(240_000);
+    await page.setViewportSize({ width, height });
+    const rects = () =>
+      page.evaluate(() =>
+        Object.fromEntries(
+          ["where-name", "example-chip", "example-note", "answer-why"].map((id) => [id, document.querySelector(`[data-testid="${id}"]`)?.getBoundingClientRect().toJSON()]),
+        ),
+      );
+    await page.goto("/example");
+    await expect(page.getByTestId("example-progress")).toBeVisible({ timeout: 60_000 });
+    const first = await rects();
+    await expect(page.getByTestId("where-verdict")).toHaveText("Probably filmed near Mesa, Arizona", { timeout: 200_000 });
+    await ready(page);
+    expect(await rects()).toEqual(first);
+    await expect(page.getByTestId("answer-plane")).toHaveCount(3);
+  });
+}
