@@ -119,8 +119,9 @@ What a visitor goes through, and where it lives:
     build time): without it the page says the archive is not connected and offers no search; what
     a file says, its tones and taking them out still work. On production it is `https://unheard-history.t3.tigrisbucket.io` (no trailing slash;
     see "Hosting" in `docs/history-format.md`). The day is picked among those in the archive's
-    `days.json`, and the page says it is still filling: each day's flights arrive the next day,
-    older days a few at a time, back to `OLDEST_DAY` (`lib/client/where.ts`, the job's `OLDEST`).
+    `days.json`, and the page says each day's flights arrive the next day. It goes back to
+    `OLDEST_DAY` (`lib/client/where.ts`, the job's `OLDEST`). A day with an empty manifest counts as
+    missing, not as a day without flights (2026-05-05: a release with no traces).
     A file's date that is not covered is said, with the days there are; before `OLDEST_DAY` it is
     told the archive will not reach it.
   - **Sure or not**: "Probably here" only on `whereWhen`'s flag, which in practice never rises (0

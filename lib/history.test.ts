@@ -98,6 +98,13 @@ describe("history tiles", () => {
     await loadFlights(async (path) => files[path] ?? null, ["2026-05-16", "2026-05-17"], { lat: 37.6, lon: -121.6, side: 20_000 }, undefined, (done, total) => steps.push([done, total]));
     expect(steps).toEqual([[0, 1], [1, 1]]);
   });
+
+  it("counts a day with an empty manifest as missing, not as a day without flights", async () => {
+    const files: Record<string, Uint8Array> = { "2026-05-05/manifest.json": new TextEncoder().encode(JSON.stringify({ tiles: {} })) };
+    const got = await loadFlights(async (path) => files[path] ?? null, ["2026-05-05"], { lat: 37.6, lon: -121.6, side: 20_000 });
+    expect(got.missing).toEqual(["2026-05-05"]);
+    expect(got.flights).toEqual([]);
+  });
 });
 
 describe("the days an archive holds", () => {

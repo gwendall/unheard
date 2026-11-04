@@ -59,6 +59,8 @@ the tar that were not valid and were looked past.
 ```
 
 `sha256` is the hash of the `.bin.gz` file as served; `content` the hash of its decompressed bytes.
+A manifest with no tiles means the source held nothing that day: a reader counts the day as missing,
+not as a day without flights.
 
 ## Determinism
 
