@@ -11,6 +11,11 @@ const rough = (x: number) => {
   return Math.round(x / unit) * unit;
 };
 
+/** The time left as people say it: to the next 5 s, then to the next minute. */
+export function timeLeft(seconds: number, words: { leftSeconds: string; leftMinutes: string }, fill: (text: string, values: Record<string, string | number>) => string): string {
+  return seconds < 60 ? fill(words.leftSeconds, { n: Math.max(5, Math.ceil(seconds / 5) * 5) }) : fill(words.leftMinutes, { n: Math.ceil(seconds / 60) });
+}
+
 /** Distances, heights and times as people say them in a language: "1.2 km" or "1,2 km". */
 export function formatFor(locale: Locale) {
   const loc = LANGUAGES[locale].tag;

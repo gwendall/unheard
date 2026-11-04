@@ -388,6 +388,7 @@
     "locateFailed": "We could not get your location. Type a town or coordinates instead.",
     "cancel": "Cancel",
     "elapsed": "{time} so far",
+    "soFar": "Best so far: {place}, starting around {time} UTC. The search may still drop it.",
     "leftSeconds": "about {n} s left",
     "leftMinutes": "about {n} min left",
     "choose": "Choose a file",

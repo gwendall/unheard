@@ -71,8 +71,8 @@ What a visitor goes through, and where it lives:
 - **One flow for a file** (`/where`, `/check` redirects there; `components/Where.tsx`,
   `components/Drop.tsx`): the file state takes the drop zone's place, the header stays put, and the
   whole page takes a drop. In order, each as soon as it is known: what the file says about itself
-  (`lib/client/metadata.ts`: GPS first and big, then date, time, device), its aircraft tones with a
-  one-line verdict, then two actions side by side, "Find where" and "Take them out", and the link
+  (`lib/client/metadata.ts`: GPS first and big, then date, time, device), its aircraft tones, each
+  as it is found (its curve at once, its picture at the end), in the file's order, with a one-line verdict, then two actions side by side, "Find where" and "Take them out", and the link
   to Somewhere else. A clear state for each failure: no sound (`check.errors.open`), a file past 2
   GB (`lib/client/decode.ts`), no tone (no action offered, and never "safe"), a day not in the
   archive, no flight fitting. With no tag found it says only that, and that some cameras keep GPS
@@ -97,7 +97,8 @@ What a visitor goes through, and where it lives:
   our own gazetteer), coordinates, or "Use my location" (a 100 km square); with nothing missing it
   goes straight to the search. The sound
   is decoded at the analysis rate, then a worker finds the tones, fetches that day's tiles for the
-  area, and runs `whereWhen`, with an estimate of the time left and a way to cancel; the tones and
+  area, and runs `whereWhen`, with one bar and the time left for the whole job (`lib/core/progress.ts`),
+  the best guess so far, hedged, as soon as there is one, and a way to cancel; the tones and
   "Take them out" stay usable meanwhile. "Probably here" only under the confidence flag, else "Best guess" and
   up to two more answers; the map (`SpotPlot` only as its fallback), the start in UTC and local time, each plane with its registration
   (the history keeps no callsign), type, distance and passing time, its spectrum with the curve.
