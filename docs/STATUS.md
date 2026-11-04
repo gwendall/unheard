@@ -80,6 +80,7 @@ What a visitor goes through, and where it lives:
   results arrive, checked by rect in `e2e/where.spec.ts`; "What we check" comes back under the card
   once the tones are known, so nothing jumps (layout shift 0 from the home to the tones, same spec).
   Find where puts the focus on the first gap, and on no field on a touch screen.
+  With a file in, the header drops its lead and keeps the heading, which does not move, and one line of privacy. Once a search has its answer, the answer comes first, the file's own findings under it, on both widths: "Find where" gives way to "Change the search", the file's actions go quiet, and "Share this result" is the one primary. A search's end brings the verdict into view, instantly under reduced motion, unless the visitor has scrolled away.
 - **Take them out** (`components/Check.tsx`, `lib/client/check.worker.ts`,
   `lib/core/leak.ts`): the defence colsto's viewers asked for ("what's the counter strat?"). A
   video or sound file is decoded in the page (Web Audio), searched for aircraft tones with no

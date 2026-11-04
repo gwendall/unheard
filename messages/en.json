@@ -382,6 +382,7 @@
     "title": "Where was this filmed?",
     "lead": "The planes in the background of a video or a sound file leave a tone that falls as they pass. Matched to an archive of flights, those tones can sometimes tell where and when it was recorded.",
     "private": "Your file stays in this browser: it is opened, searched and cleaned here, nothing of it is sent, and nothing is stored.",
+    "privateShort": "Your file stays in this browser.",
     "offline": "The flight archive is not connected yet, so the search is not offered.",
     "find": "Find where",
     "facts": { "made": "Made", "device": "Device", "nothing": "No date or place in the tags we read. GoPros, drones and some other cameras keep GPS elsewhere, where we do not look." },
