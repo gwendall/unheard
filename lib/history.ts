@@ -149,7 +149,8 @@ export async function readDays(fetcher: Fetcher): Promise<string[] | null> {
  */
 export async function loadFlights(fetcher: Fetcher, days: string[], area: { lat: number; lon: number; side: number }, margin = 15_000, onProgress?: (done: number, total: number) => void): Promise<{ flights: Flight[]; bytes: number; tiles: number; missing: string[] }> {
   const manifests = await inParallel(days, MAX_FETCHES, (day) => readManifest(fetcher, day));
-  const missing = days.filter((_, i) => !manifests[i]);
+  // No tiles means the source held nothing that day (2026-05-05), not that nothing flew.
+  const missing = days.filter((_, i) => Object.keys(manifests[i]?.tiles ?? {}).length === 0);
   const paths = days.flatMap((day, i) => {
     const manifest = manifests[i];
     return manifest ? tilesAround(manifest, area.lat, area.lon, area.side, margin).map((name) => `${day}/${name}.bin.gz`) : [];

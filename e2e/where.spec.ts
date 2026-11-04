@@ -274,7 +274,7 @@ test("fills in the day and hour from the file, and says where they came from", a
   await expect(page.getByTestId("where-day")).toHaveValue(scene.day);
   await expect(page.getByTestId("where-time")).toHaveValue(HOUR);
   await expect(page.getByTestId("where-from-file")).toContainText("ICRD");
-  await expect(page.getByTestId("where-days")).toHaveText(`The flight archive is still filling and holds ${scene.day} so far: each day's flights arrive the next day, older days a few at a time.`);
+  await expect(page.getByTestId("where-days")).toHaveText(`The flight archive holds ${scene.day}: each day's flights arrive the next day.`);
   await expect(page.getByTestId("where-place")).toBeFocused();
   await shoot(page, "where-prefilled");
 });
