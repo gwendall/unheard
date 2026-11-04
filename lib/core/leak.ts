@@ -9,7 +9,8 @@ import { inParallel } from "./parallel";
 import { ANALYSIS_RATE } from "./pipeline";
 import { RESAMPLE_REACH, resampleAt } from "./resample";
 import { freeScrub, HARMONICS, scrub, type Curve, type ScrubOptions } from "./scrub";
-import { buildStack, type StackOptions } from "./spectrogram";
+import { scanCurve } from "./match";
+import { buildStack, median, type Stack, type StackOptions } from "./spectrogram";
 import { findTraces, REAL_RANGE, type Trace, type TraceOptions } from "./trace";
 
 /** A recording as the check holds it: every channel at the file's own rate. */
@@ -34,6 +35,8 @@ export type Tone = {
    * off, a harmonic, a twin's second engine): one source to the eye, taken out with it.
    */
   beside?: Tone[];
+  /** A line and not a tone the page reports: read by a tone's curve (familyOf), found up there (ALONG), or under what is reported. It takes fewer harmonics (LINE_HARMONICS). */
+  alone?: boolean;
 };
 
 export const CHUNK_SECONDS = 180;
@@ -123,7 +126,7 @@ function join(a: Tone, b: Tone): Tone {
     times[k - lo] = from.t[from.i];
     freq[k - lo] = from.f[from.i];
   }
-  return { times, freq, confidence: first.confidence };
+  return { times, freq, confidence: first.confidence, ...(a.alone && b.alone ? { alone: true } : {}) };
 }
 
 /** Ratios at which a ridge runs beside a louder one: the same pitch a few per cent off, or a harmonic. */
@@ -233,6 +236,90 @@ export type ChunkFound = { found: Tone[]; wide: Tone[] };
 /** What a chunk's search is told. */
 export type ChunkOptions = Pick<FindOptions, "trace" | "along" | "stack">;
 
+/** How far above the other frequencies a line of a tone's family stands, in their spreads. */
+export const FAMILY_STANDS = 3;
+const FAMILY_LINES = 16;
+/** What analyze() reads a pitch up to: three harmonics of it inside the 3.8 kHz it looks at. */
+const FAMILY_TOP = 1267;
+/** Closer lines are one, Hz: the shortest window's evidence reaches that far either side of a line. */
+const FAMILY_APART = 8;
+/** A ridge this sure is a tone: what the page reports, not what the rounds look again for. */
+const FAMILY_FROM = 4;
+/** scrub's own width (DEFAULTS.width). */
+const SCRUB_WIDTH = 3;
+/** What a line takes with it: the harmonics analyze() reads a tone by, no more. Six on each would cost a comb of 16 lines a hundred notches. */
+const LINE_HARMONICS = 3;
+/** A tone's pitch is noisy from one frame to the next, and scaled up so is the noise: about this many seconds either side. */
+const FAMILY_SMOOTH = 1;
+
+/**
+ * The other lines of the plane of a tone found, however faint. The Doppler shift scales every line
+ * alike, so each is the tone's own curve times a number: the curve is read at every frequency, the
+ * way analyze() reads a flight's curve, and what stands above the other frequencies goes out with
+ * it. A blind search needs a ridge to stand out frame by frame, this only needs it to add up: on
+ * Livermore's N413AK R05, 128 Hz and 320 Hz are found and 192 Hz is not, and analyze() named it strong
+ * (9.4) with those two out.
+ */
+function familyOf(stack: Stack, traces: Trace[], found: Tone[], offset: number, lowest: number): Tone[] {
+  const { base } = stack;
+  const hop = base.frames > 1 ? base.times[1] - base.times[0] : HOP_SECONDS;
+  const reach = Math.round(FAMILY_SMOOTH / hop);
+  const grid: number[] = [];
+  for (let f = lowest; f <= FAMILY_TOP; f += Math.max(0.5, f * 0.003)) grid.push(f);
+  const lines = Float64Array.from(grid);
+  const out: Tone[] = [];
+  traces.forEach((trace, at) => {
+    // A ridge parallel to one read already has the same curve: the same plane, the same lines.
+    if (trace.confidence < FAMILY_FROM || found.slice(0, at).some((t) => parallel(t, found[at]) !== null)) return;
+    const middle = median(trace.freq.subarray(trace.from, trace.to + 1));
+    const factor = new Float32Array(base.frames).fill(NaN);
+    for (let k = trace.from; k <= trace.to; k++) {
+      let sum = 0;
+      let count = 0;
+      for (let j = Math.max(trace.from, k - reach); j <= Math.min(trace.to, k + reach); j++) {
+        sum += trace.freq[j];
+        count++;
+      }
+      factor[k] = sum / count / middle;
+    }
+    const scores = scanCurve(stack, factor, lines);
+    const floats = Float32Array.from(scores);
+    const mid = median(floats);
+    const spread = 1.4826 * median(floats.map((v) => Math.abs(v - mid))) + 1e-6;
+    const order = Array.from(scores.keys()).sort((a, b) => scores[b] - scores[a]);
+    // What goes out anyway: the ridges parallel to this one, each with its harmonics and notches.
+    const ridges = found.flatMap((t) => {
+      const ratio = parallel(found[at], t);
+      return ratio === null ? [] : [{ line: middle * Math.exp(ratio), width: t.confidence >= LOUD.confidence ? LOUD.width : SCRUB_WIDTH }];
+    });
+    const inNotch = (f: number) =>
+      ridges.some(({ line, width }) => {
+        const h = Math.round(f / line);
+        return h >= 1 && h <= HARMONICS && Math.abs(f - h * line) <= h * width + FAMILY_APART;
+      });
+    const peaks: number[] = [];
+    let taken = 0;
+    for (const i of order) {
+      const stands = (scores[i] - mid) / spread;
+      if (stands < FAMILY_STANDS || taken >= FAMILY_LINES) break;
+      const f = grid[i];
+      if (peaks.some((p) => Math.abs(p - f) < Math.max(FAMILY_APART, 0.006 * f))) continue;
+      peaks.push(f);
+      if (inNotch(f)) continue;
+      taken++;
+      const n = trace.to - trace.from + 1;
+      const times = new Float64Array(n);
+      const freq = new Float32Array(n);
+      for (let j = 0; j < n; j++) {
+        times[j] = offset + base.times[trace.from + j];
+        freq[j] = f * factor[trace.from + j];
+      }
+      out.push({ times, freq, confidence: stands, alone: true });
+    }
+  });
+  return out;
+}
+
 /** One chunk's search, whatever the others find: a piece a worker of the pool can do. */
 export function findChunk(samples: Float32Array, start: number, rate: number, options: ChunkOptions, onShare?: (share: number) => void): ChunkFound {
   const trace = { ...CHECK_TRACE, ...options.trace };
@@ -240,8 +327,9 @@ export function findChunk(samples: Float32Array, start: number, rate: number, op
   const { stack: inStack, trace: inTrace, along: inAlong } = CHUNK_SHARES;
   const stack = buildStack(samples, rate, { levels: true, ...options.stack, onProgress: (s) => onShare?.(inStack * s) });
   const here = findTraces(stack, trace, (s) => onShare?.(inStack + inTrace * s)).traces;
-  const found = here.map((t) => toneOf(t, stack.base.times, start / rate));
-  const wide = along && here.length ? findTraces(stack, along, (s) => onShare?.(inStack + inTrace + inAlong * s)).traces.map((t) => toneOf(t, stack.base.times, start / rate)) : [];
+  const found = here.map((t) => toneOf(t, stack.base.times, start / rate)).map((t) => (t.confidence < TONE_CONFIDENCE ? { ...t, alone: true } : t));
+  const wide = along && here.length ? findTraces(stack, along, (s) => onShare?.(inStack + inTrace + inAlong * s)).traces.map((t) => ({ ...toneOf(t, stack.base.times, start / rate), alone: true })) : [];
+  if (along && here.length) wide.push(...familyOf(stack, here, found, start / rate, along.fMin ?? 40));
   onShare?.(1);
   return { found, wide };
 }
@@ -261,7 +349,7 @@ function joinChunks(parts: ChunkFound[]): Tone[] {
       const mid = parallel(r, w);
       if (mid === null) return false;
       const h = Math.round(Math.exp(mid));
-      return h >= 1 && h <= HARMONICS && Math.abs(mid - Math.log(h)) < AGREE;
+      return h >= 1 && h <= (r.alone ? LINE_HARMONICS : HARMONICS) && Math.abs(mid - Math.log(h)) < AGREE;
     });
   for (const w of mergeTones(parts.flatMap((p) => p.wide)).flatMap(ridgesOf)) {
     if (taken(w)) continue;
@@ -428,7 +516,8 @@ export function curveOf(tone: Tone, extend = EXTEND): Curve {
     times[steps + n - 1 + i] = t[n - 1] + dt;
     freq[steps + n - 1 + i] = f[n - 1] * Math.exp(tail * dt);
   }
-  return tone.confidence >= LOUD.confidence ? { times, freq, width: LOUD.width } : { times, freq };
+  const curve: Curve = { times, freq, ...(tone.alone ? { harmonics: LINE_HARMONICS } : {}) };
+  return tone.confidence >= LOUD.confidence && !tone.alone ? { ...curve, width: LOUD.width } : curve;
 }
 
 /** First and last time a curve is known, seconds; null when never. */

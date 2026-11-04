@@ -4,7 +4,7 @@ import type { Listener } from "./geo";
 import { chunksOf, clean, curveOf, findTones, mergeTones, readerOf, ridgesOf, toneOf, type Tone } from "./leak";
 import { resample } from "./resample";
 import { scrub } from "./scrub";
-import { buildStack } from "./spectrogram";
+import { buildStack, median } from "./spectrogram";
 import { flybyFixes, synthesize, type Flyby } from "./synth";
 import { findTraces, type Trace } from "./trace";
 import { buildTrack } from "./track";
@@ -203,6 +203,44 @@ describe("findTones, lines taken along", () => {
     const tones = findTones(r.read, chunksOf(r.length));
     expect(tones.every((t) => Math.max(...t.freq) < 400)).toBe(true);
     expect(tones.flatMap(ridgesOf).some((t) => Math.max(...t.freq) > 1000)).toBe(true);
+  });
+});
+
+describe("findTones, the other lines of a tone's plane", () => {
+  // Heard loud at 128 and 320 Hz and faint at 192 Hz, 1.5 times the first and no harmonic of either:
+  // too faint for a ridge, and it adds up along the plane's curve.
+  const duration = 60;
+  const track = trackOf({ closestAt: START + 30, offset: 500, heading: 70, speed: 60, altitude: 640 }, duration);
+  const line = (f0: number, level: number) => ({ track, f0, level, harmonics: [1] });
+  const samples = synthesize({ start: START, duration, sampleRate: RATE, air: STANDARD_AIR, sources: [line(128, 0.25), line(320, 0.2), line(192, 0.002)], noise: 0.02, seed: 1 });
+  const { read, length } = readerOf({ channels: [samples], sampleRate: RATE });
+
+  it("takes that one line with the tone, once, and reports nothing more", () => {
+    const tones = findTones(read, chunksOf(length));
+    expect(tones.every((t) => Math.max(...t.freq) < 400)).toBe(true);
+    // It follows the tone's curve, 1.5 times it, all the way, and nothing takes it twice.
+    const ratios = tones.flatMap(ridgesOf).filter((r) => r.alone).map((r) => median(Float32Array.from(r.freq, (v, i) => v / tones[0].freq[i])));
+    expect(ratios.filter((r) => Math.abs(r - 1.5) < 0.03).length).toBe(1);
+    // A tone's own skirts are no line of their own.
+    expect(ratios.filter((r) => Math.abs(r - 1) < 0.03).length).toBe(0);
+  });
+
+  it("takes three harmonics of such a line, and six of a ridge", () => {
+    const [tone] = findTones(read, chunksOf(length));
+    expect(curveOf(tone).harmonics).toBeUndefined();
+    expect(curveOf(tone.beside!.find((r) => r.alone)!).harmonics).toBe(3);
+    expect(curveOf({ ...tone, confidence: 500, alone: true }).width).toBeUndefined();
+  });
+
+  it("leaves it out when asked not to look along", () => {
+    const tones = findTones(read, chunksOf(length), RATE, { along: null });
+    expect(tones.flatMap(ridgesOf).some((r) => r.alone)).toBe(false);
+  });
+
+  it("keeps a line a line when two pieces of it join, and not when one is a ridge", () => {
+    const piece = (from: number, alone: boolean): Tone => ({ ...tone(from, Array.from({ length: 200 }, () => 300)), ...(alone ? { alone: true } : {}) });
+    expect(mergeTones([piece(0, true), piece(30, true)])[0].alone).toBe(true);
+    expect(mergeTones([piece(0, true), piece(30, false)])[0].alone).toBeUndefined();
   });
 });
 
