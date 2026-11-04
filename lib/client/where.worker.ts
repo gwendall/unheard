@@ -38,18 +38,21 @@ export type WhereResult =
   /** `passes`: how many separate passes the tones make. An empty `guesses`: no flight fits. */
   | { kind: "found"; passes: number; tones: number; confident: boolean; guesses: Guess[]; views: Record<number, ToneView> };
 
+/** What comes before the end when the request asks (`partial`). */
+export type WherePartial =
+  /** Every tone found so far. */
+  | { type: "tones"; tones: Tone[] }
+  /** The best guess so far, which the search may still drop. */
+  | { type: "best"; best: BestSoFar };
+
 export type WhereEvent =
   /** `done` of `total` within the step; `fraction` and `secondsLeft` for the whole job (lib/core/progress.ts). */
   | ({ type: "progress"; step: WhereStep; done: number; total: number } & Estimate)
-  /** With `partial`: every tone found so far. */
-  | { type: "tones"; tones: Tone[] }
-  /** With `partial`: the best guess so far, which the search may still drop. */
-  | { type: "best"; best: BestSoFar }
   | { type: "result"; result: WhereResult } | { type: "error"; message: string };
 
 // The worker's own global, typed by what this file uses of it (the DOM and webworker libs clash).
-const scope = self as unknown as { postMessage: (event: WhereEvent) => void; onmessage: ((e: MessageEvent<WhereRequest>) => void) | null };
-const post = (event: WhereEvent) => scope.postMessage(event);
+const scope = self as unknown as { postMessage: (event: WhereEvent | WherePartial) => void; onmessage: ((e: MessageEvent<WhereRequest>) => void) | null };
+const post = (event: WhereEvent | WherePartial) => scope.postMessage(event);
 
 /** The first and the last of the job's parts each step covers. */
 const STEP_PARTS: Record<WhereStep, [WherePart, WherePart]> = { find: ["find", "find"], flights: ["flights", "flights"], search: ["shape", "joint"], refine: ["fine", "fine"] };
