@@ -4,7 +4,7 @@
 // or the sound alone when it cannot be. The file's sound stays here and on this device, and never
 // leaves it.
 
-import { chunksOf, cleanOut, curvesOf, findTonesWith, pictureOf, viewOf, type Picture, type Pieces, type Reader, type Tone, type View } from "../core/leak";
+import { chunksOf, cleanOut, curvesOf, findTonesWith, inline, pictureOf, viewOf, type Picture, type Pieces, type Reader, type Tone, type View } from "../core/leak";
 import { ANALYSIS_RATE } from "../core/rate";
 import { estimator, stagesOf, type Estimate } from "../core/progress";
 import type { Curve } from "../core/scrub";
@@ -14,12 +14,12 @@ import { sweep } from "./folder";
 import { openMedia, type MediaFile } from "./media";
 import { readMetadata, type CreatedAt, type Place } from "./metadata";
 import { openVideoWriter, planVideo, type Refusal, type VideoPlan } from "./remux";
-import { withPieces } from "./pool";
+import { withPieces, type Job as PoolJob } from "./pool";
 import { pcm16, WAV_HEADER, wavHeader } from "./wav";
 
 export type CheckRequest =
   /** A file picked: this worker reads it as a stream if it can. `partial`: also send each tone as soon as it is found. */
-  | { type: "open"; file: File; folder: string; partial?: boolean }
+  | { type: "open"; file: File; folder: string; partial?: boolean; phone?: boolean }
   /** The sound of a file this worker could not read, decoded by the page (Web Audio). */
   | { type: "sound"; channels: Float32Array[]; sampleRate: number }
   | { type: "clean" }
@@ -50,6 +50,8 @@ export type CheckEvent =
   | { type: "decode-here"; sampleRate?: number }
   /** A video with no sound track: no tone to find, nothing to clean. */
   | { type: "no-sound" }
+  /** How many workers this device and this file leave room for in the job that starts. */
+  | { type: "workers"; count: number }
   | { type: "found"; duration: number; found: Found[] }
   | ({ type: "cleaned"; cleaned: Found[]; left: Found[] } & Written)
   /** How a tone looks, and how it looks once taken out. */
@@ -91,6 +93,8 @@ type Session = {
   store: SoundStore;
   /** Send each tone as soon as it is found. */
   partial: boolean;
+  /** Told by the page: the workers go by a phone's budget. */
+  phone: boolean;
   /** Samples of the store, and seconds of sound. */
   length: number;
   duration: number;
@@ -113,6 +117,14 @@ function told(s: Session, tones: Tone[], before: Reader, after?: Reader): Found[
     const view = viewOf(tone, s.duration);
     const id = s.drawable.push({ view, before, after }) - 1;
     return after ? { id, tone, view, gone: true } : { id, tone, view };
+  });
+}
+
+/** A job over the workers this device and this file leave room for. */
+function overWorkers<T>(s: Session, job: PoolJob, work: (pieces: Pieces) => Promise<T>): Promise<T> {
+  return withPieces(job, s.phone, (pieces) => {
+    post({ type: "workers", count: pieces === inline ? 0 : pieces.size });
+    return work(pieces);
   });
 }
 
@@ -143,7 +155,7 @@ async function find(s: Session, source: SoundSource) {
   s.length = length;
   s.duration = frames / source.sampleRate;
   job.reach("find", 0, 1);
-  const tones = await withPieces((pieces) =>
+  const tones = await overWorkers(s, { kind: "find", seconds: s.duration }, (pieces) =>
     findTonesWith(pieces, s.store.read, chunksOf(length), ANALYSIS_RATE, {
       onChunk: (done, total) => job.count("find", done, total),
       onProgress: (part) => job.share(part),
@@ -154,14 +166,14 @@ async function find(s: Session, source: SoundSource) {
   post({ type: "found", duration: s.duration, found: s.current });
 }
 
-async function open(file: File, folder: string, partial: boolean) {
+async function open(file: File, folder: string, partial: boolean, phone: boolean) {
   void sweep().catch(() => {});
   const media = await openMedia(file);
   if (media?.video && !media.audio) {
     post({ type: "no-sound" });
     return;
   }
-  session = { file, folder, media, source: null, store: await openStore(folder), partial, length: 0, duration: 0, rounds: [], current: [], writes: 0, drawable: [] };
+  session = { file, folder, media, source: null, store: await openStore(folder), partial, phone, length: 0, duration: 0, rounds: [], current: [], writes: 0, drawable: [] };
   if (media?.source) {
     try {
       await find(session, media.source);
@@ -248,7 +260,7 @@ async function cleanUp(s: Session) {
     if (f.before === now) f.before = was.read;
     if (f.after === now) f.after = was.read;
   }
-  const { cleaned, left, written } = await withPieces(async (pieces) => {
+  const { cleaned, left, written } = await overWorkers(s, { kind: "clean", seconds: s.duration, rate: source.sampleRate }, async (pieces) => {
     const { cleaned } = await cleanOut(
       storedSound(s.store, s.length, ANALYSIS_RATE, pieces),
       s.current.map((f) => f.tone),
@@ -284,7 +296,7 @@ async function cleanUp(s: Session) {
 
 async function handle(e: MessageEvent<CheckRequest>) {
   const request = e.data;
-  if (request.type === "open") await open(request.file, request.folder, !!request.partial);
+  if (request.type === "open") await open(request.file, request.folder, !!request.partial, !!request.phone);
   else if (request.type === "sound") {
     if (session) await find(session, memorySource({ channels: request.channels, sampleRate: request.sampleRate }));
   } else if (session) await cleanUp(session);

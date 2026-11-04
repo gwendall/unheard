@@ -30,13 +30,55 @@ export type Pool<In, Out> = {
   close: () => void;
 };
 
+/** Workers by cores alone: one core stays with the page and the browser. */
+export function poolSize(cores: number): number {
+  return Math.max(1, Math.min(6, Math.floor(cores) - 1));
+}
+
+/** A device, as far as a worker can tell. `phone` comes from the page (lib/client/device.ts): a worker has no matchMedia. */
+export type Device = { cores: number; memoryGb?: number; phone?: boolean };
+
+/** What a job has to hold: what it is, how long the sound is, and for taking out, the file's own rate. */
+export type Job = { kind: "find" | "clean" | "search"; seconds: number; rate?: number };
+
+/** MB the page may reach on a device that a full tab can kill without warning: iOS Safari does around 1 to 2 GB. */
+export const PHONE_BUDGET_MB = 700;
+const BUDGET_MB_PER_GB = PHONE_BUDGET_MB / 4;
+
+// The renderer's peak on the page, in Chromium, production build, with no workers and with six:
+//   real clip, 1 min, 22 kHz: 328, and 46 a worker | 1 min, 48 kHz, two channels: 452, and 129 a worker
+//   10 min, 48 kHz: 516, and 117 a worker | a real hour, finding its tones, 8 kHz: 413, and 82 a worker
+//   a real hour, searched, over New York: 1479, and 48 a worker | its first 10 min: 989
+// A worker on a job that may look again holds a chunk's stack, whatever the file's rate.
+const FIND_WORKER_MB = 82;
+const SEARCH_WORKER_MB = 48;
+
+/** The peak a job should reach, with these workers. */
+export function estimatedMB({ kind, seconds, rate = 48_000 }: Job, workers: number): number {
+  const minutes = seconds / 60;
+  const kHz = rate / 1000;
+  if (kind === "find") return 300 + 1.9 * minutes + workers * FIND_WORKER_MB;
+  if (kind === "clean") return 220 + 4.8 * kHz + 7 * minutes + workers * Math.max(FIND_WORKER_MB, 2.7 * kHz);
+  return 890 + 10 * minutes + workers * SEARCH_WORKER_MB;
+}
+
+/** The MB this device can give a job, or none to count: a computer has room for all its workers. */
+export function budgetMB({ memoryGb, phone }: Device): number {
+  if (memoryGb !== undefined && memoryGb <= 4) return Math.min(PHONE_BUDGET_MB, memoryGb * BUDGET_MB_PER_GB);
+  return phone ? PHONE_BUDGET_MB : Infinity;
+}
+
 /**
- * Workers for this device: one core stays with the page and the browser. A phone with little
- * memory gets two: a chunk's stack runs to 200 MB.
+ * Workers for this job on this device: as many as the cores take and the budget leaves room for.
+ * None where one would not pay for itself, or the job alone fills the budget: slower, never out of
+ * memory. The answer is the same with any number of them.
  */
-export function poolSize(cores: number, memoryGb?: number): number {
-  const most = memoryGb !== undefined && memoryGb <= 4 ? 2 : 6;
-  return Math.max(1, Math.min(most, Math.floor(cores) - 1));
+export function workersFor(device: Device, job: Job): number {
+  const cores = poolSize(device.cores);
+  const budget = budgetMB(device);
+  let workers = cores;
+  while (workers > 0 && estimatedMB(job, workers) > budget) workers--;
+  return workers > 1 ? workers : 0;
 }
 
 /**
@@ -189,25 +231,25 @@ export function checkPiecesOf(pool: Pool<PieceInput, PieceOutput>): Pieces {
   };
 }
 
-/** A pool for this device, or none where the work had better stay here. */
-export function poolForDevice(make: () => PoolWorker = pieceWorker): Pool<PieceInput, PieceOutput> | null {
+/** A pool for this job on this device, or none where the work had better stay here. */
+export function poolForDevice(job: Job, phone?: boolean, make: () => PoolWorker = pieceWorker): Pool<PieceInput, PieceOutput> | null {
   if (typeof Worker === "undefined") return null;
-  const size = poolSize(navigator.hardwareConcurrency || 2, (navigator as { deviceMemory?: number }).deviceMemory);
-  return size > 1 ? poolOf<PieceInput, PieceOutput>(make, size) : null;
+  const size = workersFor({ cores: navigator.hardwareConcurrency || 2, memoryGb: (navigator as { deviceMemory?: number }).deviceMemory, phone }, job);
+  return size ? poolOf<PieceInput, PieceOutput>(make, size) : null;
 }
 
 /** One worker of the pool. */
 const pieceWorker = () => new Worker(new URL("./piece.worker.ts", import.meta.url)) as unknown as PoolWorker;
 
-/** A job over this device's pool, gone with the job so the memory it holds goes too. Without one, `job` gets null. */
-export async function withPool<T>(job: (pool: Pool<PieceInput, PieceOutput> | null) => Promise<T>): Promise<T> {
-  const pool = poolForDevice();
+/** A job over this device's pool, gone with the job so the memory it holds goes too. Without one, `work` gets null. */
+export async function withPool<T>(job: Job, phone: boolean | undefined, work: (pool: Pool<PieceInput, PieceOutput> | null) => Promise<T>): Promise<T> {
+  const pool = poolForDevice(job, phone);
   try {
-    return await job(pool);
+    return await work(pool);
   } finally {
     pool?.close();
   }
 }
 
 /** A check's job over this device's pool, gone with the job. Without one, the pieces run here. */
-export const withPieces = <T>(job: (pieces: Pieces) => Promise<T>): Promise<T> => withPool((pool) => job(pool ? checkPiecesOf(pool) : inline));
+export const withPieces = <T>(job: Job, phone: boolean | undefined, work: (pieces: Pieces) => Promise<T>): Promise<T> => withPool(job, phone, (pool) => work(pool ? checkPiecesOf(pool) : inline));

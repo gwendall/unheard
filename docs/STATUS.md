@@ -196,10 +196,13 @@ Thresholds: strong at score 9 and lead 2.5, possible at 6.5 and 1.5 (`lib/core/m
   same. Measured with `pnpm speed` (Node, CPU time, golden comparison of results) and `pnpm
   speed:browser` (real Chromium: time to the verdict, memory, first load). Since then the check and
   the search split over a small pool of workers (`lib/client/pool.ts`: the cores less one, six at
-  most, two on 4 GB or less; #77, #81), the cleaned sound the same to the last byte. On the page,
+  most; #77, #81), the cleaned sound the same to the last byte. On the page,
   production build, an 18-core Mac under load: a 10 minute file's tones in 3.3 s (was 15.3 s), out
-  of it in 14.5 s (was 39.8 s), colsto's real hour searched in 28 s (was 64 s). A phone is not
-  measured yet.
+  of it in 14.5 s (was 39.8 s), colsto's real hour searched in 28 s (was 64 s). On a phone, or
+  on 4 GB or less, the pool also keeps the job's estimated peak under a budget (700 MB on a phone):
+  fewer workers, or none. Estimated from Chromium's numbers and tested in Chromium's emulation: no
+  real iPhone has run it. The search alone is past that budget with no worker at all (989 MB for 10
+  minutes over dense New York, 1479 MB for an hour), which the pool cannot fix.
 - Somewhere else (2026-11-03, `evals/somewhere-else`, CI corpus: 15 made-up skies and 15 real
   Phoenix skies, voice notes of 30 to 60 s). The page's own check names the planted plane
   strongly in 0.90 of scenes, and never a plane it did not plant. With the true tracks of that

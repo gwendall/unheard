@@ -24,6 +24,8 @@ export type WhereRequest = {
   area: { lat: number; lon: number; side: number };
   /** Also send what appears before the end: each tone as it is found, the best guess so far. */
   partial?: boolean;
+  /** Told by the page: the workers go by a phone's budget. */
+  phone?: boolean;
 };
 
 export type WhereStep = "find" | "flights" | "search" | "refine";
@@ -178,7 +180,8 @@ async function search({ channels, sampleRate, history, window, area, partial }: 
 }
 
 scope.onmessage = (e: MessageEvent<WhereRequest>) => {
-  withPool((pool) => search(e.data, pool)).then(
+  const { channels, sampleRate, phone } = e.data;
+  withPool({ kind: "search", seconds: (channels[0]?.length ?? 0) / sampleRate }, phone, (pool) => search(e.data, pool)).then(
     (result) => post({ type: "result", result }),
     (err: unknown) => post({ type: "error", message: err instanceof Error ? err.message : String(err) }),
   );

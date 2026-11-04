@@ -7,6 +7,7 @@ import { Bar } from "@/components/Bar";
 import { useI18n } from "@/components/I18n";
 import { TonePicture } from "@/components/TonePicture";
 import { decode, troubleOf } from "@/lib/client/decode";
+import { isPhone } from "@/lib/client/device";
 import { forget, newFolder } from "@/lib/client/folder";
 import { clock, timeLeft } from "@/lib/client/format";
 import type { CheckEvent, CheckPartial, CheckRequest, Found, Kind, Removed, Step } from "@/lib/client/check.worker";
@@ -75,6 +76,7 @@ export function Check({ file, elsewhere, note, facts, find, fold, hold, heard, a
   const t = m.check;
   const [state, setState] = useState<State>({ kind: "open", busy: { step: "open", done: 0, total: 1 } });
   const [drawn, setDrawn] = useState<Record<number, Drawn>>({});
+  const [workers, setWorkers] = useState<number | undefined>();
   const name = file.name.replace(/\.[^.]+$/, "") || "recording";
   const worker = useRef<Worker | null>(null);
   const folder = useRef<string | null>(null);
@@ -105,6 +107,7 @@ export function Check({ file, elsewhere, note, facts, find, fold, hold, heard, a
     else if (e.type === "decode-here") void decodeHere(w, e.sampleRate);
     else if (e.type === "no-sound") setState({ kind: "failed", error: t.errors.noSound });
     else if (e.type === "found") setState({ kind: "found", found: e.found });
+    else if (e.type === "workers") setWorkers(e.count);
     else if (e.type === "drawn") setDrawn((d) => ({ ...d, [e.id]: { before: e.before, after: e.after } }));
     else if (e.type === "cleaned") setState({ kind: "cleaned", cleaned: e.cleaned, left: e.left, url: URL.createObjectURL(e.file), written: e });
     else setState({ kind: "failed", error: fill(t.errors.failed, { message: e.message }) });
@@ -125,7 +128,7 @@ export function Check({ file, elsewhere, note, facts, find, fold, hold, heard, a
       w.onerror = (e) => setState({ kind: "failed", error: fill(t.errors.failed, { message: e.message || "worker" }) });
       worker.current = w;
       folder.current = newFolder();
-      const request: CheckRequest = { type: "open", file, folder: folder.current, partial: true };
+      const request: CheckRequest = { type: "open", file, folder: folder.current, partial: true, phone: isPhone() };
       w.postMessage(request);
     }, 30);
     return () => {
@@ -322,7 +325,7 @@ export function Check({ file, elsewhere, note, facts, find, fold, hold, heard, a
   );
 
   return (
-    <div className="flex flex-col gap-6" data-testid="check">
+    <div className="flex flex-col gap-6" data-testid="check" data-workers={workers}>
       {/* Above what the search opens until it has its answer, then under it. `children` keeps its place, and its state, between the two. */}
       {!answered && findings}
 

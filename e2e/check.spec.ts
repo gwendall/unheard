@@ -1,6 +1,7 @@
 import { statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { expect, test, type Locator, type Page } from "@playwright/test";
+import { workersFor } from "../lib/client/pool";
 
 // Taking the tones out, end to end in a real Chromium: a file picked, its sound decoded by Web Audio,
 // the tones found in the worker, taken out, looked for again, and the cleaned WAV downloaded.
@@ -55,4 +56,42 @@ test("the French page, for the screenshots", async ({ page }) => {
   await page.getByTestId("check-clean").click();
   await expect(page.getByTestId("check-download")).toBeVisible({ timeout: 120_000 });
   await shoot(page, "check-fr-cleaned");
+});
+
+test.describe("on a phone", () => {
+  test.use({ hasTouch: true, isMobile: true, viewport: { width: 390, height: 844 }, screen: { width: 390, height: 844 } });
+
+  test("the pool goes by a phone's memory: no worker to take tones out at 48 kHz", async ({ page, browser }) => {
+    const cores = await page.evaluate(() => navigator.hardwareConcurrency);
+    const seconds = 85;
+    await page.goto("/where");
+    const workers = page.getByTestId("check");
+    // What is really running: the check's own worker, and the pool's, if any.
+    const cdp = await browser.newBrowserCDPSession();
+    const running = async () => (await cdp.send("Target.getTargets")).targetInfos.filter((t) => t.type === "worker").length;
+
+    await page.getByTestId("where-file").setInputFiles(FLYBY);
+    await expect(page.getByTestId("check-verdict")).toBeVisible({ timeout: 90_000 });
+    await expect(workers).toHaveAttribute("data-workers", String(workersFor({ cores, phone: true }, { kind: "find", seconds })));
+
+    await page.getByTestId("check-clean").click();
+    const expected = workersFor({ cores, phone: true }, { kind: "clean", seconds, rate: 48_000 });
+    expect(expected).toBe(0);
+    await expect(workers).toHaveAttribute("data-workers", "0");
+    let most = 0;
+    while (!(await page.getByTestId("check-download").isVisible())) {
+      most = Math.max(most, await running());
+      await page.waitForTimeout(100);
+    }
+    expect(most).toBeLessThanOrEqual(1);
+    await expect(page.getByTestId("check-verdict")).toHaveText(/^The tones? (is|are) gone\.$/);
+  });
+});
+
+test("a computer's pool goes by its cores", async ({ page }) => {
+  const cores = await page.evaluate(() => navigator.hardwareConcurrency);
+  await page.goto("/where");
+  await page.getByTestId("where-file").setInputFiles(FLYBY);
+  await expect(page.getByTestId("check-verdict")).toBeVisible({ timeout: 90_000 });
+  await expect(page.getByTestId("check")).toHaveAttribute("data-workers", String(workersFor({ cores }, { kind: "find", seconds: 85 })));
 });
