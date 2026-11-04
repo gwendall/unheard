@@ -131,41 +131,67 @@ function model(spec: Spectrogram, start: number, clock: number, track: Track, ai
   return { factor, range, weight, slope: slopes(spec, factor), frames: Int32Array.from(active), emitted };
 }
 
+/** Tones tried together, with what `score` needs of each worked out once. */
+type Tones = { f0: Float64Array; count: number; lift: Float64Array };
+
+function tonesOf(f0: Float64Array, count: number, harmonics: number[]): Tones {
+  const H = harmonics.length;
+  const lift = new Float64Array(count * H);
+  for (let j = 0; j < count; j++) for (let h = 0; h < H; h++) lift[j * H + h] = Math.log2((h + 1) * f0[j]);
+  return { f0, count, lift };
+}
+
 /**
- * Weighted evidence along the curve f(t) = h * f0 * factor(t), summed over harmonics h. Each
- * point is read from the layer whose window suits the curve's slope there: about 1 / sqrt(slope)
- * seconds, so the tone stays within one bin while the window lasts.
+ * Weighted evidence along the curves f(t) = h * f0 * factor(t), summed over harmonics h, for every
+ * tone of `tones` at once, into `out`. Each point is read from the layer whose window suits the
+ * curve's slope there: about 1 / sqrt(slope) seconds, so the tone stays within one bin while the
+ * window lasts. Frame by frame, not tone by tone: a frame's tones read one row of each layer, in
+ * order, where a tone at a time reads a new row at every frame and misses the cache each time.
  */
-function score(stack: Stack, m: Model, f0: number, harmonics: number[], mask?: Mask): number {
+function score(stack: Stack, m: Model, frames: Int32Array, tones: Tones, harmonics: number[], out: Float64Array, mask?: Mask): void {
   const { layers } = stack;
   const top = layers.length - 1;
   const w0 = Math.log2(layers[0].window);
-  const lift = harmonics.map((_, h) => Math.log2((h + 1) * f0));
-  let num = 0;
-  let den = 0;
-  for (let i = 0; i < m.frames.length; i++) {
-    const k = m.frames[i];
-    const f = f0 * m.factor[k];
-    let sum = 0;
-    let norm = 0;
+  const H = harmonics.length;
+  const { f0, count, lift } = tones;
+  const evidence = layers.map((l) => l.evidence);
+  const index = layers.map((l) => l.index);
+  const bins = Int32Array.from(layers, (l) => l.spec.bins);
+  const binHz = Float64Array.from(layers, (l) => l.spec.binHz);
+  const minHz = Float64Array.from(layers, (l) => l.spec.minHz);
+  const rows = new Int32Array(layers.length);
+  const num = new Float64Array(count);
+  const den = new Float64Array(count);
+  const { factor, slope, weight } = m;
+  for (let i = 0; i < frames.length; i++) {
+    const k = frames[i];
+    const fac = factor[k];
+    const sl = slope[k];
+    const w = weight[k];
     const bands = mask?.[k];
-    for (let h = 0; h < harmonics.length; h++) {
-      const li = Math.min(top, Math.max(0, Math.round(w0 + 0.5 * (m.slope[k] + lift[h]))));
-      const layer = layers[li];
-      const { bins, binHz, minHz } = layer.spec;
-      const b = Math.round(((h + 1) * f - minHz) / binHz);
-      if (b < 0 || b >= bins) continue;
-      norm += harmonics[h] * harmonics[h];
-      // Taken out: reads as the noise around it, zero on average.
-      if (bands?.length && masked(bands, (h + 1) * f, 0.5 * binHz + reachHz((h + 1) * f))) continue;
-      sum += harmonics[h] * layer.evidence[layer.index[k] * bins + b];
+    const hasBands = bands !== undefined && bands.length > 0;
+    for (let l = 0; l <= top; l++) rows[l] = index[l][k] * bins[l];
+    for (let j = 0; j < count; j++) {
+      const f = f0[j] * fac;
+      let sum = 0;
+      let norm = 0;
+      for (let h = 0; h < H; h++) {
+        const raw = Math.round(w0 + 0.5 * (sl + lift[j * H + h]));
+        const li = raw > top ? top : raw > 0 ? raw : 0;
+        const b = Math.round(((h + 1) * f - minHz[li]) / binHz[li]);
+        if (b < 0 || b >= bins[li]) continue;
+        const weightH = harmonics[h];
+        norm += weightH * weightH;
+        // Taken out: reads as the noise around it, zero on average.
+        if (hasBands && masked(bands, (h + 1) * f, 0.5 * binHz[li] + reachHz((h + 1) * f))) continue;
+        sum += weightH * evidence[li][rows[li] + b];
+      }
+      if (!norm) continue;
+      num[j] += (w * sum) / Math.sqrt(norm);
+      den[j] += w * w;
     }
-    if (!norm) continue;
-    const w = m.weight[k];
-    num += (w * sum) / Math.sqrt(norm);
-    den += w * w;
   }
-  return den > 0 ? num / Math.sqrt(den) : 0;
+  for (let j = 0; j < count; j++) out[j] = den[j] > 0 ? num[j] / Math.sqrt(den[j]) : 0;
 }
 
 /** Evidence along any curve given per base frame (NaN = not heard), every frame weighted alike
@@ -177,12 +203,36 @@ export function curveScore(stack: Stack, factor: ArrayLike<number>, f0: number, 
   const f = Float32Array.from(factor);
   const w = weight ? Float32Array.from(weight) : new Float32Array(n).fill(1);
   const m: Model = { factor: f, range: new Float32Array(n), weight: w, slope: slopes(stack.base, f), frames: Int32Array.from(frames), emitted: new Float64Array(n) };
-  return score(stack, m, f0, harmonics);
+  const out = new Float64Array(1);
+  score(stack, m, m.frames, tonesOf(Float64Array.of(f0), 1, harmonics), harmonics, out);
+  return out[0];
 }
 
 type Peak = { score: number; f0: number; clock: number };
 
 const coarseStep = (f0: number) => Math.max(0.5, f0 * 0.003);
+
+/** The coarse grid of tones, the same for every clock and every aircraft of a search. */
+function coarseTones(o: Required<MatchOptions>): Float64Array {
+  const f0: number[] = [];
+  for (let f = o.f0Min; f <= o.f0Max; f += coarseStep(f)) f0.push(f);
+  return Float64Array.from(f0);
+}
+
+/** The best coarse try at least 2 Hz or 1 s away from every seed already taken (the earliest of equals). */
+function nextSeed(scores: Float64Array, f0: Float64Array, clock: Float64Array, n: number, seeds: Peak[]): Peak | null {
+  let at = -1;
+  let top = -Infinity;
+  for (let i = 0; i < n; i++) {
+    if (!(scores[i] > top)) continue;
+    let far = true;
+    for (let s = 0; s < seeds.length && far; s++) far = Math.abs(seeds[s].f0 - f0[i]) > 2 || Math.abs(seeds[s].clock - clock[i]) > 1;
+    if (!far) continue;
+    top = scores[i];
+    at = i;
+  }
+  return at < 0 ? null : { score: top, f0: f0[at], clock: clock[at] };
+}
 
 function matchOne<M>(stack: Stack, start: number, c: Candidate<M>, air: Air, o: Required<MatchOptions>, mask?: Mask): Match<M> | null {
   const spec = stack.base;
@@ -200,55 +250,85 @@ function matchOne<M>(stack: Stack, start: number, c: Candidate<M>, air: Air, o: 
 
   // Coarse: clock every 0.5 s; tone every 0.5 Hz up to 167 Hz, then every 0.3 % (the model's own
   // accuracy, a fraction of a m/s of radial speed, is relative too); every other frame.
-  const peaks: Peak[] = [];
+  const grid = coarseTones(o);
+  const coarse = tonesOf(grid, grid.length, o.harmonics);
+  const clocks = Math.floor((2 * o.clockSpread + 1e-9) / 0.5) + 1;
+  const peakScore = new Float64Array(clocks * grid.length);
+  const peakF0 = new Float64Array(clocks * grid.length);
+  const peakClock = new Float64Array(clocks * grid.length);
+  const scores = new Float64Array(grid.length);
+  let peaks = 0;
   for (let clock = -o.clockSpread; clock <= o.clockSpread + 1e-9; clock += 0.5) {
     const full = modelAt(clock);
     if (full.frames.length < o.minFrames) continue;
-    const m = { ...full, frames: full.frames.filter((_, i) => i % 2 === 0) };
+    const every = new Int32Array(Math.ceil(full.frames.length / 2));
     let top = 0;
-    for (const k of m.frames) top = Math.max(top, m.factor[k]);
+    for (let i = 0; i < every.length; i++) {
+      every[i] = full.frames[2 * i];
+      top = Math.max(top, full.factor[every[i]]);
+    }
     const f0Max = Math.min(o.f0Max, maxHz / top);
-    for (let f0 = o.f0Min; f0 <= f0Max; f0 += coarseStep(f0)) {
-      const s = score(stack, m, f0, o.harmonics, mask);
-      peaks.push({ score: s, f0, clock });
+    let count = 0;
+    while (count < grid.length && grid[count] <= f0Max) count++;
+    score(stack, full, every, { f0: grid, count, lift: coarse.lift }, o.harmonics, scores, mask);
+    for (let j = 0; j < count; j++) {
+      peakScore[peaks] = scores[j];
+      peakF0[peaks] = grid[j];
+      peakClock[peaks] = clock;
+      peaks++;
     }
   }
-  if (peaks.length < 50) return null;
+  if (peaks < 50) return null;
 
   // Almost every coarse try is a wrong guess: their spread is this recording's own noise for this
   // aircraft. Scores are reported in units of it, so they mean the same in a quiet field as next
   // to a road, whatever the overlap of the frames. The null is scored like the answer, on every
   // frame, at 300 tries spread evenly over the coarse grid.
-  const stride = Math.max(1, Math.floor(peaks.length / 300));
-  const nullScores: number[] = [];
-  for (let i = 0; i < peaks.length; i += stride) nullScores.push(score(stack, modelAt(peaks[i].clock), peaks[i].f0, o.harmonics, mask));
-  const raw = Float64Array.from(nullScores).sort();
+  const stride = Math.max(1, Math.floor(peaks / 300));
+  const raw = new Float64Array(Math.ceil(peaks / stride));
+  const tried = new Float64Array(raw.length);
+  let filled = 0;
+  for (let i = 0; i < peaks; ) {
+    // The tries of one clock go together.
+    const clock = peakClock[i];
+    let n = 0;
+    for (let at = i; at < peaks && peakClock[at] === clock; at += stride) tried[n++] = peakF0[at];
+    const m = modelAt(clock);
+    const out = raw.subarray(filled, filled + n);
+    score(stack, m, m.frames, tonesOf(tried, n, o.harmonics), o.harmonics, out, mask);
+    filled += n;
+    i += n * stride;
+  }
+  raw.sort();
   const nullMid = raw[raw.length >> 1];
   for (let i = 0; i < raw.length; i++) raw[i] = Math.abs(raw[i] - nullMid);
   raw.sort();
   const nullSpread = 1.4826 * raw[raw.length >> 1] + 1e-9;
 
-  peaks.sort((a, b) => b.score - a.score);
   const seeds: Peak[] = [];
-  for (const p of peaks) {
-    if (seeds.every((s) => Math.abs(s.f0 - p.f0) > 2 || Math.abs(s.clock - p.clock) > 1)) seeds.push(p);
-    if (seeds.length === 3) break;
+  while (seeds.length < 3) {
+    const seed = nextSeed(peakScore, peakF0, peakClock, peaks, seeds);
+    if (!seed) break;
+    seeds.push(seed);
   }
 
   // Fine, on every frame: clock every 0.125 s, tone in tenths of a coarse step, around each of
   // the three best. The null above came from every other frame: rescore the seeds on all of them.
   let best: Peak = { score: -Infinity, f0: seeds[0].f0, clock: seeds[0].clock };
+  const near = new Float64Array(32);
+  const scored = new Float64Array(32);
   for (const seed of seeds) {
     const step = coarseStep(seed.f0);
+    let count = 0;
+    for (let df = -step; df <= step + 1e-9; df += step / 10) near[count++] = seed.f0 + df;
+    const fine = tonesOf(near, count, o.harmonics);
     for (let dc = -0.5; dc <= 0.5 + 1e-9; dc += 0.125) {
       const clock = seed.clock + dc;
       if (Math.abs(clock) > o.clockSpread + 0.5) continue;
       const m = modelAt(clock);
       if (m.frames.length < o.minFrames) continue;
-      for (let df = -step; df <= step + 1e-9; df += step / 10) {
-        const s = score(stack, m, seed.f0 + df, o.harmonics, mask);
-        if (s > best.score) best = { score: s, f0: seed.f0 + df, clock };
-      }
+      score(stack, m, m.frames, fine, o.harmonics, scored, mask);
+      for (let j = 0; j < count; j++) if (scored[j] > best.score) best = { score: scored[j], f0: near[j], clock };
     }
   }
 

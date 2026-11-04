@@ -227,7 +227,7 @@ const analysisGolden = async (id: string, rec: Recording) => {
 
 async function golden() {
   const out: Record<string, unknown> = {};
-  const scenarios = plan(30);
+  const scenarios = plan(30).slice(0, Number(flag("first") ?? 1e9));
   const analyses: unknown[] = [];
   for (const [kind, seed] of scenarios) {
     const s = syntheticScenario(seed, kind);
@@ -240,6 +240,24 @@ async function golden() {
     const { read, length } = readerOf(readWav(flyby.pathname));
     out.tones = findTones(read, chunksOf(length)).map(toneOfGolden);
     console.log("tones");
+  }
+  const real = flag("real");
+  if (real) {
+    const file = readWav(real);
+    const audio = { channels: file.channels, sampleRate: file.sampleRate };
+    const { read, length } = readerOf(audio);
+    const tones = findTones(read, chunksOf(length));
+    const rounds: number[] = [];
+    const { cleaned, left } = cleanOut(audio, tones, { onRound: (_, current) => rounds.push(current.flatMap(ridgesOf).length) });
+    const samples = audio.channels[0];
+    let energy = 0;
+    const every: number[] = [];
+    for (let i = 0; i < samples.length; i++) {
+      energy += samples[i] * samples[i];
+      if (i % 20_000 === 0) every.push(samples[i]);
+    }
+    out.real = { tones: tones.map(toneOfGolden), rounds, cleaned: cleaned.map(toneOfGolden), left: left.map(toneOfGolden), energy, every };
+    console.log("real");
   }
   if (hasColsto() && !args.includes("--no-where")) {
     const { segments, flights, options } = await colstoInput("hour");

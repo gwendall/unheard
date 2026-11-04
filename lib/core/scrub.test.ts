@@ -145,6 +145,27 @@ describe("scrub", () => {
     expect(await scoreOf(twice)).toBeLessThan(4.5);
   });
 
+  it("draws the same noise when the sound differs only in its last bits", () => {
+    // A rounding that differs between two builds of the same sum must not make another draw.
+    const rate = 8000;
+    const seconds = 20;
+    const x = new Float32Array(rate * seconds);
+    let state = 12345;
+    for (let i = 0; i < x.length; i++) {
+      state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
+      x[i] = 0.2 * (state / 2 ** 32 - 0.5) + 0.1 * Math.sin((2 * Math.PI * 120 * i) / rate);
+    }
+    const y = x.slice();
+    for (let i = 0; i < y.length; i += 100) y[i] *= 1 + 2 ** -23;
+    const times = [2, 18];
+    const curve = { times, freq: [125, 115] };
+    const a = scrub(x, rate, [curve]);
+    const b = scrub(y, rate, [curve]);
+    let most = 0;
+    for (let i = 0; i < a.length; i++) most = Math.max(most, Math.abs(a[i] - b[i]));
+    expect(most).toBeLessThan(1e-5);
+  });
+
   it("changes nothing where the curve is not heard", () => {
     const raw = recording();
     const half: Curve = { times: [0, 30, 30.1, DURATION], freq: [NaN, NaN, NaN, NaN] };

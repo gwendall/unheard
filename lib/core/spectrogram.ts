@@ -1,4 +1,4 @@
-import { fft } from "./fft";
+import { realFft } from "./fft";
 
 /**
  * A short-time power spectrum, kept between minHz and maxHz only.
@@ -12,7 +12,7 @@ export type Spectrogram = {
   bins: number;
   binHz: number;
   minHz: number;
-  /** Power in decibels. */
+  /** Power in decibels. Empty in a stack's layers (buildStack): their evidence is what is read. */
   db: Float32Array;
 };
 
@@ -45,21 +45,55 @@ export function computeSpectrogram(samples: Float32Array, sampleRate: number, op
 
   const db = new Float32Array(frames * bins);
   const times = new Float64Array(frames);
-  const re = new Float64Array(size);
-  const im = new Float64Array(size);
+  const x = new Float64Array(size);
+  const re = new Float64Array((size >> 1) + 1);
+  const im = new Float64Array((size >> 1) + 1);
   for (let k = 0; k < frames; k++) {
     const start = k * hop;
-    re.fill(0);
-    im.fill(0);
-    for (let i = 0; i < win; i++) re[i] = samples[start + i] * hann[i];
-    fft(re, im);
+    for (let i = 0; i < win; i++) x[i] = samples[start + i] * hann[i];
+    realFft(x, re, im);
+    const row = k * bins;
     for (let b = 0; b < bins; b++) {
       const j = firstBin + b;
-      db[k * bins + b] = 10 * Math.log10(re[j] * re[j] + im[j] * im[j] + 1e-20);
+      db[row + b] = 10 * Math.log10(re[j] * re[j] + im[j] * im[j] + 1e-20);
     }
     times[k] = (start + win / 2) / sampleRate;
   }
   return { sampleRate, times, frames, bins, binHz, minHz: firstBin * binHz, db };
+}
+
+/** The k-th smallest of a[lo..hi] (inclusive), by quickselect: a[lo..hi] comes back partly sorted around it. */
+function select(a: Float32Array, lo: number, hi: number, k: number): number {
+  while (lo < hi) {
+    const pivot = a[(lo + hi) >> 1];
+    let i = lo;
+    let j = hi;
+    while (i <= j) {
+      while (a[i] < pivot) i++;
+      while (a[j] > pivot) j--;
+      if (i <= j) {
+        const t = a[i];
+        a[i] = a[j];
+        a[j] = t;
+        i++;
+        j--;
+      }
+    }
+    if (k <= j) hi = j;
+    else if (k >= i) lo = i;
+    else return a[k];
+  }
+  return a[k];
+}
+
+/** The median of a[at..at + n - 1], which comes back reordered. Linear time, no allocation. */
+function medianInPlace(a: Float32Array, at: number, n: number): number {
+  const mid = at + (n >> 1);
+  const upper = select(a, at, at + n - 1, mid);
+  if (n % 2) return upper;
+  let lower = -Infinity;
+  for (let i = at; i < mid; i++) if (a[i] > lower) lower = a[i];
+  return (lower + upper) / 2;
 }
 
 const scratch = { buf: new Float32Array(0) };
@@ -70,37 +104,11 @@ export function median(values: Float32Array): number {
   if (scratch.buf.length < n) scratch.buf = new Float32Array(n);
   const a = scratch.buf;
   a.set(values);
-  const select = (k: number) => {
-    let lo = 0;
-    let hi = n - 1;
-    while (lo < hi) {
-      const pivot = a[(lo + hi) >> 1];
-      let i = lo;
-      let j = hi;
-      while (i <= j) {
-        while (a[i] < pivot) i++;
-        while (a[j] > pivot) j--;
-        if (i <= j) {
-          const t = a[i];
-          a[i] = a[j];
-          a[j] = t;
-          i++;
-          j--;
-        }
-      }
-      if (k <= j) hi = j;
-      else if (k >= i) lo = i;
-      else return a[k];
-    }
-    return a[k];
-  };
-  const mid = n >> 1;
-  if (n % 2) return select(mid);
-  const upper = select(mid);
-  let lower = -Infinity;
-  for (let i = 0; i < mid; i++) if (a[i] > lower) lower = a[i];
-  return (lower + upper) / 2;
+  return medianInPlace(a, 0, n);
 }
+
+/** Frequencies read at once from a row-major map: whole rows at a time stay in the cache. */
+const COLUMNS = 64;
 
 /**
  * The evidence map: how much each cell stands out from its own background, in standard units.
@@ -112,20 +120,34 @@ export function median(values: Float32Array): number {
  * 3. Each cell takes the best of its neighbours within `toleranceHz`: a model curve a little off
  *    still lands on the line. The map is then standardised again per frame, so noise averages zero.
  */
-export function evidenceMap(spec: Spectrogram, toleranceHz = 0.5, tolerance = 0.0015): Float32Array {
+export function evidenceMap(spec: Spectrogram, toleranceHz = 0.5, tolerance = 0.0015, work?: Float32Array): Float32Array {
   const { frames, bins, db } = spec;
   // ±toleranceHz, or ±0.15 % of the frequency when wider: the model's error is a fraction of a
   // m/s of radial speed, so it grows with the tone (2.7 Hz at a jet fan's 1.8 kHz).
   const reachOf = new Int32Array(bins);
   for (let b = 0; b < bins; b++) reachOf[b] = Math.max(0, Math.round(Math.max(toleranceHz, tolerance * (spec.minHz + b * spec.binHz)) / spec.binHz));
-  const z = new Float32Array(frames * bins);
-  const column = new Float32Array(frames);
-  for (let b = 0; b < bins; b++) {
-    for (let k = 0; k < frames; k++) column[k] = db[k * bins + b];
-    const med = median(column);
-    for (let k = 0; k < frames; k++) column[k] = Math.abs(column[k] - med);
-    const scale = 1.4826 * median(column) + 1e-3;
-    for (let k = 0; k < frames; k++) z[k * bins + b] = (db[k * bins + b] - med) / scale;
+  const z = work && work.length >= frames * bins ? work : new Float32Array(frames * bins);
+  // Per frequency, a block of neighbours at a time: each frequency's own column, in place.
+  const block = new Float32Array(frames * COLUMNS);
+  const meds = new Float64Array(COLUMNS);
+  const scales = new Float64Array(COLUMNS);
+  for (let b0 = 0; b0 < bins; b0 += COLUMNS) {
+    const width = Math.min(COLUMNS, bins - b0);
+    for (let k = 0; k < frames; k++) {
+      const row = k * bins + b0;
+      for (let c = 0; c < width; c++) block[c * frames + k] = db[row + c];
+    }
+    for (let c = 0; c < width; c++) {
+      const at = c * frames;
+      const med = medianInPlace(block, at, frames);
+      for (let k = at; k < at + frames; k++) block[k] = Math.abs(block[k] - med);
+      meds[c] = med;
+      scales[c] = 1.4826 * medianInPlace(block, at, frames) + 1e-3;
+    }
+    for (let k = 0; k < frames; k++) {
+      const row = k * bins + b0;
+      for (let c = 0; c < width; c++) z[row + c] = (db[row + c] - meds[c]) / scales[c];
+    }
   }
   // Bins that share a reach form a band: a max over more neighbours runs higher, so each band is
   // standardised on its own, or the wide high bands would crush the narrow low ones.
@@ -138,18 +160,27 @@ export function evidenceMap(spec: Spectrogram, toleranceHz = 0.5, tolerance = 0.
   for (let k = 0; k < frames; k++) {
     const row = z.subarray(k * bins, (k + 1) * bins);
     const med = median(row);
-    for (let b = 0; b < bins; b++) row[b] = Math.min(10, Math.max(-4, row[b] - med));
-    const o = k * bins;
     for (let b = 0; b < bins; b++) {
-      let v = row[b];
-      const reach = reachOf[b];
-      for (let d = 1; d <= reach; d++) {
-        if (b - d >= 0 && row[b - d] > v) v = row[b - d];
-        if (b + d < bins && row[b + d] > v) v = row[b + d];
-      }
-      out[o + b] = v;
+      const v = row[b] - med;
+      row[b] = v > 10 ? 10 : v < -4 ? -4 : v;
     }
+    const o = k * bins;
     for (const [from, to] of bands) {
+      // The best neighbour within the band's reach, sliding: while the last best is still in
+      // reach, only the one cell that just came in can beat it.
+      const reach = reachOf[from];
+      let at = -1;
+      for (let b = from; b < to; b++) {
+        const lo = b > reach ? b - reach : 0;
+        const hi = b + reach < bins ? b + reach : bins - 1;
+        if (at >= lo) {
+          if (row[hi] > row[at]) at = hi;
+        } else {
+          at = lo;
+          for (let i = lo + 1; i <= hi; i++) if (row[i] > row[at]) at = i;
+        }
+        out[o + b] = row[at];
+      }
       let sum = 0;
       let sum2 = 0;
       for (let b = from; b < to; b++) {
@@ -200,9 +231,15 @@ export function buildStack(samples: Float32Array, sampleRate: number, options: S
   const layers: Layer[] = [];
   const cost = windows.reduce((a, w) => a + w, 0);
   let done = 0;
+  // The longest window has the most bins: its scratch serves the others, and only the evidence
+  // stays. Powers are not read past this point, and they weigh as much as the evidence.
+  let work: Float32Array | undefined;
   for (const window of windows) {
     const spec = computeSpectrogram(samples, sampleRate, { windowSeconds: window, hopSeconds, minHz, maxHz, pad });
-    layers.push({ window, spec, evidence: evidenceMap(spec, toleranceHz, tolerance), index: new Int32Array(0) });
+    work ??= new Float32Array(spec.db.length);
+    const evidence = evidenceMap(spec, toleranceHz, tolerance, work);
+    spec.db = new Float32Array(0);
+    layers.push({ window, spec, evidence, index: new Int32Array(0) });
     done += window;
     onProgress?.(done / cost);
   }
