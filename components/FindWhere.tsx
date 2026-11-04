@@ -625,7 +625,7 @@ export function FindWhere({ picked, archive, few, onSearching, onHeard, onAnswer
           )}
 
           {refused && !candidates && (
-            <button type="button" onClick={() => setCandidates(true)} aria-expanded={false} className={`${QUIET} w-fit`} data-testid="where-candidates">
+            <button type="button" onClick={() => setCandidates(true)} aria-expanded={false} className={`${QUIET} w-fit underline`} data-testid="where-candidates">
               {t.result.candidates}
             </button>
           )}
@@ -688,7 +688,7 @@ export function FindWhere({ picked, archive, few, onSearching, onHeard, onAnswer
           {found && guess && answer(guess, found.views, found.confident, guess === best, others)}
 
           {result.kind !== "few" && (
-            <button type="button" onClick={stop} className={`${QUIET} w-fit`} data-testid="where-again">
+            <button type="button" onClick={stop} className={`${QUIET} w-fit underline`} data-testid="where-again">
               {t.result.again}
             </button>
           )}
