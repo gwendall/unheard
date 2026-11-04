@@ -4,8 +4,7 @@ import { expect, test, type Page } from "@playwright/test";
 // is simulated says so from the first moment to the last, and most real files do not end like this.
 
 const NOTE = `Simulated: real planes, made-up sound, mixed to show a clean case. None of our real test recordings got a place: they get "Can't tell".`;
-// What is under the map holds too, with the real map: e2e/place-map.spec.ts. Here the map may fail, with a caption.
-const STAY = ["where-name", "example-chip"];
+const STAY = ["where-name", "example-chip", "example-note", "answer-why"];
 const rectsOf = (page: Page) =>
   page.evaluate((ids) => Object.fromEntries(ids.map((id) => [id, document.querySelector(`[data-testid="${id}"]`)?.getBoundingClientRect().toJSON()])), STAY);
 

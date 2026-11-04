@@ -127,6 +127,28 @@ export function Where({ archive, elsewhere, example, scope }: { archive: string 
       {m.example.chip}
     </span>
   );
+  // The same row from the moment the example is being made: at 390 px its link takes a second line, and what is under it stays.
+  const nameRow = (name: string, isExample: boolean) => (
+    <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-1">
+      <p className="flex min-w-0 items-center gap-3 font-medium text-ink" data-testid="where-name">
+        {isExample && chip}
+        <span className="truncate">{name}</span>
+      </p>
+      <label className={`${QUIET} cursor-pointer has-[input:focus-visible]:outline-2 has-[input:focus-visible]:outline-offset-2 has-[input:focus-visible]:outline-amber`}>
+      <input
+        type="file"
+        accept={ACCEPT}
+        className="sr-only"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) void open(file);
+        }}
+        data-testid="where-another"
+      />
+      {t.another}
+    </label>
+    </div>
+  );
   // Next to the result and from the first moment: this file was mixed to get a named place, and no real test recording got one.
   const exampleNote = (
     <p className="text-base text-pretty text-amber-soft" data-testid="example-note">
@@ -187,12 +209,7 @@ export function Where({ archive, elsewhere, example, scope }: { archive: string 
         {/* The same place as the file's name and the answer that follows: nothing moves when the file comes. */}
         {!picked && making && (
           <>
-            <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-1">
-              <p className="flex min-w-0 items-center gap-3 font-medium text-ink" data-testid="where-name">
-                {chip}
-                <span className="truncate">{fileName}</span>
-              </p>
-            </div>
+            {nameRow(fileName, true)}
             <Answer
               map={<MapToCome />}
               title={a.listening}
@@ -218,25 +235,7 @@ export function Where({ archive, elsewhere, example, scope }: { archive: string 
         )}
         {picked && (
           <>
-            <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-1">
-              <p className="flex min-w-0 items-center gap-3 font-medium text-ink" data-testid="where-name">
-                {simulated && chip}
-                <span className="truncate">{picked.file.name}</span>
-              </p>
-              <label className={`${QUIET} cursor-pointer has-[input:focus-visible]:outline-2 has-[input:focus-visible]:outline-offset-2 has-[input:focus-visible]:outline-amber`}>
-                <input
-                  type="file"
-                  accept={ACCEPT}
-                  className="sr-only"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file) void open(file);
-                  }}
-                  data-testid="where-another"
-                />
-                {t.another}
-              </label>
-            </div>
+            {nameRow(picked.file.name, simulated)}
 
             <Check
               key={picked.id}
