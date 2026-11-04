@@ -105,6 +105,8 @@ aircraft's sound, a better matcher, or build a listening station. See
 - Map: © [OpenStreetMap](https://www.openstreetmap.org/copyright) contributors,
   [ODbL 1.0](https://opendatacommons.org/licenses/odbl/1-0/), in a build by
   [Protomaps](https://protomaps.com), in our own bucket too (`docs/map.md`).
+- Ground height: [Terrain Tiles](https://registry.opendata.aws/terrain-tiles/) (Mapzen, on AWS's open data), in our
+  own bucket too (`docs/terrain.md`, with the attribution of each source).
 - [Open-Meteo](https://open-meteo.com), for elevation and temperature.
 - The authors of [AeroSonicDB](https://zenodo.org/records/10215080), for the first real
   recordings the matcher was tested on.

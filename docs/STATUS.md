@@ -133,8 +133,9 @@ What a visitor goes through, and where it lives:
     colsto's hour window found the spot within 55 m with the flag down. The one honest line,
     `where.result.honest`, quotes the eval (8 of 20 pairs with the hour, 6 of 20 with the day):
     update it with the eval.
-  - **Terrain**: AWS's open terrain tiles allow browsers (`access-control-allow-origin: *`, checked
-    03/11), so the search uses real ground height, and falls back to flat if a tile fails.
+  - **Terrain**: the open terrain tiles of zoom 10 in one file of our own bucket, read by ranges
+    (`docs/terrain.md`), so the search uses real ground height and reaches no third party. It falls
+    back to flat if a tile fails.
   - **Place names**: `lib/client/places.ts` (`nearestPlace`, `searchPlaces`, `placeLabel`), an offline
     gazetteer from GeoNames in the bucket under `places/v1/`, so naming a spot or typing a town
     reaches no third party. Layout, the build and the upload: `docs/places-format.md`.
@@ -278,8 +279,8 @@ What the web version needs:
 
 - The history (above): a daily job and a bucket, about 0.13 $ after a month.
 - The search in a Web Worker (`lib/core` runs as is, `onProgress` reports the stage): about 7 MB
-  of history tiles and about 1 MB of terrain tiles for a 100 km square (Terrarium PNGs from the
-  open AWS bucket, zoom 10; check their CORS or mirror them beside the history).
+  of history tiles and about 1 MB of terrain tiles for a 100 km square (Terrarium PNGs, zoom 10, in
+  our own bucket beside the history: `docs/terrain.md`).
 - A day (from the file's date when it has one, narrowed to the hour when possible), a square on a
   map, the answers with their aircraft and mirror, and "not sure" unless the flag is up, which
   today is always.

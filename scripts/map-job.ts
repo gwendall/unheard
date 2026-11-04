@@ -55,7 +55,7 @@ export function completeXml(parts: { number: number; etag: string }[]): string {
 }
 
 /** Runs `task` on each item, a few at a time; the first failure stops the rest. */
-async function eachLimited<T>(items: T[], limit: number, task: (item: T) => Promise<void>): Promise<void> {
+export async function eachLimited<T>(items: T[], limit: number, task: (item: T) => Promise<void>): Promise<void> {
   let next = 0;
   await Promise.all(
     Array.from({ length: limit }, async () => {
@@ -71,7 +71,7 @@ async function eachLimited<T>(items: T[], limit: number, task: (item: T) => Prom
   );
 }
 
-async function again<T>(what: string, task: () => Promise<T>, attempts = 5): Promise<T> {
+export async function again<T>(what: string, task: () => Promise<T>, attempts = 5): Promise<T> {
   for (let attempt = 1; ; attempt++) {
     try {
       return await task();
@@ -83,7 +83,7 @@ async function again<T>(what: string, task: () => Promise<T>, attempts = 5): Pro
 }
 
 /** The bucket by path, as in history-job.ts: of an error only its <Code>, the rest can quote the key id. */
-function bucket(env: NodeJS.ProcessEnv) {
+export function bucket(env: NodeJS.ProcessEnv) {
   const names = ["AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_ENDPOINT_URL_S3", "AWS_REGION", "BUCKET_NAME"];
   const missing = names.filter((n) => !env[n]);
   if (missing.length) throw new Error(`missing from the environment: ${missing.join(", ")}`);
@@ -98,7 +98,7 @@ function bucket(env: NodeJS.ProcessEnv) {
   return { call, url: (key: string) => `${base}/${key}` };
 }
 
-type Bucket = ReturnType<typeof bucket>;
+export type Bucket = ReturnType<typeof bucket>;
 
 async function setCors(store: Bucket): Promise<void> {
   const res = await store.call("GET cors", "?cors", {}, (s) => s < 300 || s === 404);
@@ -109,7 +109,7 @@ async function setCors(store: Bucket): Promise<void> {
 }
 
 /** The parts of an upload already in the bucket, to take a copy up again. */
-async function partsDone(store: Bucket, key: string, uploadId: string): Promise<Map<number, string>> {
+export async function partsDone(store: Bucket, key: string, uploadId: string): Promise<Map<number, string>> {
   const done = new Map<number, string>();
   let marker = "";
   for (;;) {

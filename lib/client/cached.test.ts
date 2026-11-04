@@ -1,5 +1,6 @@
-import { describe, expect, it } from "vitest";
-import { cachedBytes, type Keep } from "./cached";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { planArchive, type TileIn } from "../../scripts/pmtiles-write";
+import { cachedBytes, cachedTiles, type Keep } from "./cached";
 
 const WEEK = 7 * 86_400_000;
 
@@ -71,5 +72,55 @@ describe("cachedBytes", () => {
     expect(await cachedBytes("a", refused.keep)).toEqual(bytes);
     const none = world({ a: bytes });
     expect(await cachedBytes("a", { ...none.keep, open: async () => null })).toEqual(bytes);
+  });
+});
+
+describe("cachedTiles", () => {
+  const BASE = "https://bucket.example/";
+  const bytesOf = (tile: TileIn) => Uint8Array.from({ length: tile.length }, (_, i) => (i + tile.x) & 0xff);
+  const tiles: TileIn[] = [
+    { z: 10, x: 163, y: 395, length: 500, content: "a" },
+    { z: 10, x: 164, y: 395, length: 700, content: "b" },
+  ];
+
+  /** The file behind a fetch that answers ranges, and writes down what it was asked. */
+  function serveFile() {
+    const plan = planArchive(tiles, { name: "test" });
+    const file = Buffer.concat([plan.head, ...plan.stored.map((s) => bytesOf(s.tile))]);
+    const asked: string[] = [];
+    vi.stubGlobal("fetch", async (input: RequestInfo | URL, init?: RequestInit) => {
+      const request = new Request(input, init);
+      asked.push(request.url);
+      const [, from, to] = /bytes=(\d+)-(\d+)/.exec(request.headers.get("range") ?? "")!;
+      const body = file.subarray(Number(from), Number(to) + 1);
+      return new Response(body, { status: 206, headers: { "content-length": String(body.length), "content-range": `bytes ${from}-${to}/${file.length}`, etag: '"x"' } });
+    });
+    return asked;
+  }
+
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("reads a tile by ranges from our own file only, byte for byte", async () => {
+    const asked = serveFile();
+    const { keep } = world();
+    const read = cachedTiles(BASE, keep);
+    expect(await read(10, 163, 395)).toEqual(bytesOf(tiles[0]));
+    expect(await read(10, 164, 395)).toEqual(bytesOf(tiles[1]));
+    expect(new Set(asked)).toEqual(new Set([`${BASE}terrain/terrarium-z10.pmtiles`]));
+  });
+
+  it("does not go back to the network for a tile it holds", async () => {
+    const asked = serveFile();
+    const { keep } = world();
+    await cachedTiles(BASE, keep)(10, 163, 395);
+    const before = asked.length;
+    expect(await cachedTiles(BASE, keep)(10, 163, 395)).toEqual(bytesOf(tiles[0]));
+    expect(asked.length).toBe(before);
+  });
+
+  it("gives nothing for a tile the file does not have", async () => {
+    serveFile();
+    const { keep } = world();
+    expect(await cachedTiles(BASE, keep)(10, 500, 500)).toBeNull();
   });
 });

@@ -1,7 +1,8 @@
 // The ground's height, for where-and-when: how high an aircraft flew above a listener depends on
-// the ground under the listener. Read from the open terrain tiles of AWS (terrarium encoding,
-// zoom 10: pixels of about 120 m at 37°; SRTM, GMTED, NED and other public sources,
-// https://registry.opendata.aws/terrain-tiles/). No DOM, no Node: the caller supplies a fetcher.
+// the ground under the listener. The open terrain tiles (terrarium encoding, zoom 10: pixels of
+// about 120 m at 37°; SRTM, GMTED, NED and other public sources,
+// https://registry.opendata.aws/terrain-tiles/), byte for byte in one file of our own bucket
+// (docs/terrain.md). No DOM, no Node: the caller supplies a fetcher.
 
 import { inParallel, MAX_FETCHES } from "./core/parallel";
 
@@ -10,13 +11,8 @@ export type TileFetcher = (z: number, x: number, y: number) => Promise<Uint8Arra
 
 export const ZOOM = 10;
 
-export const terrainUrl = (z: number, x: number, y: number) => `https://s3.amazonaws.com/elevation-tiles-prod/terrarium/${z}/${x}/${y}.png`;
-
-/** Tiles over HTTP. */
-export const httpTiles: TileFetcher = async (z, x, y) => {
-  const res = await fetch(terrainUrl(z, x, y));
-  return res.ok ? new Uint8Array(await res.arrayBuffer()) : null;
-};
+/** The tiles in the bucket, under the archive's base. */
+export const TERRAIN_FILE = "terrain/terrarium-z10.pmtiles";
 
 async function inflate(bytes: Uint8Array): Promise<Uint8Array> {
   const stream = new Blob([bytes as BlobPart]).stream().pipeThrough(new DecompressionStream("deflate"));
