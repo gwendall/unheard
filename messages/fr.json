@@ -193,7 +193,7 @@
     "checked": "Tous les avions vérifiés ({n})",
     "atClosest": "{distance} au plus près",
     "jet": "réacteur",
-    "score": "Le score dit à quel point la courbe de chaque avion se détache du hasard dans votre enregistrement. Sans avion à trouver, aucun score n'a atteint {strong} dans nos tests.",
+    "score": "Le score dit à quel point la courbe de chaque avion se détache du hasard dans votre enregistrement. Dans nos enregistrements de test sans aucun avion à trouver, aucun score n'a atteint {strong}. Cela peut quand même arriver : si l'avion entendu manque aux données de vol, un autre peut l'atteindre.",
     "realSky": "Écouter le vrai ciel",
     "again": "Écouter à nouveau",
     "bundle": "Télécharger l'enregistrement complet",

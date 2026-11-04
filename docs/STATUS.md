@@ -424,8 +424,10 @@ plane that clears the score and the lead now reads "possible": one comparison in
      and one an A220 at 49 Hz, 3 km off: no truth for it. No eval has a truth here yet.
    - `STRONG.range` has no labelled plane past 5.7 km behind it. A far flyby recorded with its truth
      (item 1) is what would check 10 km.
-   - The page says "With no plane to find, no score has reached {strong} in our tests"
-     (`result.score` in `messages/`). Home's two scored 11.9 and 10.6: that line is not true.
+   - `result.score` in `messages/` no longer says no score reaches {strong} with no plane to find,
+     as an absolute: home's two scored 11.9 and 10.6, the E2E's jet 9.9. On the 66 recordings with
+     nothing to find, the top score is 7.88: 15 made-up scenes have no plane in the sound, the other
+     51 (36 real) have the heard plane left out of the data, so these numbers say little about silence.
    - A floor of 15 s of known curve stays open: it would have taken out the jet too, with nothing lost
      on 119 strong and right planes (shortest 23.5 s), mostly with polls from well before the recording.
 
