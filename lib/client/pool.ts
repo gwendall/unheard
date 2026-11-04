@@ -92,7 +92,9 @@ export function poolOf<In, Out>(make: () => PoolWorker, size: number): Pool<In, 
       pump();
     };
     // A worker that dies takes its piece with it: that piece fails, and the pool goes on with one less.
+    // Heard here, so it goes no further: unheard, it would reach the page as this job's own failure.
     worker.onerror = (e: ErrorEvent) => {
+      e.preventDefault();
       const id = owner.get(worker);
       const job = id === undefined ? undefined : running.get(id);
       if (id !== undefined) running.delete(id);

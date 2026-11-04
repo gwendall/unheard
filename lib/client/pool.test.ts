@@ -24,6 +24,9 @@ function workers() {
   return { made, make, answer };
 }
 
+/** What a dying worker sends. */
+const death = (message: string, heard = () => {}) => ({ message, preventDefault: heard }) as unknown as ErrorEvent;
+
 describe("poolSize", () => {
   it("leaves a core to the page, has a ceiling, and gives little memory two", () => {
     expect(poolSize(1)).toBe(1);
@@ -81,8 +84,11 @@ describe("poolOf", () => {
     const { made, make } = workers();
     const pool = poolOf<number, number>(make, 1);
     const piece = pool.run(1);
-    made[0].onerror?.({ message: "out of memory" } as ErrorEvent);
+    let heard = false;
+    made[0].onerror?.(death("out of memory", () => void (heard = true)));
     await expect(piece).rejects.toThrow("out of memory");
+    // Unheard, it would reach the page as the job's own failure.
+    expect(heard).toBe(true);
     pool.close();
   });
 
@@ -90,14 +96,14 @@ describe("poolOf", () => {
     const { made, make, answer } = workers();
     const pool = poolOf<number, number>(make, 2);
     const pieces = [pool.run(1), pool.run(2), pool.run(3)];
-    made[0].onerror?.({ message: "gone" } as ErrorEvent);
+    made[0].onerror?.(death("gone"));
     await expect(pieces[0]).rejects.toThrow("gone");
     // The other worker takes what was waiting; none is made in place of the lost one.
     answer(1, { id: made[1].asked[0].id, out: 20 });
     expect(await pieces[1]).toBe(20);
     expect(made[1].asked.map((p) => p.input)).toEqual([2, 3]);
     expect(made.length).toBe(2);
-    made[1].onerror?.({ message: "gone too" } as ErrorEvent);
+    made[1].onerror?.(death("gone too"));
     await expect(pieces[2]).rejects.toThrow("gone too");
     await expect(pool.run(4)).rejects.toThrow("no workers");
     pool.close();
