@@ -1,16 +1,16 @@
 {
   "meta": {
-    "title": "Unheard : l'avion que vous n'entendez pas",
-    "shareTitle": "Unheard : votre téléphone nomme l'avion qui passe au-dessus de vous",
+    "title": "Unheard : où a-t-on filmé ça ?",
+    "shareTitle": "Unheard : les avions dans le son d'une vidéo peuvent parfois dire où elle a été filmée",
     "description": "Déposez une vidéo ou un fichier son : les avions dans son son peuvent parfois dire où et quand il a été enregistré, et vous pouvez les retirer. Ou levez votre téléphone et nommez l'avion qui vous survole.",
-    "ogAlt": "Il y a un avion que vous n'entendez pas. Votre téléphone l'entend. Unheard le nomme. Une note ambrée lumineuse s'infléchit sur un spectrogramme bleu nuit, comme la hauteur du son d'un avion qui passe.",
+    "ogAlt": "Où a-t-on filmé ça ? Les avions dans le son peuvent parfois le dire. Une note ambrée lumineuse s'infléchit sur un spectrogramme bleu nuit, comme la hauteur du son d'un avion qui passe.",
     "privacyTitle": "Ce qui est envoyé · Unheard",
     "whereTitle": "Où a-t-on filmé ça ? · Unheard",
     "whereDescription": "Le bourdonnement des avions dans une vidéo ou un fichier son, rapproché d'une archive de vols, peut parfois dire où et quand il a été enregistré. Vérifiez-le, ou retirez ces sons, dans votre navigateur : votre fichier ne quitte pas votre appareil.",
     "elsewhereTitle": "Ailleurs · Unheard",
     "elsewhereDescription": "Faites croire que votre enregistrement a été fait dans une autre ville : Unheard glisse sous votre voix les vrais avions qui la survolent en ce moment, avec les courbes Doppler qu'un enquêteur comparerait aux données de vol."
   },
-  "og": { "lines": ["Il y a un avion", "que vous n’entendez pas."], "sub": "Votre téléphone l’entend. Unheard le nomme.", "size": 84 },
+  "og": { "lines": ["Où a-t-on", "filmé ça ?"], "sub": "Les avions dans le son peuvent parfois le dire.", "size": 100 },
   "nav": { "home": "Unheard, accueil", "language": "Langue" },
   "hero": {
     "doorTitle": "Ou écoutez le ciel",

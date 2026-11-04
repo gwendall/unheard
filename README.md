@@ -1,8 +1,9 @@
 # Unheard
 
-There's a plane you can't hear. Hold your phone up to the sky for two minutes: Unheard finds
-the faint, pitch-bending hum of an aircraft in the recording and tells you which one it was, by
-matching its Doppler curve against live ADS-B flight data.
+Where was this filmed? Drop a video or a sound file: the planes in its background leave a tone
+that falls as they pass, and matched to an archive of flights those tones can sometimes tell where
+and when it was recorded. Or hold your phone up to the sky for two minutes: Unheard finds the
+faint hum of an aircraft and names it, from its Doppler curve and live ADS-B flight data.
 
 Everything runs in your browser. Your recording never leaves your phone unless you choose to
 donate it.

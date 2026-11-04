@@ -1,16 +1,16 @@
 {
   "meta": {
-    "title": "Unheard: the plane you can't hear",
-    "shareTitle": "Unheard: your phone names the plane flying over you",
+    "title": "Unheard: where was this filmed?",
+    "shareTitle": "Unheard: the planes in a video's sound can sometimes say where it was filmed",
     "description": "Drop a video or a sound file: the planes in its sound can sometimes tell where and when it was recorded, and you can take them out. Or hold your phone up and name the plane flying over you.",
-    "ogAlt": "There's a plane you can't hear. Your phone hears it. Unheard names it. A glowing amber tone bends down across a night-blue spectrogram, as the pitch of a passing plane does.",
+    "ogAlt": "Where was this filmed? The planes in its sound can sometimes tell. A glowing amber tone bends down across a night-blue spectrogram, as the pitch of a passing plane does.",
     "privacyTitle": "What is sent · Unheard",
     "whereTitle": "Where was this filmed? · Unheard",
     "whereDescription": "The hum of the planes in a video or a sound file, matched to a flight archive, can sometimes say where and when it was recorded. Find out, or take those tones out, in your browser: your file never leaves your device.",
     "elsewhereTitle": "Somewhere else · Unheard",
     "elsewhereDescription": "Make your recording sound like it was made in another city: Unheard puts under your voice the real planes flying over it right now, with the Doppler curves an investigator would match to flight data."
   },
-  "og": { "lines": ["There’s a plane", "you can’t hear."], "sub": "Your phone hears it. Unheard names it.", "size": 100 },
+  "og": { "lines": ["Where was", "this filmed?"], "sub": "The planes in its sound can sometimes tell.", "size": 100 },
   "nav": { "home": "Unheard, home", "language": "Language" },
   "hero": {
     "doorTitle": "Or listen to the sky",
