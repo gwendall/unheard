@@ -464,6 +464,11 @@
       "plane": "{type}, {distance} away, passed at {time} UTC",
       "noType": "type unknown",
       "again": "Change the search",
+      "share": "Share this result",
+      "shareText": "{verdict}: {place}, from the planes in its sound.",
+      "shareNote": "The picture shows this place and time. Nothing leaves this page until you choose where to share it.",
+      "cardStart": "start of the recording",
+      "cardFlyovers": "flyovers it explains",
       "credit": "Flight data © adsb.lol contributors (ODbL). Nothing is stored."
     },
     "errors": {

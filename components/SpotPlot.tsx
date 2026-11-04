@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 import { useI18n } from "@/components/I18n";
-import { toLocal } from "@/lib/core/geo";
+import { mirrorOf, reachOf } from "@/lib/client/where-card";
 import type { Guess } from "@/lib/client/where.worker";
 
 /**
@@ -14,19 +14,8 @@ export function SpotPlot({ guess, sure }: { guess: Guess; sure: boolean }) {
   const { m } = useI18n();
   const t = m.plots;
   const here = m.where.result;
-  const mirror = useMemo(() => {
-    if (!guess.mirror) return null;
-    const p = toLocal({ lat: guess.lat, lon: guess.lon, elevation: 0 }, guess.mirror.lat, guess.mirror.lon, 0);
-    return [p[0], p[1]] as [number, number];
-  }, [guess]);
-
-  // Frame what was close: the mirror and the closest points, never tighter than 2 km.
-  const reach = useMemo(() => {
-    let r = 2000;
-    if (mirror) r = Math.max(r, Math.hypot(...mirror));
-    for (const p of guess.paths) r = Math.max(r, Math.hypot(...p.closest));
-    return Math.min(r, 30_000) * 1.25;
-  }, [guess, mirror]);
+  const mirror = useMemo(() => mirrorOf(guess), [guess]);
+  const reach = useMemo(() => reachOf(guess), [guess]);
 
   const rings = [1000, 2000, 5000, 10_000, 20_000].filter((r) => r < reach);
   const stroke = reach / 160;
