@@ -175,12 +175,6 @@ test("a file in: what it says at once, its tones, then where and when, and the f
   await expect(page.getByTestId("where").locator("button.bg-amber, a.bg-amber")).toHaveCount(1);
   await expect(page.getByTestId("where-share").locator("button.bg-amber")).toHaveCount(1);
 
-  // On a wide screen the map stays beside the planes as they scroll: no hole under it.
-  await page.getByTestId("where-planes").evaluate((el) => window.scrollTo(0, el.getBoundingClientRect().top + window.scrollY - 40));
-  const plot = await page.getByTestId("place-map").boundingBox();
-  expect(plot!.y).toBeGreaterThanOrEqual(0);
-  expect(plot!.y).toBeLessThan(120);
-
   expect(sent).toEqual([]);
   // The whole search, the worker's requests included: the site and our bucket, nobody else.
   expect([...hosts].filter((host) => host !== new URL(page.url()).host && host !== BUCKET)).toEqual([]);
@@ -251,11 +245,14 @@ test("without the flag, leads with the best guess and the next answer, and says 
   await expect(guesses.nth(1)).toContainText(/^Next answer: .+, [\d.,]+ k?m off$/);
   await shoot(page, "where-best-guess");
   const first = await page.getByTestId("where-spot").innerText();
+  const { x, y, width } = (await page.getByTestId("place-map").boundingBox())!;
   await guesses.nth(1).click();
   // The lead stays on the best guess; what is shown below it is the answer picked.
   await expect(page.getByTestId("where-spot")).toHaveText(first);
   await expect(page.getByTestId("where-shown-spot")).not.toHaveText(first);
   await expect(page.getByTestId("where-shown-start")).toContainText("Would have started");
+  // What changes with the answer sits under the map: the map holds.
+  expect(await page.getByTestId("place-map").boundingBox()).toMatchObject({ x, y, width });
   await shoot(page, "where-guesses");
 });
 
@@ -760,6 +757,31 @@ test("sixty tones taken out: before and after for the three, and the others from
   await page.getByTestId("check-all").locator("summary").click();
   await expect(page.getByTestId("check-others").locator("li")).toHaveCount(57);
   await expect(page.getByTestId("check-others").locator("li").first().locator("canvas")).toHaveCount(2);
+});
+
+test("on a wide screen the map leaves no hole: it takes the whole width, and the planes go two by two", async ({ page }, info) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const wav = info.outputPath("flyovers.wav");
+  writeFileSync(wav, await sceneWav());
+  await page.goto("/where");
+  await page.getByTestId("where-file").setInputFiles(wav);
+  await page.getByTestId("where-find").click();
+  await fillIn(page);
+  await page.getByTestId("where-search").click();
+  await expect(page.getByTestId("where-verdict")).toBeVisible({ timeout: 170_000 });
+  const result = (await page.getByTestId("where-result").boundingBox())!;
+  const map = (await page.getByTestId("place-map").boundingBox())!;
+  expect(map.width).toBe(result.width);
+  const planes = page.getByTestId("where-planes").locator("li");
+  const boxes = await planes.evaluateAll((items) => items.map((el) => el.getBoundingClientRect().toJSON() as DOMRect));
+  expect(boxes[0].y).toBeGreaterThanOrEqual(map.y + map.height);
+  // Side by side, each from the same top; one left over has the whole row.
+  if (boxes.length > 1) {
+    expect(boxes[1].y).toBe(boxes[0].y);
+    expect(boxes[1].x).toBeGreaterThan(boxes[0].x + boxes[0].width);
+  }
+  if (boxes.length % 2) expect(boxes[boxes.length - 1].width).toBe(result.width);
+  if (SHOTS) await page.screenshot({ path: `${SHOTS}/where-wide.jpg`, type: "jpeg", quality: 70, fullPage: true });
 });
 
 test.describe("the end of a search on a phone", () => {
