@@ -6,7 +6,7 @@ export default function manifest(): MetadataRoute.Manifest {
   return {
     name: "Unheard",
     short_name: "Unheard",
-    description: "Your phone names the plane you can't hear.",
+    description: "Where was this filmed? The planes in its sound can sometimes tell.",
     start_url: "/",
     display: "standalone",
     background_color: "#05070d",
