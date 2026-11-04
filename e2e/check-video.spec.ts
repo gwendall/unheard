@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -34,12 +35,33 @@ async function packetsOf(path: string) {
   }
 }
 
+/** Where "Find where" and the link beside it sit on the page, at a wide screen and a phone's. */
+async function placesOf(page: Page) {
+  const out: unknown[] = [];
+  for (const width of [1440, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    for (const id of ["where-find", "check-elsewhere"]) {
+      out.push(await page.getByTestId(id).evaluate((el) => {
+        const r = el.getBoundingClientRect();
+        return { x: r.x, y: r.y + window.scrollY, width: r.width, height: r.height };
+      }));
+    }
+  }
+  await page.setViewportSize({ width: 1440, height: 900 });
+  return out;
+}
+
 async function clean(page: Page, file: string) {
   await page.goto("/where");
   await page.getByTestId("where-file").setInputFiles(file);
   await expect(page.getByTestId("check-verdict")).toHaveText(/could place this file\.$/, { timeout: 170_000 });
+  const places = await placesOf(page);
   await page.getByTestId("check-clean").click();
   await expect(page.getByTestId("check-verdict")).toHaveText(/^The tones? (is|are) gone\.$/, { timeout: 300_000 });
+  // The download is the one thing to do now, and what was on the page has not moved.
+  await expect(page.getByTestId("where").locator("button.bg-amber, a.bg-amber")).toHaveCount(1);
+  await expect(page.getByTestId("check-download")).toHaveClass(/bg-amber/);
+  expect(await placesOf(page)).toEqual(places);
   const [download] = await Promise.all([page.waitForEvent("download"), page.getByTestId("check-download").click()]);
   return download;
 }
@@ -89,11 +111,133 @@ for (const [name, ext, meta] of [
   });
 }
 
+/** Each track's kind and all its packets, as one hash. */
+async function tracksOf(path: string) {
+  const input = new Input({ source: new FilePathSource(path), formats: ALL_FORMATS });
+  try {
+    const out: { type: string; packets: number; hash: string }[] = [];
+    for (const track of await input.getTracks()) {
+      if (!track.isVideoTrack() && !track.isAudioTrack()) continue;
+      const hash = createHash("sha256");
+      let packets = 0;
+      for await (const p of new EncodedPacketSink(track).packets()) {
+        hash.update(p.data);
+        packets++;
+      }
+      out.push({ type: track.type, packets, hash: hash.digest("hex") });
+    }
+    return out;
+  } finally {
+    input.dispose();
+  }
+}
+
+/** What ffprobe reads in the file: its tags, then each track's. */
+function probeTags(path: string) {
+  const { format, streams } = JSON.parse(execFileSync("ffprobe", ["-v", "error", "-show_format", "-show_streams", "-of", "json", path]).toString()) as { format: { tags?: Record<string, string> }; streams: { tags?: Record<string, string> }[] };
+  return { file: Object.keys(format.tags ?? {}), tracks: streams.flatMap((s) => Object.keys(s.tags ?? {})) };
+}
+
+/** Clicks the copy without its tags, saves it, and says what it holds: the file's picture and first sound as they were, and nothing it said. */
+async function copyWithoutTags(page: Page, file: string, out: string, name: string, kept: string[]) {
+  const before = await tracksOf(file);
+  const [download] = await Promise.all([page.waitForEvent("download"), page.getByTestId("check-tags-download").click()]);
+  expect(download.suggestedFilename()).toBe(name);
+  await download.saveAs(out);
+  const first = kept.map((type) => before.find((t) => t.type === type));
+  expect(await tracksOf(out)).toEqual(first);
+  const said = await readMetadata(new Blob([readFileSync(out)]));
+  expect(said.location).toBeUndefined();
+  expect(said.createdAt).toBeUndefined();
+  expect(said.device).toBeUndefined();
+  const probed = probeTags(out);
+  // Only what names the format and the software that wrote it.
+  expect(probed.file.filter((key) => !["major_brand", "minor_version", "compatible_brands", "encoder"].includes(key))).toEqual([]);
+  expect(probed.tracks.filter((key) => !["language", "handler_name", "encoder", "vendor_id"].includes(key))).toEqual([]);
+  return readFileSync(out);
+}
+
+test("a copy without its tags: the same picture and sound, and nothing the file said", async ({ page }, info) => {
+  const file = fixture("flyby.mp4");
+  test.skip(!existsSync(file), "no ffmpeg to make the fixture");
+  await page.goto("/where");
+  await page.getByTestId("where-file").setInputFiles(file);
+  // Offered at once, before any tone: the check goes on beside it.
+  await expect(page.getByTestId("check-tags-note")).toContainText("The sound is unchanged");
+  await expect(page.getByTestId("check-tags-note")).toContainText("the picture can still give the place away");
+  await shoot(page, "check-tags-video");
+  const out = info.outputPath("flyby-no-tags.mp4");
+  const bytes = await copyWithoutTags(page, file, out, "flyby-no-tags.mp4", ["video", "audio"]);
+  for (const said of ["iPhone", "+48.77", "2026-05-16", "com.apple.quicktime"]) expect(bytes.includes(said), said).toBe(false);
+  // It says nothing, so nothing is offered for it.
+  await page.getByTestId("where-another").setInputFiles(out);
+  await expect(page.getByTestId("check-verdict")).toBeVisible({ timeout: 170_000 });
+  await expect(page.getByTestId("check-tags")).toHaveCount(0);
+});
+
+for (const ext of ["mov", "webm"]) {
+  test(`a ${ext} without its tags comes back as a ${ext}`, async ({ page }, info) => {
+    const file = fixture(`flyby.${ext}`);
+    test.skip(!existsSync(file), "no ffmpeg to make the fixture");
+    await page.goto("/where");
+    await page.getByTestId("where-file").setInputFiles(file);
+    await expect(page.getByTestId("check-tags-note")).toContainText("The sound is unchanged");
+    await copyWithoutTags(page, file, info.outputPath(`flyby-no-tags.${ext}`), `flyby-no-tags.${ext}`, ["video", "audio"]);
+  });
+}
+
+test("a file with no tone still gets its copy without tags", async ({ page }, info) => {
+  const file = fixture("quiet.mp4");
+  test.skip(!existsSync(file), "no ffmpeg to make the fixture");
+  await page.goto("/where");
+  await page.getByTestId("where-file").setInputFiles(file);
+  await expect(page.getByTestId("check-verdict")).toHaveText("No aircraft tone found.", { timeout: 170_000 });
+  await shoot(page, "check-tags-no-tone");
+  await copyWithoutTags(page, file, info.outputPath("quiet-no-tags.mp4"), "quiet-no-tags.mp4", ["video", "audio"]);
+});
+
+test("a video with no sound still gets its copy without tags", async ({ page }, info) => {
+  const file = fixture("silent.mp4");
+  test.skip(!existsSync(file), "no ffmpeg to make the fixture");
+  await page.goto("/where");
+  await page.getByTestId("where-file").setInputFiles(file);
+  await expect(page.getByTestId("check-trouble")).toContainText("This video has no sound track", { timeout: 60_000 });
+  await expect(page.getByTestId("check-tags-note")).toContainText("the same picture");
+  await expect(page.getByTestId("check-tags-note")).not.toContainText("sound");
+  await shoot(page, "check-tags-silent");
+  await copyWithoutTags(page, file, info.outputPath("silent-no-tags.mp4"), "silent-no-tags.mp4", ["video"]);
+});
+
+test("sound files get theirs too, each in its own kind", async ({ page }, info) => {
+  for (const ext of ["mp3", "m4a", "flac", "ogg", "wav"]) {
+    const file = fixture(`tagged.${ext}`);
+    test.skip(!existsSync(file), "no ffmpeg to make the fixture");
+    await page.goto("/where");
+    await page.getByTestId("where-file").setInputFiles(file);
+    await expect(page.getByTestId("check-tags-note")).toContainText("The sound is unchanged");
+    await expect(page.getByTestId("check-tags-note")).not.toContainText("picture");
+    const bytes = await copyWithoutTags(page, file, info.outputPath(`tagged-no-tags.${ext}`), `tagged-no-tags.${ext}`, ["audio"]);
+    for (const said of ["Marked title", "Marked artist", "2026-05-16"]) expect(bytes.includes(said), `${ext}: ${said}`).toBe(false);
+  }
+});
+
+test("tags on a file we cannot write: one line saying so, and no button", async ({ page }) => {
+  const file = fixture("old-picture.mp4");
+  test.skip(!existsSync(file), "no ffmpeg to make the fixture");
+  await page.goto("/where");
+  await page.getByTestId("where-file").setInputFiles(file);
+  await expect(page.getByTestId("check-tags-why")).toContainText("We cannot write this kind of file");
+  await expect(page.getByTestId("check-tags-why")).toContainText("it keeps any date, place or device");
+  await expect(page.getByTestId("check-tags-download")).toHaveCount(0);
+});
+
 test("a container it cannot write: the cleaned sound, and one line saying why", async ({ page }) => {
   const file = fixture("flyby.ts");
   test.skip(!existsSync(file), "no ffmpeg to make the fixture");
   const download = await clean(page, file);
   expect(download.suggestedFilename()).toBe("flyby-cleaned.wav");
+  // No tag in this one, so no copy is offered for it.
+  await expect(page.getByTestId("check-tags")).toHaveCount(0);
   await expect(page.getByTestId("check-why")).toContainText("We cannot write this kind of video");
   await expect(page.getByTestId("check-why")).toContainText("still holds");
   await shoot(page, "check-video-fallback");

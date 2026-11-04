@@ -384,6 +384,16 @@
         "container": "Nous ne savons pas écrire ce type de vidéo : voici donc le son nettoyé seul. Votre vidéo garde la date, le lieu ou l'appareil qu'elle contenait."
       }
     },
+    "tags": {
+      "download": "Télécharger sans ses tags",
+      "copying": "Copie du fichier, {n} %",
+      "suffix": "sans-tags",
+      "video": "Une copie avec la même image et le même son, copiés tels quels, sans tags ni autres pistes. Le son ne change pas, donc tout son d'avion y reste, et l'image peut encore trahir le lieu : ce qu'elle montre, ou une position que certaines caméras y écrivent.",
+      "picture": "Une copie avec la même image, copiée telle quelle, sans tags ni autres pistes. L'image peut encore trahir le lieu : ce qu'elle montre, ou une position que certaines caméras y écrivent.",
+      "sound": "Une copie avec le même son, copié tel quel, sans tags ni autres pistes. Le son ne change pas, donc tout son d'avion y reste.",
+      "cannot": "Nous ne savons pas écrire ce type de fichier : il garde la date, le lieu ou l'appareil qu'il contenait.",
+      "failed": "Nous n'avons pas pu écrire cette copie. Votre fichier garde ses tags."
+    },
     "suffix": "nettoye",
     "tone": "De {start} à {end} dans le fichier, de {from} à {to} Hz, {sure}",
     "sure": { "clear": "ressort nettement", "likely": "ressort", "faint": "faible, mais présent" },

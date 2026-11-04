@@ -14,7 +14,7 @@ import { openSink, openStore } from "./disk";
 import { sweep } from "./folder";
 import { openMedia, type MediaFile } from "./media";
 import { readMetadata, type CreatedAt, type Place } from "./metadata";
-import { openVideoWriter, planVideo, type Refusal, type VideoPlan } from "./remux";
+import { holdsTags, openVideoWriter, planCopy, planVideo, type Refusal, type VideoPlan } from "./remux";
 import { MIN_PASSES, passesOf } from "./where";
 import { withPieces, type Job as PoolJob } from "./pool";
 import { pcm16, WAV_HEADER, wavHeader } from "./wav";
@@ -62,6 +62,8 @@ export type CheckEvent =
   | { type: "decode-here"; sampleRate?: number }
   /** A video with no sound track: no tone to find, nothing to clean. */
   | { type: "no-sound" }
+  /** What a copy without its tags would be for this file (lib/client/strip.worker.ts writes it): anything to leave behind, whether we can write it, and what it holds. */
+  | { type: "tags"; holds: boolean; can: boolean; picture: boolean; sound: boolean }
   /** How many workers this device and this file leave room for in the job that starts. */
   | { type: "workers"; count: number }
   | { type: "found"; duration: number; found: Found[] }
@@ -181,9 +183,21 @@ async function find(s: Session, source: SoundSource) {
   post({ type: "passes", passes: passesHeard(tones) });
 }
 
+/** What a copy without its tags would be. A file that will not say is a file we cannot write: the check goes on all the same. */
+async function tagsOf(media: MediaFile | null): Promise<CheckEvent> {
+  const unknown: CheckEvent = { type: "tags", holds: false, can: false, picture: false, sound: false };
+  if (!media) return unknown;
+  try {
+    return { type: "tags", holds: await holdsTags(media.input), can: !!(await planCopy(media.input)), picture: !!media.video, sound: !!media.audio };
+  } catch {
+    return unknown;
+  }
+}
+
 async function open(file: File, folder: string, partial: boolean, phone: boolean) {
   void sweep().catch(() => {});
   const media = await openMedia(file);
+  post(await tagsOf(media));
   if (media?.video && !media.audio) {
     post({ type: "no-sound" });
     return;
