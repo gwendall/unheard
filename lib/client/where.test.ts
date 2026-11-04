@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { clockOf, coordinates, daysOf, distinctAnswers, metresApart, offsetAt, osmLink, parseCoordinates, passesOf, prefillOf, windowOf, partsOf } from "./where";
+import { clockOf, coordinates, daysOf, distinctAnswers, metresApart, offsetAt, osmLink, parseCoordinates, passesOf, prefillOf, townOf, windowOf, partsOf } from "./where";
 
 const at = (iso: string) => Date.parse(iso) / 1000;
 
@@ -10,6 +10,15 @@ describe("the answers shown", () => {
   it("measures how far apart two spots are", () => {
     expect(metresApart({ lat: 40, lon: -73 }, { lat: 40.01, lon: -73 })).toBeCloseTo(1112, 0);
     expect(metresApart({ lat: 40, lon: -73 }, { lat: 40, lon: -72.99 })).toBeCloseTo(852, 0);
+  });
+  it("names an answer at sea after a town only a short way off its shore", () => {
+    const newYork = { name: "New York City", distance: 61_000 };
+    const beach = { name: "Long Beach", distance: 3000 };
+    expect(townOf({ atSea: true }, newYork)).toBeNull();
+    expect(townOf({ atSea: true }, beach)).toBe(beach);
+    expect(townOf({ atSea: false }, newYork)).toBe(newYork);
+    expect(townOf({}, newYork)).toBe(newYork);
+    expect(townOf({ atSea: true }, undefined)).toBeNull();
   });
   it("leaves out the best answer's mirror, which it already names", () => {
     const twin = plain(40.0101, -73, 1005);

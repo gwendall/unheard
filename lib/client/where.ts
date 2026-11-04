@@ -108,6 +108,17 @@ export function distinctAnswers<A extends { lat: number; lon: number; start: num
   return answers.filter((a) => a === best || !best.mirror || metresApart(best.mirror, a) > 300 || Math.abs(a.start - best.start) > 20).slice(0, count);
 }
 
+/** Within this distance of a town, metres, an answer at sea is still near it. */
+const TOWN_FROM_SEA = 5000;
+
+/**
+ * The town an answer may be named after. Nearest does not mean near: 30 km off Long Island it is
+ * New York City, 61 km away. An answer at sea takes a town's name only a short way off its shore.
+ */
+export function townOf<N extends { distance: number }>(answer: { atSea?: boolean }, near: N | undefined): N | null {
+  return near && (!answer.atSea || near.distance <= TOWN_FROM_SEA) ? near : null;
+}
+
 /** The share of the scan each worker repeats, measured on colsto's hour. */
 const SCAN_CURVES = 0.17;
 

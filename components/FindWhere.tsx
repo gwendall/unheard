@@ -12,7 +12,7 @@ import { isPhone } from "@/lib/client/device";
 import { timeLeft } from "@/lib/client/format";
 import type { FileMetadata } from "@/lib/client/metadata";
 import { aircraftType } from "@/lib/client/types";
-import { clockOf, coordinates, metresApart, offsetAt, OLDEST_DAY, osmLink, parseCoordinates, SQUARE, windowOf, type Place, type Prefill, type Zone } from "@/lib/client/where";
+import { clockOf, coordinates, metresApart, offsetAt, OLDEST_DAY, osmLink, parseCoordinates, SQUARE, townOf, windowOf, type Place, type Prefill, type Zone } from "@/lib/client/where";
 import type { Guess, WhereEvent, WherePartial, WhereRequest, WhereResult, WhereStep } from "@/lib/client/where.worker";
 import { nearestPlace, placeLabel, searchPlaces, type NearPlace, type PlaceHit } from "@/lib/client/places";
 import { paintWhere } from "@/lib/client/where-card";
@@ -310,10 +310,10 @@ export function FindWhere({ picked, archive, onSearching, onHeard, onAnswered }:
     return local ? line : `${line} ${t.result.about}`;
   };
 
-  /** "Near Oyster Bay, New York, United States", or nothing out at sea or with the names out of reach. */
+  /** "Near Oyster Bay, New York, United States", "At sea", or nothing with the names out of reach. */
   const nearText = (g: Guess) => {
-    const near = names.get(spotKey(g));
-    return near ? fill(t.result.near, { place: placeLabel(near, true) }) : null;
+    const near = townOf(g, names.get(spotKey(g)));
+    return near ? fill(t.result.near, { place: placeLabel(near, true) }) : g.atSea ? t.result.atSea : null;
   };
 
   /** The best answer, first and whole. It stays put while the other answers are looked through. */
@@ -623,8 +623,8 @@ export function FindWhere({ picked, archive, onSearching, onHeard, onAnswered }:
           {found && best && found.guesses.length > 1 && (
             <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap" role="group" aria-label={t.result.guesses} data-testid="where-guesses">
               {found.guesses.map((g, i) => {
-                const near = names.get(spotKey(g));
-                const values = { n: i + 1, place: near ? placeLabel(near) : coordinates(g, 2), distance: f.km(metresApart(best, g)) };
+                const near = townOf(g, names.get(spotKey(g)));
+                const values = { n: i + 1, place: near ? placeLabel(near) : g.atSea ? t.result.atSea : coordinates(g, 2), distance: f.km(metresApart(best, g)) };
                 return (
                   <button
                     key={`${g.lat},${g.lon},${g.start}`}

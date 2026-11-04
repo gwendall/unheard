@@ -218,4 +218,34 @@ describe("whereWhen from the real tracks", () => {
     expect(new Set(best.reads.map((r) => r.f)).size).toBe(2);
     expect(best.worth).toBeGreaterThan(5);
   });
+
+  it("ranks spots out on the water below spots on land", async () => {
+    // One straight pass: a spot and its mirror across the track fit alike, and the coast runs under it.
+    const a = straight("a00007", 3000, 100);
+    const ta = traceOf(a, 70, 130);
+    const segments: Segment[] = [{ stack: { base: { times: ta.times } } as unknown as Stack, offset: 0, traces: [ta.trace] }];
+    const coast = fromLocal(listener, 0, 3000).lat;
+    const search = (land: (lat: number) => boolean) => whereWhen(segments, [a], { window, area: { lat: centre.lat, lon: centre.lon, side: 50_000 }, air, refine: 0, ground: (lat) => (land(lat) ? 1 : 0) });
+    // Whichever side the land lies on, the best spot is there or within a margin of it.
+    const margin = 1000 / 111_195;
+    const south = (await search((lat) => lat < coast)).hypotheses[0];
+    expect(south.atSea).toBe(false);
+    expect(south.lat).toBeLessThan(coast + margin);
+    const north = (await search((lat) => lat > coast)).hypotheses[0];
+    expect(north.atSea).toBe(false);
+    expect(north.lat).toBeGreaterThan(coast - margin);
+  });
+
+  it("still finds a recording made at sea, and says so", async () => {
+    const a = straight("a00007", 800, 100);
+    const b = flightOf("a00008", 900, (t) => ({ e: 1500, n: 50 * (t - 400), up: 500, ve: 0, vn: 50 }));
+    const [ta, tb] = [traceOf(a, 70, 130), traceOf(b, 370, 450)];
+    const segments: Segment[] = [{ stack: { base: { times: ta.times } } as unknown as Stack, offset: 0, traces: [ta.trace, tb.trace] }];
+    // Land only 12 km and more west of the spot.
+    const shore = fromLocal(listener, -12_000, 0).lon;
+    const ww = await whereWhen(segments, [a, b], { window, area: { lat: centre.lat, lon: centre.lon, side: 50_000 }, air, refine: 0, ground: (_, lon) => (lon < shore ? 20 : 0) });
+    const best = ww.hypotheses[0];
+    expect(Math.hypot(...toLocal(listener, best.lat, best.lon, 0).slice(0, 2))).toBeLessThan(1000);
+    expect(best.atSea).toBe(true);
+  });
 });

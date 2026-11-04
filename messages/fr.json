@@ -473,6 +473,7 @@
       "missingText": "Les vols d'un jour arrivent le lendemain, et la source n'a rien pour quelques jours. Essayez un autre jour.",
       "guesses": "Réponses",
       "near": "Vers {place}",
+      "atSea": "En mer",
       "first": "Meilleure hypothèse : {place}",
       "next": "Réponse suivante : {place}, à {distance}",
       "later": "Réponse {n} : {place}, à {distance}",

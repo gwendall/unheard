@@ -258,24 +258,57 @@ squares, a start within 30 s for every "within"):
 
 | | before, day | day | hour |
 |---|---|---|---|
-| colsto's hour, best answer | 64 km, 24 min | 39 km, truth second (164 m, 2 s) | 55 m, 0.9 s |
+| colsto's hour, best answer | 64 km, 24 min | 164 m, 2 s (39 km and at sea until 2026-11-04) | 55 m, 0.9 s |
 | colsto's hour, CPU | under 240 s, 2 GB | 206 s, 1.5 GB | 35 s, 1.6 GB |
 | Livermore pairs, within 250 m | 2 of 18 | 6 of 20 | 8 of 20 |
 | Livermore pairs, truth among the answers | 3 of 18 | 6 of 20 | 9 of 20 |
 | Livermore pairs, median error | 9 to 79 km when missed | 19 km | 12 km |
 | Livermore pairs, CPU p50 | about 20 s a recording | 48 s | 13 s |
 
-- An hour instead of a day: 2 more pairs of 20 and colsto's truth from second answer to first, for
-  a quarter of the CPU. It is worth 3.2 nats (ln 24).
+- An hour instead of a day: 2 more pairs of 20, for a quarter of the CPU. It is worth 3.2 nats (ln 24).
 - The day still misses most pairs (14 of 20) and the hour 12 of 20. colsto's hour is found because
   3 flyovers are read well there: a Cessna 208, a Piper PA-30 and the Beech 350.
 - Memory: 0.6 to 0.9 GB for a pair in Node, 1.6 GB for colsto's hour, whose stacks are held whole. A
   phone is perhaps 2 to 3 times slower and tighter on memory: not measured.
-- One recording alone (before, day): median 29 km, one within 1 km of 29. See below for why this
-  cannot improve much; its rerun goes here when it is done.
-- The flag: raised 0 times in 42 searches of pairs and colsto, so never wrong, and down on all 15
-  right answers. Raised at 3 nats over the search, it was wrong on colsto's day (39 km off, 5.6 nats
-  over, 3.1 ahead of the truth), so it now takes 8. It does not earn its keep yet.
+- One recording alone (40 recordings): median 37 km by day and 34 km with the hour, within 1 km 1 of 40 and 2 of 40. See below for why this cannot improve much.
+- The flag: raised 0 times in 125 searches of single recordings, pairs and colsto, so never wrong,
+  and down on all 19 right answers. Raised at 3 nats over the search, it was wrong on colsto's day
+  (39 km off, 5.6 nats over, 3.1 ahead of the truth), so it now takes 8. It does not earn its keep yet.
+
+Answers on the water (2026-11-04, `lib/core/sea.ts`): people rarely record from the open sea, so a
+spot out on the water loses 4.6 nats against one on land (ln 100, about one recording in a hundred).
+It moves down, never out: the best by the sound alone stays second at worst, and the flag's lead is
+still counted by the sound alone, so this prior can never raise it.
+
+| 100 km, day and hour | searches | best answer at sea | first and right (1 km, 30 s) | truth among the answers |
+|---|---|---|---|---|
+| colsto's hour | 2 | 1, now 0 | 1, now 2 | 2, now 2 |
+| colsto, 16 min from +9 min | 2 | 1, now 0 | 0, now 0 | 0, now 0 |
+| Livermore pairs | 40 | 1, now 0 | 14, now 14 | 15, now 15 |
+| Livermore, one recording | 80 | 8, now 0 | 3, now 3 | 4, now 4 |
+
+- No right answer lost in those 124 searches, one gained: colsto's day, from 39 km off (Long Island
+  Sound, 4 km from land) to 164 m. No truth lies at sea, so the rest is wrong answers replaced by
+  wrong answers on land: on the 16 minutes that gave an answer in the Atlantic on production (the
+  hour known), the best is still 37 km off, though the right planes and start now reach the answers
+  (fourth, 1.7 km off, 3 s). Phoenix (6 searches, inland, no spot of the square reads 0) cannot move.
+- From a boat: colsto's hour with the sea brought within 3 km of the truth keeps the truth second,
+  332 m off, 3 s, "at sea", behind a spot on land 39 km off. Without the rule that keeps the best
+  by the sound second, 11 spots on land would rank above it.
+- The penalty: any from 3.2 to 100 nats gives the same answers on these corpora. The margin: anything
+  from 500 m to 3 km too. Under 250 m one more pair's hour moves up (truth third behind two spots
+  250 m off a shore), left out: a point on Fire Island reads 0 with land 500 m away.
+- "On the water": the terrain reads 0 at the spot and everywhere within 1 km, outside 17 boxes of
+  land below sea level. Height at or below 0 alone misfires: Badwater, Jericho, Flevoland, Rotterdam,
+  Brawley, Astrakhan, Turpan and the Sacramento delta all read 0, and the margin saves only the
+  narrow ones (Brawley has no ground above 0 within 14 km). The boxes come from the 802 of 236,907
+  GeoNames towns with no ground above 0 within 10 km on coarse tiles, and the depressions on the map.
+  Water inside a box counts as land, lakes too (the terrain gives their surface: Lake Michigan 175 m).
+  With no ground above 0 in the whole square the terrain says nothing (flat when its tiles fail) and
+  nothing is at sea. A single failed tile still reads as water: rare, and it costs a rank.
+- The page says "At sea": `nearestPlace` has no limit, and said New York City from 61 km out and
+  Queens from 34 km. Within 5 km of a town it stays "Near" (`townOf`), which also covers a low patch
+  the boxes miss.
 
 Why it does not find more yet (measured):
 

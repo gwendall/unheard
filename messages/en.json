@@ -473,6 +473,7 @@
       "missingText": "Each day's flights arrive the next day, and the source has nothing for a few days. Try another day.",
       "guesses": "Answers",
       "near": "Near {place}",
+      "atSea": "At sea",
       "first": "Best guess: {place}",
       "next": "Next answer: {place}, {distance} off",
       "later": "Answer {n}: {place}, {distance} off",
