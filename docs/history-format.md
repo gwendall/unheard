@@ -139,14 +139,19 @@ fly deploy --build-only --push --config scripts/history-job.fly.toml -a unheard-
 fly machine update <id> -a unheard-history --image registry.fly.io/unheard-history:history-job-N
 ```
 
-To fill many days at once, run one Machine per day: a fresh shared-cpu-4x took 4 to 6 minutes a day,
-one on its second day 18 to 24, once its CPU burst was spent. Each builds its day and removes itself:
+To fill many days at once, run one Machine per day: a fresh shared-cpu-4x took 4 to 6 minutes a day
+in `ord` and `dfw` and up to 12 in `iad`, `ewr` and `sjc`; one on its second day took 18 to 24. Each
+builds its day and removes itself:
 
 ```
 fly machine run registry.fly.io/unheard-history:history-job-N -a unheard-history --vm-size shared-cpu-4x \
   --vm-memory 4096 --swap-size 1024 --restart no --rm --skip-dns-registration \
   -e HISTORY_JOB_FIRST=<day> -e HISTORY_JOB_OLDEST=2099-01-01 -e HISTORY_JOB_MAX_DAYS=1
 ```
+
+Gaps in the source, 2026: 2026-05-05's release holds no traces, so its manifest is empty; 2026-05-06
+has no release; 2026-05-07 and 2026-06-11 are partial (about 37,000 aircraft and 100 MB, against about
+58,000 and 280 MB). `totals` in the manifest says so: a day with few aircraft is not a quiet sky.
 
 To mirror it, copy the files over plain HTTP, or run the same job against your own S3 bucket
 (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_ENDPOINT_URL_S3`, `AWS_REGION`, `BUCKET_NAME`;
