@@ -55,6 +55,16 @@ function blank(view: View): Picture {
   return picture;
 }
 
+/** When the page has nothing else to do, or a few seconds on at most: what it was showing comes first. Returns how to call it off. */
+function whenIdle(go: () => void): () => void {
+  if (!("requestIdleCallback" in window)) {
+    const timer = setTimeout(go, 2000);
+    return () => clearTimeout(timer);
+  }
+  const id = requestIdleCallback(go, { timeout: 4000 });
+  return () => cancelIdleCallback(id);
+}
+
 /** The check and a search find the same tones in the same order of the file: whichever has got further, so the list only grows. */
 const further = (a: Heard = [], b: Heard = []) => (b.length > a.length ? b : a);
 
@@ -81,11 +91,18 @@ export function Check({ file, elsewhere, note, facts, find, fold, hold, heard, a
   const worker = useRef<Worker | null>(null);
   const folder = useRef<string | null>(null);
   const asked = useRef(new Set<number>());
+  // Asked for over the tones a search found: the check finds its own, then takes them out.
+  const [takingOut, setTakingOut] = useState(false);
+  const takeOut = useRef(false);
   const url = state.kind === "cleaned" ? state.url : null;
 
   useEffect(() => () => void (url && URL.revokeObjectURL(url)), [url]);
 
-  const opening = state.kind === "open";
+  // A search has answered, and its tones are known: the check does not look again unless asked to.
+  // The tones it finds are the ones taken out, the way evals/leak measures it; a search's are for reading.
+  const known = !!answered && !!heard?.length;
+  const parked = state.kind === "open" && known && !takingOut;
+  const opening = state.kind === "open" && !parked;
   useEffect(() => {
     if (!opening) onSettled?.();
   }, [opening, onSettled]);
@@ -101,12 +118,25 @@ export function Check({ file, elsewhere, note, facts, find, fold, hold, heard, a
     }
   };
 
+  const cleanUp = () => {
+    if (!worker.current) return;
+    setState((s) => (s.kind === "failed" || s.kind === "open" ? s : { ...s, busy: { step: "clean", done: 0, total: 1 } }));
+    const request: CheckRequest = { type: "clean" };
+    worker.current.postMessage(request);
+  };
+
   const onEvent = (e: CheckEvent | CheckPartial, w: Worker) => {
     if (e.type === "progress") setState((s) => (s.kind === "failed" ? s : { ...s, busy: { step: e.step, done: e.done, total: e.total, fraction: e.fraction, left: e.secondsLeft } }));
     else if (e.type === "tones") setState((s) => (s.kind === "open" ? { ...s, soFar: further(s.soFar, e.tones) } : s));
     else if (e.type === "decode-here") void decodeHere(w, e.sampleRate);
     else if (e.type === "no-sound") setState({ kind: "failed", error: t.errors.noSound });
-    else if (e.type === "found") setState({ kind: "found", found: e.found });
+    else if (e.type === "found") {
+      setState({ kind: "found", found: e.found });
+      if (takeOut.current && e.found.length) {
+        takeOut.current = false;
+        cleanUp();
+      }
+    }
     else if (e.type === "workers") setWorkers(e.count);
     else if (e.type === "passes") onPasses?.(e.passes);
     else if (e.type === "drawn") setDrawn((d) => ({ ...d, [e.id]: { before: e.before, after: e.after } }));
@@ -114,13 +144,14 @@ export function Check({ file, elsewhere, note, facts, find, fold, hold, heard, a
     else setState({ kind: "failed", error: fill(t.errors.failed, { message: e.message }) });
   };
 
-  // After the first paint, so what the file says shows before the work starts; once per file, and
-  // once more after a search that came before the end. Going stops the work and clears what it kept
-  // on this device.
-  const waiting = !!hold && state.kind === "open";
+  // After the first paint, so what the file says shows before the work starts; once per file. A
+  // search that came before the end stops it: it starts again if the search was called off, once the
+  // page is at rest if it found no tone, and only when asked if it did. Going stops the work and
+  // clears what it kept on this device.
+  const waiting = state.kind === "open" && (!!hold || parked);
   useEffect(() => {
     if (waiting) return;
-    const start = setTimeout(() => {
+    const begin = () => {
       setState((s) => (s.kind === "open" ? { ...s, busy: { step: "open", done: 0, total: 1 } } : s));
       asked.current.clear();
       setDrawn({});
@@ -131,9 +162,15 @@ export function Check({ file, elsewhere, note, facts, find, fold, hold, heard, a
       folder.current = newFolder();
       const request: CheckRequest = { type: "open", file, folder: folder.current, partial: true, phone: isPhone() };
       w.postMessage(request);
-    }, 30);
+    };
+    let off: () => void;
+    if (answered && !takeOut.current) off = whenIdle(begin);
+    else {
+      const start = setTimeout(begin, 30);
+      off = () => clearTimeout(start);
+    }
     return () => {
-      clearTimeout(start);
+      off();
       // A worker let go while it still loads its scripts reports that as an error: it no longer speaks for this file.
       if (worker.current) worker.current.onerror = worker.current.onmessage = null;
       worker.current?.terminate();
@@ -144,13 +181,6 @@ export function Check({ file, elsewhere, note, facts, find, fold, hold, heard, a
     // The file and the search alone start this; the rest is read when it runs.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [file, waiting]);
-
-  const cleanUp = () => {
-    if (!worker.current) return;
-    setState((s) => (s.kind === "failed" || s.kind === "open" ? s : { ...s, busy: { step: "clean", done: 0, total: 1 } }));
-    const request: CheckRequest = { type: "clean" };
-    worker.current.postMessage(request);
-  };
 
   /** A tone's pictures, the first time it is on the page. */
   const ask = useCallback((id: number) => {
@@ -220,7 +250,9 @@ export function Check({ file, elsewhere, note, facts, find, fold, hold, heard, a
   };
 
   const soFar = state.kind === "open" ? state.soFar : undefined;
-  const sketches: Shown[] = further(soFar, heard ?? undefined);
+  const sketches: Shown[] = known ? (heard ?? []) : further(soFar, heard ?? undefined);
+  // No count from a search: it cuts tones differently from the check, so its number is not the check's (6 against 4 on our test file).
+  const fromSearch = state.kind === "open" && known;
 
   const found = state.kind === "found" ? state.found : null;
   const none = found?.length === 0;
@@ -228,6 +260,17 @@ export function Check({ file, elsewhere, note, facts, find, fold, hold, heard, a
   const strongest = [...list].sort((a, b) => b.tone.confidence - a.tone.confidence).slice(0, SHOWN);
   const others = list.filter((f) => !strongest.includes(f));
   const busy = state.kind === "failed" ? undefined : state.busy;
+  const verdict = fromSearch
+    ? plural(list.length, t.foundSearch)
+    : state.kind === "found"
+      ? none
+        ? t.none
+        : plural(state.found.length, answered ? t.foundIn : t.found)
+      : state.kind === "cleaned"
+        ? state.left.length
+          ? plural(state.left.length, t.left)
+          : plural(state.cleaned.length, t.gone)
+        : null;
 
   const findings = (
     <div className="flex flex-col gap-6">
@@ -235,6 +278,7 @@ export function Check({ file, elsewhere, note, facts, find, fold, hold, heard, a
       <div className="flex flex-col gap-4">
         <div className={VERDICT} data-testid="check-slot">
           {state.kind === "open" &&
+            !known &&
             (hold ? (
               <p className="font-mono text-sm text-pretty text-mute" role="status" data-testid="check-held">
                 {t.steps.held}
@@ -247,9 +291,9 @@ export function Check({ file, elsewhere, note, facts, find, fold, hold, heard, a
               {state.error}
             </p>
           )}
-          {state.kind !== "open" && state.kind !== "failed" && (
+          {verdict && (
             <h2 className="text-2xl font-semibold tracking-tight text-balance" role="status" data-testid="check-verdict">
-              {none ? t.none : state.kind === "found" ? plural(state.found.length, answered ? t.foundIn : t.found) : state.left.length ? plural(state.left.length, t.left) : plural(state.cleaned.length, t.gone)}
+              {verdict}
             </h2>
           )}
         </div>
@@ -262,11 +306,27 @@ export function Check({ file, elsewhere, note, facts, find, fold, hold, heard, a
           <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-4">
             {find}
             {/* Held in its place with nothing to take out, so that a search open under it does not move. */}
-            {(state.kind === "open" || (none && !answered)) && (
+            {((state.kind === "open" && !known) || (none && !answered)) && (
               <button type="button" disabled className={OUTLINE}>
                 {t.clean.other}
               </button>
             )}
+            {fromSearch &&
+              (takingOut ? (
+                progress(state.busy)
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    takeOut.current = true;
+                    setTakingOut(true);
+                  }}
+                  className={OUTLINE}
+                  data-testid="check-clean"
+                >
+                  {plural(list.length, t.clean)}
+                </button>
+              ))}
             {state.kind === "found" &&
               !none &&
               (busy ? (
@@ -341,7 +401,7 @@ export function Check({ file, elsewhere, note, facts, find, fold, hold, heard, a
       {/* No count before the check's own: pieces of one tone may still be joined, and the search's come cut differently. */}
       {list.length > 0 &&
         (answered ? (
-          <Folded summary={state.kind === "open" ? t.soFar : plural(list.length, t.fold)} testid="check-fold">
+          <Folded summary={state.kind !== "open" ? plural(list.length, t.fold) : known ? plural(list.length, t.foldSearch) : t.soFar} testid="check-fold">
             {tones(inOrder(list))}
           </Folded>
         ) : (
