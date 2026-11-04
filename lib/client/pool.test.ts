@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { checkPiecesOf, poolOf, poolSize, type Piece, type PieceReply, type PoolWorker } from "./pool";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { checkPiecesOf, poolOf, poolSize, SILENT_MS, type Piece, type PieceReply, type PoolWorker } from "./pool";
 import type { PieceInput, PieceOutput } from "./piece.worker";
 
 /** Workers the test answers by hand, in the order it likes. */
@@ -125,6 +125,64 @@ describe("poolOf", () => {
     pool.close();
     await expect(pieces[0]).rejects.toThrow("closed");
     await expect(pieces[1]).rejects.toThrow("closed");
+  });
+});
+
+describe("a pool never leaves a job waiting", () => {
+  afterEach(() => void vi.useRealTimers());
+
+  it("never hands a piece to a worker that died while it had nothing to do", async () => {
+    const { made, make, answer } = workers();
+    const pool = poolOf<number, number>(make, 2);
+    const first = pool.run(1);
+    answer(0, { id: made[0].asked[0].id, out: 1 });
+    await first;
+    made[0].onerror?.(death("gone"));
+    const next = pool.run(2);
+    // Not to the dead one: a new one, which answers.
+    expect(made[0].asked.length).toBe(1);
+    expect(made[1].asked.length).toBe(1);
+    answer(1, { id: made[1].asked[0].id, out: 2 });
+    await expect(next).resolves.toBe(2);
+    pool.close();
+  });
+
+  it("gives up on a worker that says nothing, and goes on with the others", async () => {
+    vi.useFakeTimers();
+    const { made, make, answer } = workers();
+    const pool = poolOf<number, number>(make, 2);
+    const silent = pool.run(1);
+    const failed = expect(silent).rejects.toThrow("silent");
+    const talking = pool.run(2);
+    vi.advanceTimersByTime(SILENT_MS / 2);
+    answer(1, { id: made[1].asked[0].id, share: 0.5 });
+    vi.advanceTimersByTime(SILENT_MS / 2 + 1);
+    await failed;
+    expect(made[0].stopped).toBe(true);
+    // Hearing from it put its own limit off.
+    expect(made[1].stopped).toBe(false);
+    answer(1, { id: made[1].asked[0].id, out: 2 });
+    await expect(talking).resolves.toBe(2);
+    pool.close();
+  });
+
+  it("does not hold a worker with nothing to do to the limit", async () => {
+    vi.useFakeTimers();
+    const { made, make, answer } = workers();
+    const pool = poolOf<number, number>(make, 1);
+    const piece = pool.run(1);
+    answer(0, { id: made[0].asked[0].id, out: 1 });
+    await piece;
+    vi.advanceTimersByTime(10 * SILENT_MS);
+    expect(made[0].stopped).toBe(false);
+    pool.close();
+  });
+
+  it("fails at once what is asked after it closed", async () => {
+    const { make } = workers();
+    const pool = poolOf<number, number>(make, 1);
+    pool.close();
+    await expect(pool.run(1)).rejects.toThrow("closed");
   });
 });
 
