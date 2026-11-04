@@ -124,8 +124,8 @@ function viewsOf(guesses: Guess[], tones: Tone[], read: Reader, length: number, 
 async function search({ channels, sampleRate, history, window, area, partial }: WhereRequest, pool: Pool<PieceInput, PieceOutput> | null): Promise<WhereResult> {
   const { read, length } = readerOf({ channels, sampleRate });
   const duration = length / ANALYSIS_RATE;
-  const estimate = estimator(() => performance.now() / 1000);
   const fractionOf = stagesOf(partsOf(duration, pool?.size ?? 1));
+  const estimate = estimator(() => performance.now() / 1000, fractionOf("fine", 0));
   /** Where the job stands: how far into the step, and the whole job's bar and time left. */
   const report = (step: WhereStep, part: WherePart, share: number) => {
     const fraction = fractionOf(part, share);

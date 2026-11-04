@@ -67,8 +67,8 @@ const FINDING = stagesOf<Step>([["open", 1], ["find", 1]]);
 const CLEANING = stagesOf<Step>([["clean", 1], ["write", 1], ["again", 1]]);
 
 /** A job's progress as it goes: the step it is in, and how far the whole job has got. */
-function jobOf(stages: (stage: Step, share: number) => number) {
-  const estimate = estimator(clock);
+function jobOf(stages: (stage: Step, share: number) => number, last: Step) {
+  const estimate = estimator(clock, stages(last, 0));
   const now = { step: "open" as Step, done: 0, total: 1 };
   const count = (step: Step, done: number, total: number) => void Object.assign(now, { step, done, total });
   const share = (part: number, stage = now.step) => post({ type: "progress", ...now, ...estimate(stages(stage, part)) });
@@ -138,7 +138,7 @@ async function drawAsked() {
 
 async function find(s: Session, source: SoundSource) {
   s.source = source;
-  const job = jobOf(FINDING);
+  const job = jobOf(FINDING, "find");
   const { length, frames } = await readInto(source, s.store, (done, total) => job.reach("open", done, total));
   s.length = length;
   s.duration = frames / source.sampleRate;
@@ -239,7 +239,7 @@ async function writeFile(s: Session, source: SoundSource, pass: Pass, job: Job, 
 async function cleanUp(s: Session) {
   const source = s.source;
   if (!source) return;
-  const job = jobOf(CLEANING);
+  const job = jobOf(CLEANING, "again");
   // The store is about to change: what the page shows, or may yet ask to see, reads the sound as it was.
   const now = s.store.read;
   const was = await openStore(s.folder, `before-${s.writes + 1}.f32`);
