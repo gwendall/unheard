@@ -298,8 +298,8 @@ test("offers only the days the archive holds, and says so when the file's date i
   await page.getByTestId("where-file").setInputFiles(wav);
   await openForm(page);
   const absent = page.getByTestId("where-day-absent");
-  await expect(absent).toContainText("This file's date, 2026-09-08, is not in the flight archive yet.");
-  await expect(absent).toContainText(`holds ${scene.day} so far: each day's flights arrive the next day`);
+  await expect(absent).toContainText("This file's date, 2026-09-08, is not in the flight archive.");
+  await expect(absent).toContainText(`holds ${scene.day}: each day's flights arrive the next day`);
   // The prompt and the one day of the fixture.
   await expect(page.getByTestId("where-day").locator("option")).toHaveCount(2);
   await expect(page.getByTestId("where-search")).toBeDisabled();
