@@ -367,7 +367,7 @@
     "private": "Your file stays in this browser: it is opened, searched and cleaned here, nothing of it is sent, and nothing is stored.",
     "offline": "The flight archive is not connected yet, so the search is not offered.",
     "find": "Find where",
-    "facts": { "made": "Made", "device": "Device", "nothing": "This file says nothing about where or when it was made." },
+    "facts": { "made": "Made", "device": "Device", "nothing": "No date or place in the tags we read. GoPros, drones and some other cameras keep GPS elsewhere, where we do not look." },
     "locate": "Use my location",
     "locating": "Locating...",
     "locateFailed": "We could not get your location. Type a town or coordinates instead.",

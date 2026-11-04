@@ -75,8 +75,11 @@ What a visitor goes through, and where it lives:
   one-line verdict, then two actions side by side, "Find where" and "Take them out", and the link
   to Somewhere else. A clear state for each failure: no sound (`check.errors.open`), a file past 2
   GB (`lib/client/decode.ts`), no tone (no action offered, and never "safe"), a day not in the
-  archive, no flight fitting. The verdict and actions keep their places as results arrive, checked
-  by rect in `e2e/where.spec.ts`.
+  archive, no flight fitting. With no tag found it says only that, and that some cameras keep GPS
+  where we do not look, never that the file is silent. The verdict and actions keep their places as
+  results arrive, checked by rect in `e2e/where.spec.ts`; "What we check" comes back under the card
+  once the tones are known, so nothing jumps (layout shift 0 from the home to the tones, same spec).
+  Find where puts the focus on the first gap, and on no field on a touch screen.
 - **Take them out** (`components/Check.tsx`, `lib/client/check.worker.ts`,
   `lib/core/leak.ts`): the defence colsto's viewers asked for ("what's the counter strat?"). A
   video or sound file is decoded in the page (Web Audio), searched for aircraft tones with no

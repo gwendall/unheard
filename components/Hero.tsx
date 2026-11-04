@@ -56,39 +56,43 @@ export function Hero({ onListen, onExample, error, qr }: { onListen: () => void;
         )}
       </section>
 
-      <div className="grid gap-6 lg:grid-cols-2">
+      {/* The second door takes the narrower column: its words fill it, no hole above the link. */}
+      <div className="grid gap-6 lg:grid-cols-[2fr_3fr]">
         <div className="flex flex-col gap-4 rounded-3xl border border-line bg-deep/80 p-5 sm:p-6" data-testid="second-door">
           <h2 className="text-3xl font-semibold tracking-tight text-balance">{t.doorTitle}</h2>
-          <p className="text-pretty text-mute">{t.doorText}</p>
+          <p className="text-lg text-pretty text-mute">{t.doorText}</p>
           {error && (
             <p role="alert" className="rounded-2xl border border-amber/40 bg-amber/10 px-4 py-3 text-pretty text-amber-soft">
               {error}
             </p>
           )}
-          {door ? (
-            <>
-              <button type="button" onClick={onListen} className={SECOND} data-testid="listen-here">
-                {t.listenHere}
+          {/* What to do sits at the foot of the card, in line with the example's own link. */}
+          <div className="mt-auto flex flex-col gap-4">
+            {door ? (
+              <>
+                <button type="button" onClick={onListen} className={SECOND} data-testid="listen-here">
+                  {t.listenHere}
+                </button>
+                <div className="flex w-fit items-center gap-4 rounded-2xl border border-line bg-deep/70 p-4" data-testid="qr">
+                  <div className="size-24 shrink-0 overflow-hidden rounded-lg bg-ink p-1.5 [&>svg]:size-full" aria-hidden dangerouslySetInnerHTML={{ __html: qr }} />
+                  <p className="text-sm text-pretty text-mute">
+                    <span className="block font-medium text-ink">{t.qrTitle}</span>
+                    {t.qrBody}
+                  </p>
+                </div>
+              </>
+            ) : (
+              <button type="button" onClick={listen} className={SECOND} data-testid="listen">
+                {t.listen}
               </button>
-              <div className="flex w-fit items-center gap-4 rounded-2xl border border-line bg-deep/70 p-4" data-testid="qr">
-                <div className="size-24 shrink-0 overflow-hidden rounded-lg bg-ink p-1.5 [&>svg]:size-full" aria-hidden dangerouslySetInnerHTML={{ __html: qr }} />
-                <p className="text-sm text-pretty text-mute">
-                  <span className="block font-medium text-ink">{t.qrTitle}</span>
-                  {t.qrBody}
-                </p>
-              </div>
-            </>
-          ) : (
-            <button type="button" onClick={listen} className={SECOND} data-testid="listen">
-              {t.listen}
-            </button>
-          )}
-          <Link href={pathFor(locale, "/somewhere-else")} className="group mt-auto w-fit pt-4 text-pretty text-mute transition hover:text-ink" data-testid="elsewhere-link">
-            {m.elsewhere.link}{" "}
-            <span aria-hidden className="inline-block text-amber-soft transition group-hover:translate-x-1">
-              →
-            </span>
-          </Link>
+            )}
+            <Link href={pathFor(locale, "/somewhere-else")} className="group w-fit text-pretty text-mute transition hover:text-ink" data-testid="elsewhere-link">
+              {m.elsewhere.link}{" "}
+              <span aria-hidden className="inline-block text-amber-soft transition group-hover:translate-x-1">
+                →
+              </span>
+            </Link>
+          </div>
         </div>
         <ExampleCard onOpen={onExample} />
       </div>
@@ -134,7 +138,7 @@ function ExampleCard({ onOpen }: { onOpen: () => void }) {
           </span>
         ))}
       </span>
-      <span className="font-medium text-amber-soft">
+      <span className="mt-auto font-medium text-amber-soft">
         {t.open}{" "}
         <span aria-hidden className="inline-block transition group-hover:translate-x-1">
           →
@@ -159,7 +163,7 @@ const CURVES = [1, 2].map((h) => {
 
 function ExampleSpectrum() {
   return (
-    <svg aria-hidden viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="h-28 w-full overflow-hidden rounded-xl border border-line sm:h-32">
+    <svg aria-hidden viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="h-28 w-full overflow-hidden rounded-xl border border-line">
       <defs>
         <filter id="example-noise" x="0" y="0" width="100%" height="100%">
           <feTurbulence type="fractalNoise" baseFrequency="0.16 0.09" numOctaves={2} seed={7} />

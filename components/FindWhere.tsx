@@ -54,6 +54,7 @@ export function FindWhere({ picked, archive }: { picked: Picked; archive: string
   const run = useRef(0);
   const typing = useRef<{ timer?: ReturnType<typeof setTimeout>; abort?: AbortController }>({});
   const placeField = useRef<HTMLInputElement>(null);
+  const dayField = useRef<HTMLElement | null>(null);
   const started = useRef(false);
   const panel = useRef<HTMLDivElement>(null);
   const verdict = useRef<HTMLHeadingElement>(null);
@@ -307,6 +308,9 @@ export function FindWhere({ picked, archive }: { picked: Picked; archive: string
           <span className="font-medium text-ink">{t.day}</span>
           {days !== null ? (
             <select
+              ref={(el) => {
+                dayField.current = el;
+              }}
               required
               disabled={!days}
               value={chosen}
@@ -328,7 +332,17 @@ export function FindWhere({ picked, archive }: { picked: Picked; archive: string
               ))}
             </select>
           ) : (
-            <input type="date" required value={day} onChange={(e) => setDay(e.target.value)} className={`${FIELD} w-full`} data-testid="where-day" />
+            <input
+              ref={(el) => {
+                dayField.current = el;
+              }}
+              type="date"
+              required
+              value={day}
+              onChange={(e) => setDay(e.target.value)}
+              className={`${FIELD} w-full`}
+              data-testid="where-day"
+            />
           )}
         </label>
         <div className="flex min-w-0 flex-col gap-2">
@@ -408,7 +422,8 @@ export function FindWhere({ picked, archive }: { picked: Picked; archive: string
     </div>
   );
 
-  // Nothing missing: straight to the search. Otherwise the focus goes where the visitor must answer.
+  // Nothing missing: straight to the search. Otherwise the focus goes to the first thing the visitor
+  // must answer; not on a touch screen, where a focused field opens the keyboard and throws the page.
   const known = days !== undefined;
   const complete = !!span && !!time;
   useEffect(() => {
@@ -416,7 +431,7 @@ export function FindWhere({ picked, archive }: { picked: Picked; archive: string
     started.current = true;
     // A microtask: the effect only decides, the search sets its own state.
     if (complete) queueMicrotask(() => void search());
-    else if (!place) placeField.current?.focus();
+    else if (!window.matchMedia("(pointer: coarse)").matches) (chosen ? (place ? null : placeField.current) : dayField.current)?.focus();
   });
 
   const said = result && showing(result);
