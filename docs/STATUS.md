@@ -284,7 +284,8 @@ What the web version needs:
 Can how a tone rises and falls tell the plane that made it from a plane whose curve merely follows
 it? A phone's gain does not matter for the shape, and a far plane's range barely moves. Measured by
 `evals/level.eval.ts` (real audio, the heard plane best at score 9 or more, 36 recordings with a
-line to read). **It does not hold, and no verdict reads it.**
+line to read). **It does not hold, and no verdict reads it.** A window here is a stretch of the level
+along the whole recording's curve, not `analyze()` run again on that cut.
 
 | window | level swing, dB, p50 / p90 / max | same, where the range moves under 1.5 dB | swing veto, margin to lose nobody, dB | far plane it catches | flyby veto, margin to lose nobody, dB rms | far plane it catches |
 |---|---|---|---|---|---|---|
@@ -332,7 +333,7 @@ line to read). **It does not hold, and no verdict reads it.**
    (0 of 191); 23 of 38 real planes left out of the data, always the right line, read within a
    factor of 2 in speed 28 times in 28 and in distance 25 in 28. Left: a line the data's other
    planes could follow at some tone is not told, so a busy sky hides it; and in the E2E's made-up
-   sky, the heard plane left out, a jet at 31,000 ft can still go strong (9.9) on its line
+   sky, the heard plane left out, a jet at 31,000 ft can still go strong (9.2 to 9.5 on 3 of 50 cuts, 9.9 on one noted before)
    (`none` or `possible` on other cuts of the same recording), with no line found and 6.8 to 9 s of
    its curve known, since its sound takes 45 s to arrive: the matcher's limit, not changed. See
    item 10.
