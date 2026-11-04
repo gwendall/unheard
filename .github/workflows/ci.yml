@@ -2,97 +2,14 @@ name: CI
 
 on:
   pull_request:
-  push:
-    branches: [main]
-
-concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  check:
-    # GitHub's runners only: a self-hosted runner never serves a public repository.
+  probe:
+    # Throwaway, never merged: the page on an ordinary machine, against production.
     runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile --prefer-offline
-      - run: pnpm lint
-      - run: pnpm typecheck
-      - run: pnpm test
-      - run: pnpm scoreboard --check
-      - run: pnpm build
-
-  eval:
-    # The synthetic and real-track evals are the ratchet of the matcher (evals/baseline.json);
-    # somewhere-else reads back the curves the "Somewhere else" page plants.
-    # ghost holds how rarely the result page tells a line the flight data does not have by mistake:
-    # it runs when the analysis or the eval changed.
-    # The real-audio eval needs licensed data that never enters git: it runs on demand.
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    # The eval delta comments on the pull request (a fork's token stays read-only: summary only).
+    timeout-minutes: 60
     permissions:
       contents: read
-      pull-requests: write
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          # The merge commit and its first parent, the base branch: the delta's reference.
-          fetch-depth: 2
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile --prefer-offline
-      - run: pnpm eval evals/synthetic evals/real-tracks evals/somewhere-else
-      - name: Eval delta
-        if: ${{ !cancelled() }}
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: node scripts/eval-delta.ts synthetic real-tracks
-      - name: Ghost eval, when the analysis or the eval changed
-        # About 200 recordings, 13 minutes: page and docs changes cannot move it.
-        run: |
-          if git diff --name-only HEAD^ HEAD | grep -qE '^(lib/core/|lib/adsb\.ts|evals/ghost|evals/lib/|evals/baseline\.json)'; then
-            pnpm eval evals/ghost
-          else
-            echo "Nothing the ghost eval reads changed."
-          fi
-
-  e2e-part:
-    # The real page in real browsers (playwright.config.ts), on next dev because e2e/history and
-    # /dev-map are served in development only. One server setting per runner: Next allows one dev
-    # server per folder, and the map needs the real bucket where the others need the local tiles.
-    # The pages are three shards because in a row they take 8 minutes of Playwright's 10: split, the
-    # whole of it takes 5 minutes, about as long as the eval.
-    name: e2e (${{ matrix.part }})
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    permissions:
-      contents: read
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - { part: pages 1 of 3, browser: chromium, args: '--project=chromium --grep-invert place-map --fully-parallel --shard=1/3' }
-          - { part: pages 2 of 3, browser: chromium, args: '--project=chromium --grep-invert place-map --fully-parallel --shard=2/3' }
-          - { part: pages 3 of 3, browser: chromium, args: '--project=chromium --grep-invert place-map --fully-parallel --shard=3/3' }
-          - { part: map, browser: chromium, env: 'NEXT_PUBLIC_HISTORY_URL=https://unheard-history.t3.tigrisbucket.io', args: '--project=chromium e2e/place-map.spec.ts' }
-          - { part: no archive, browser: chromium, env: 'NEXT_PUBLIC_HISTORY_URL= NO_ARCHIVE=1', args: '--project=chromium e2e/where.spec.ts -g "without the archive"' }
-          - { part: video in Chrome, browser: chrome, args: '--project=chrome' }
-          - { part: video in Firefox, browser: firefox, args: '--project=firefox' }
-          - { part: video in WebKit, browser: webkit, args: '--project=webkit' }
-    env:
-      BASE_URL: http://localhost:3000
-      E2E_VIDEO_BROWSERS: 1
-      NEXT_TELEMETRY_DISABLED: 1
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -101,78 +18,6 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile --prefer-offline
-      - name: Playwright's version
-        id: playwright
-        run: echo "version=$(pnpm exec playwright --version | cut -d' ' -f2)" >> "$GITHUB_OUTPUT"
-      - uses: actions/cache@v4
-        if: ${{ matrix.browser != 'chrome' }}
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}-${{ matrix.browser }}
-      - name: The browser, its system libraries, and ffmpeg
-        # Chrome, for its real codecs, comes with the runner image.
-        run: |
-          if [ "${{ matrix.browser }}" = chrome ]; then
-            google-chrome --version
-            sudo apt-get update -qq
-          else
-            pnpm exec playwright install --with-deps ${{ matrix.browser == 'chromium' && '--only-shell' || '' }} ${{ matrix.browser }}
-          fi
-          sudo apt-get install -y -qq --no-install-recommends ffmpeg > /dev/null
-          ffmpeg -version | head -n 1
-      - name: The fixtures, none missing
-        # Without ffmpeg the fixture script only warns and the video tests skip themselves: here it fails.
-        run: |
-          pnpm e2e:fixture
-          for f in flyby.wav flyby-polls.json voice.wav elsewhere-polls.json flyby.mp4 flyby.mov flyby.webm flyby.ts silent.mp4; do
-            test -s "e2e/fixtures/$f" || { echo "::error::e2e/fixtures/$f was not made"; exit 1; }
-          done
-      - name: Serve the page, its routes compiled
-        run: |
-          env ${{ matrix.env }} pnpm exec next dev -p 3000 > next-dev.log 2>&1 &
-          for path in / /fr /where /somewhere-else /en/dev-map; do
-            curl -fsS -o /dev/null --retry 30 --retry-connrefused --retry-delay 2 --max-time 120 -w "$path %{http_code} %{time_total} s\n" "$BASE_URL$path"
-          done
-      - name: E2E
-        run: env ${{ matrix.env }} pnpm e2e ${{ matrix.args }}
-      - name: Flaky and failed tests, by name
-        if: ${{ !cancelled() }}
-        run: |
-          node --input-type=module <<'EOF'
-          import { appendFileSync, existsSync, readFileSync } from "node:fs";
-          const file = "test-results/results.json";
-          if (existsSync(file)) {
-            const { suites, stats } = JSON.parse(readFileSync(file, "utf8"));
-            const walk = (suite, path) => [
-              ...(suite.specs ?? []).flatMap((s) => s.tests.map((t) => ({ name: `[${t.projectName}] ${[...path, s.title].join(" > ")}`, status: t.status }))),
-              ...(suite.suites ?? []).flatMap((c) => walk(c, [...path, c.title])),
-            ];
-            const tests = suites.flatMap((s) => walk(s, [s.title]));
-            const named = (status) => tests.filter((t) => t.status === status).map((t) => t.name);
-            for (const name of named("flaky")) console.log(`::warning title=Flaky E2E test (passed only on its retry)::${name}`);
-            for (const name of named("unexpected")) console.log(`::error title=E2E test failed::${name}`);
-            const lines = [`${stats.expected} passed, ${stats.flaky} flaky, ${stats.unexpected} failed, ${stats.skipped} skipped, in ${Math.round(stats.duration / 1000)} s`];
-            for (const name of named("flaky")) lines.push(`- flaky: ${name}`);
-            for (const name of named("unexpected")) lines.push(`- failed: ${name}`);
-            console.log(lines.join("\n"));
-            appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${lines.join("\n")}\n`);
-          }
-          EOF
-      - uses: actions/upload-artifact@v4
-        if: failure()
-        with:
-          name: e2e-${{ strategy.job-index }}
-          path: |
-            playwright-report/
-            test-results/
-            next-dev.log
-          retention-days: 7
-
-  e2e:
-    # The one name to look for or to require: every part above passed.
-    needs: e2e-part
-    if: ${{ !cancelled() }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 2
-    steps:
-      - run: test "${{ needs.e2e-part.result }}" = success
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: nproc; lscpu | grep -E 'Model name|Thread|Core|MHz'; free -m | head -2
+      - run: pnpm exec tsx scripts/probe-ordinary.ts
