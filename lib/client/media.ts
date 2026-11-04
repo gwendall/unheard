@@ -19,6 +19,8 @@ export type MediaFile = {
   video: InputVideoTrack | null;
   /** The sound as a stream, null when this browser cannot decode it. */
   source: SoundSource | null;
+  /** Where the sound starts on the file's clock, seconds: the cleaned sound starts there too. */
+  origin: number;
 };
 
 /** 5.1 to stereo as ITU-R BS.775 has it, or the first two channels of anything else. */
@@ -35,7 +37,7 @@ function toOut(planes: Float32Array[], out: Float32Array[], at: number, frames: 
   out.forEach((ch, c) => ch.set(planes[c].subarray(0, frames), at));
 }
 
-async function streamOf(track: InputAudioTrack): Promise<SoundSource | null> {
+async function streamOf(track: InputAudioTrack, origin: number): Promise<SoundSource | null> {
   if (!(await track.canDecode())) return null;
   const sink = new AudioSampleSink(track);
   // What the decoder really gives: HE-AAC's container announces half the rate and one channel.
@@ -53,8 +55,6 @@ async function streamOf(track: InputAudioTrack): Promise<SoundSource | null> {
   }
   if (!rate) return null;
   const channels = Math.min(MAX_CHANNELS, inChannels);
-  const first = await track.getFirstTimestamp();
-  const origin = Math.max(0, first);
   const duration = await track.computeDuration();
   const tolerance = TOLERANCE_SECONDS * rate;
   return {
@@ -122,7 +122,8 @@ export async function openMedia(file: Blob): Promise<MediaFile | null> {
     await input.getFormat();
     const video = await input.getPrimaryVideoTrack();
     const audio = await input.getPrimaryAudioTrack();
-    return { input, audio, video, source: audio ? await streamOf(audio).catch(() => null) : null };
+    const origin = audio ? Math.max(0, await audio.getFirstTimestamp()) : 0;
+    return { input, audio, video, origin, source: audio ? await streamOf(audio, origin).catch(() => null) : null };
   } catch {
     input.dispose();
     return null;

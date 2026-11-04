@@ -25,6 +25,7 @@
     "fetch-donations": "tsx --env-file-if-exists=.env.local scripts/fetch-donations.ts"
   },
   "dependencies": {
+    "@mediabunny/aac-encoder": "1.65.1",
     "@protomaps/basemaps": "5.7.2",
     "@vercel/blob": "2.8.2",
     "maplibre-gl": "6.16.0",

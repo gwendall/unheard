@@ -9,7 +9,7 @@ import { TonePicture } from "@/components/TonePicture";
 import { decode, troubleOf } from "@/lib/client/decode";
 import { forget, newFolder } from "@/lib/client/folder";
 import { clock, timeLeft } from "@/lib/client/format";
-import type { CheckEvent, CheckPartial, CheckRequest, Found, Step } from "@/lib/client/check.worker";
+import type { CheckEvent, CheckPartial, CheckRequest, Found, Kind, Removed, Step } from "@/lib/client/check.worker";
 import type { Picture, Tone, View } from "@/lib/core/leak";
 
 // A file's aircraft tones, and taking them out. A worker does it all, reading the file as a stream;
@@ -26,7 +26,7 @@ export type Heard = { tone: Tone; view: View }[];
 
 /** `fraction` and `left`: the whole job's, from the worker, once it has started. */
 type Busy = { step: Step; done: number; total: number; fraction?: number; left?: number | null };
-type Cleaned = { cleaned: Found[]; left: Found[]; url: string; extension: string };
+type Cleaned = { cleaned: Found[]; left: Found[]; url: string; written: Kind };
 /** On the page: a tone the worker has told it of has an id, and its pictures for the asking. */
 type Shown = Heard[number] & { id?: number; gone?: boolean };
 /** A tone's pictures, once drawn. */
@@ -71,7 +71,7 @@ const PRIMARY = "w-full rounded-full bg-amber px-7 py-3 text-center text-lg font
 const QUIET = "text-mute underline-offset-4 transition hover:text-ink hover:underline";
 
 export function Check({ file, elsewhere, note, facts, find, fold, hold, heard, answered, onSettled, children }: { file: File; elsewhere?: Route; note?: string | null; facts?: ReactNode; find?: ReactNode; fold?: boolean; hold?: boolean; heard?: Heard | null; answered?: boolean; onSettled?: () => void; children?: ReactNode }) {
-  const { m, fill, plural } = useI18n();
+  const { m, fill, plural, locale } = useI18n();
   const t = m.check;
   const [state, setState] = useState<State>({ kind: "open", busy: { step: "open", done: 0, total: 1 } });
   const [drawn, setDrawn] = useState<Record<number, Drawn>>({});
@@ -103,9 +103,10 @@ export function Check({ file, elsewhere, note, facts, find, fold, hold, heard, a
     if (e.type === "progress") setState((s) => (s.kind === "failed" ? s : { ...s, busy: { step: e.step, done: e.done, total: e.total, fraction: e.fraction, left: e.secondsLeft } }));
     else if (e.type === "tones") setState((s) => (s.kind === "open" ? { ...s, soFar: further(s.soFar, e.tones) } : s));
     else if (e.type === "decode-here") void decodeHere(w, e.sampleRate);
+    else if (e.type === "no-sound") setState({ kind: "failed", error: t.errors.noSound });
     else if (e.type === "found") setState({ kind: "found", found: e.found });
     else if (e.type === "drawn") setDrawn((d) => ({ ...d, [e.id]: { before: e.before, after: e.after } }));
-    else if (e.type === "cleaned") setState({ kind: "cleaned", cleaned: e.cleaned, left: e.left, url: URL.createObjectURL(e.file), extension: e.extension });
+    else if (e.type === "cleaned") setState({ kind: "cleaned", cleaned: e.cleaned, left: e.left, url: URL.createObjectURL(e.file), written: e });
     else setState({ kind: "failed", error: fill(t.errors.failed, { message: e.message }) });
   };
 
@@ -201,6 +202,19 @@ export function Check({ file, elsewhere, note, facts, find, fold, hold, heard, a
     </ul>
   );
 
+  /** What the video said about itself and the new file does not, named from what it really held. */
+  const removedLine = ({ createdAt, location, device, tracks }: Removed) => {
+    const items: string[] = [];
+    if (location) items.push(fill(t.video.place, { place: `${location.lat.toFixed(3)}, ${location.lon.toFixed(3)}` }));
+    if (createdAt) {
+      const day = new Date((createdAt.utc + (createdAt.offsetMinutes ?? 0) * 60) * 1000);
+      items.push(fill(t.video.date, { date: new Intl.DateTimeFormat(locale, { dateStyle: "long", timeZone: "UTC" }).format(day) }));
+    }
+    if (device) items.push(fill(t.video.device, { device }));
+    if (tracks > 0) items.push(plural(tracks, t.video.tracks));
+    return items.length ? fill(t.video.removed, { list: new Intl.ListFormat(locale).format(items) }) : t.video.nothing;
+  };
+
   const soFar = state.kind === "open" ? state.soFar : undefined;
   const sketches: Shown[] = further(soFar, heard ?? undefined);
 
@@ -263,8 +277,8 @@ export function Check({ file, elsewhere, note, facts, find, fold, hold, heard, a
                 progress(busy)
               ) : (
                 <>
-                  <a href={state.url} download={`${name}-${t.suffix}.${state.extension}`} className={answered ? `${OUTLINE} text-center hover:border-mute` : PRIMARY} data-testid="check-download">
-                    {t.download}
+                  <a href={state.url} download={`${name}-${t.suffix}.${state.written.extension}`} className={answered ? `${OUTLINE} text-center hover:border-mute` : PRIMARY} data-testid="check-download">
+                    {state.written.video ? t.video.download : t.download}
                   </a>
                   {state.left.length > 0 && (
                     <button type="button" onClick={cleanUp} className={OUTLINE} data-testid="check-clean">
@@ -286,7 +300,23 @@ export function Check({ file, elsewhere, note, facts, find, fold, hold, heard, a
             {note}
           </p>
         )}
-        {state.kind === "cleaned" && <p className="max-w-prose text-sm text-pretty text-faint">{state.left.length ? `${t.leftText} ` : ""}{t.remux}</p>}
+        {state.kind === "cleaned" && (
+          <div className="flex max-w-prose flex-col gap-2 text-sm text-pretty text-faint" data-testid="check-about">
+            {state.left.length > 0 && <p>{t.leftText}</p>}
+            {state.written.video ? (
+              <>
+                <p>{t.video.kept}</p>
+                <p data-testid="check-removed">{removedLine(state.written.removed)}</p>
+                <p data-testid="check-seen">{t.video.seen}</p>
+              </>
+            ) : (
+              <>
+                {state.written.why && <p data-testid="check-why">{t.video.why[state.written.why]}</p>}
+                <p>{t.remux}</p>
+              </>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

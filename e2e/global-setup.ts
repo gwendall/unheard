@@ -6,6 +6,7 @@ export default function globalSetup() {
   const wav = new URL("./fixtures/flyby.wav", import.meta.url);
   const polls = new URL("./fixtures/flyby-polls.json", import.meta.url);
   const elsewhere = new URL("./fixtures/elsewhere-polls.json", import.meta.url);
-  if (existsSync(wav) && existsSync(polls) && existsSync(elsewhere) && !process.env.E2E_REFRESH) return;
+  const video = new URL("./fixtures/flyby.mp4", import.meta.url);
+  if (existsSync(wav) && existsSync(polls) && existsSync(elsewhere) && existsSync(video) && !process.env.E2E_REFRESH) return;
   execFileSync("pnpm", ["exec", "tsx", "scripts/make-e2e-fixture.ts"], { stdio: "inherit" });
 }

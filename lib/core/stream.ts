@@ -280,7 +280,8 @@ export async function* cleanedBlocks(source: SoundSource, rounds: Curve[][], opt
 
 /**
  * The file's own sound with `rounds` taken out, each block handed to `consume`; what comes out
- * replaces the store where it changed, and that is searched again. Returns what is still found.
+ * replaces the store where it changed, and that is searched again (unless `look` is false, for a
+ * caller that will search what `consume` wrote). Returns what is still found.
  */
 export async function takeOutOfFile(
   source: SoundSource,
@@ -288,9 +289,9 @@ export async function takeOutOfFile(
   store: SoundStore,
   length: number,
   consume: (block: Float32Array[]) => void | Promise<void>,
-  options: { find?: FindOptions; onProgress?: (done: number, total: number) => void; rate?: number; pieces?: Pieces } = {},
+  options: { find?: FindOptions; look?: boolean; onProgress?: (done: number, total: number) => void; rate?: number; pieces?: Pieces } = {},
 ): Promise<Tone[]> {
-  const { rate = ANALYSIS_RATE, pieces = inline } = options;
+  const { rate = ANALYSIS_RATE, look = true, pieces = inline } = options;
   const only = reachOf(rounds);
   const writer = analysisWriter(store, source.sampleRate, { rate, only });
   let frames = 0;
@@ -301,6 +302,7 @@ export async function takeOutOfFile(
     options.onProgress?.(frames, Math.max(frames, source.length));
   }
   writer.end();
+  if (!look) return [];
   const changed = chunksOf(length, rate).filter((c) => only.some((s) => s.start * rate <= c.end && s.end * rate >= c.start));
   return changed.length ? findTonesWith(pieces, store.read, changed, rate, options.find) : [];
 }
