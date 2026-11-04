@@ -48,9 +48,11 @@ request, CI posts this run's counts next to the base branch's (`scripts/eval-del
 
 ## Check a video
 
-- `leak` (`evals/leak.eval.ts`): the check page's path (`lib/core/leak.ts`) with no flight data,
-  on the synthetic corpus and the real clips: tones found chunk by chunk, taken out along their
-  curves on the sound at its own rate, searched again. Then `analyze()` with the flight data,
+- `leak` (`evals/leak.eval.ts`): the check page's path (`lib/core/stream.ts`, `lib/core/leak.ts`)
+  with no flight data, on the synthetic corpus and the real clips: the sound read into a store at
+  the analysis rate, tones found chunk by chunk, taken out along their curves and looked for again
+  on that store, then every curve out of the sound at its own rate, block by block, and that sound
+  searched again. Then `analyze()` with the flight data,
   before and after: a recording whose tones were found and taken out must name nobody, strong or
   possible. Also counts what "no aircraft tone found" misses (named from the flight data, no tone).
   One test and one report per corpus (`evals/reports/leak-synthetic.md`, `leak-aerosonic.md`,

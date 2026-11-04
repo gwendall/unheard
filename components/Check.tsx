@@ -6,29 +6,36 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Bar } from "@/components/Bar";
 import { useI18n } from "@/components/I18n";
 import { TonePicture } from "@/components/TonePicture";
-import { decode, soundOf, troubleOf } from "@/lib/client/decode";
+import { decode, troubleOf } from "@/lib/client/decode";
+import { forget, newFolder } from "@/lib/client/folder";
 import { clock, timeLeft } from "@/lib/client/format";
 import type { CheckEvent, CheckPartial, CheckRequest, Found, Step } from "@/lib/client/check.worker";
 import type { Picture, Tone, View } from "@/lib/core/leak";
 
-// A file's aircraft tones, and taking them out: its sound is decoded here (Web Audio takes the
-// audio of most video containers) and handed to a worker that does the rest; nothing of it is ever
-// sent. The verdict, the actions and the tones keep their places as each arrives. `find` is the
-// other thing to do with the file (components/Where.tsx), `children` what it opens: neither waits
-// for the tones. `hold`: a search is running, and finding the tones starts again after it, so a
-// phone never does both; `heard` is what that search has found meanwhile. `answered`: what `children`
-// opened has its answer, which comes first, with `facts` and the rest under it, quieter.
+// A file's aircraft tones, and taking them out. A worker does it all, reading the file as a stream;
+// when it cannot, the sound is decoded here (Web Audio takes the audio of most video containers, the
+// whole file at once) and handed to it. Nothing of it is ever sent. The verdict, the actions and the
+// tones keep their places as each arrives. `find` is the other thing to do with the file
+// (components/Where.tsx), `children` what it opens: neither waits for the tones. `hold`: a search is
+// running, and finding the tones starts again after it, so a phone never does both; `heard` is what
+// that search has found meanwhile. `answered`: what `children` opened has its answer, which comes
+// first, with `facts` and the rest under it, quieter.
 
 /** Tones so far, and where each lies. */
 export type Heard = { tone: Tone; view: View }[];
 
 /** `fraction` and `left`: the whole job's, from the worker, once it has started. */
-type Busy = { step: Step | "open"; done: number; total: number; fraction?: number; left?: number | null };
-type Cleaned = { cleaned: (Found & { after: Picture })[]; left: Found[]; url: string };
+type Busy = { step: Step; done: number; total: number; fraction?: number; left?: number | null };
+type Cleaned = { cleaned: (Found & { after: Picture })[]; left: Found[]; url: string; extension: string };
 type State = { kind: "failed"; error: string } | { kind: "open"; busy: Busy; soFar?: Heard } | { kind: "found"; found: Found[]; busy?: Busy } | ({ kind: "cleaned"; busy?: Busy } & Cleaned);
 
-/** The cleaned file is written at the rate of video sound; a file at another rate is resampled to it. */
+/**
+ * Web Audio resamples to the rate it is asked for, and taking tones out costs in proportion to the
+ * rate: it is asked for the file's own. This one is for a file whose container does not say, and
+ * below this floor a browser may refuse.
+ */
 const RATE = 48_000;
+const LOWEST = 8_000;
 
 /** m:ss, or h:mm:ss past an hour. */
 const at = (s: number) => (s < 3600 ? clock(s) : `${Math.floor(s / 3600)}:${clock(s % 3600).padStart(5, "0")}`);
@@ -55,6 +62,7 @@ export function Check({ file, elsewhere, note, facts, find, fold, hold, heard, a
   const [state, setState] = useState<State>({ kind: "open", busy: { step: "open", done: 0, total: 1 } });
   const name = file.name.replace(/\.[^.]+$/, "") || "recording";
   const worker = useRef<Worker | null>(null);
+  const folder = useRef<string | null>(null);
   const url = state.kind === "cleaned" ? state.url : null;
 
   useEffect(() => () => void (url && URL.revokeObjectURL(url)), [url]);
@@ -64,72 +72,65 @@ export function Check({ file, elsewhere, note, facts, find, fold, hold, heard, a
     if (!opening) onSettled?.();
   }, [opening, onSettled]);
 
-  const onEvent = (e: CheckEvent | CheckPartial) => {
+  /** The worker cannot read this file: Web Audio may, here, the whole file at once. */
+  const decodeHere = async (w: Worker, rate: number | undefined) => {
+    try {
+      const audio = await decode(file, rate && rate >= LOWEST ? rate : RATE);
+      const request: CheckRequest = { type: "sound", ...audio };
+      w.postMessage(request, audio.channels.map((c) => c.buffer as ArrayBuffer));
+    } catch (err) {
+      setState({ kind: "failed", error: t.errors[troubleOf(err)] });
+    }
+  };
+
+  const onEvent = (e: CheckEvent | CheckPartial, w: Worker) => {
     if (e.type === "progress") setState((s) => (s.kind === "failed" ? s : { ...s, busy: { step: e.step, done: e.done, total: e.total, fraction: e.fraction, left: e.secondsLeft } }));
     else if (e.type === "tones") setState((s) => (s.kind === "open" ? { ...s, soFar: further(s.soFar, e.tones) } : s));
+    else if (e.type === "decode-here") void decodeHere(w, e.sampleRate);
     else if (e.type === "found") setState({ kind: "found", found: e.found });
-    else if (e.type === "cleaned") setState({ kind: "cleaned", cleaned: e.cleaned, left: e.left, url: URL.createObjectURL(e.wav) });
+    else if (e.type === "cleaned") setState({ kind: "cleaned", cleaned: e.cleaned, left: e.left, url: URL.createObjectURL(e.file), extension: e.extension });
     else setState({ kind: "failed", error: fill(t.errors.failed, { message: e.message }) });
   };
 
-  // After the first paint, so what the file says shows before decoding starts; once per file, and
-  // once more after a search that came before the end.
+  // After the first paint, so what the file says shows before the work starts; once per file, and
+  // once more after a search that came before the end. Going stops the work and clears what it kept
+  // on this device.
   const waiting = !!hold && state.kind === "open";
   useEffect(() => {
     if (waiting) return;
-    let live = true;
-    const start = setTimeout(async () => {
+    const start = setTimeout(() => {
       setState((s) => (s.kind === "open" ? { ...s, busy: { step: "open", done: 0, total: 1 } } : s));
-      let audio: Awaited<ReturnType<typeof soundOf>>;
-      try {
-        audio = await soundOf(file);
-      } catch (err) {
-        if (live) setState({ kind: "failed", error: t.errors[troubleOf(err)] });
-        return;
-      }
-      if (!live) return;
       const w = new Worker(new URL("../lib/client/check.worker.ts", import.meta.url), { type: "module" });
-      w.onmessage = (e: MessageEvent<CheckEvent | CheckPartial>) => onEvent(e.data);
+      w.onmessage = (e: MessageEvent<CheckEvent | CheckPartial>) => onEvent(e.data, w);
       w.onerror = (e) => setState({ kind: "failed", error: fill(t.errors.failed, { message: e.message || "worker" }) });
       worker.current = w;
-      setState((s) => (s.kind === "open" ? { ...s, busy: { step: "find", done: 0, total: 1 } } : s));
-      const request: CheckRequest = { type: "find", ...audio, partial: true };
-      w.postMessage(request, audio.channels.map((c) => c.buffer as ArrayBuffer));
+      folder.current = newFolder();
+      const request: CheckRequest = { type: "open", file, folder: folder.current, partial: true };
+      w.postMessage(request);
     }, 30);
     return () => {
-      live = false;
       clearTimeout(start);
+      // A worker let go while it still loads its scripts reports that as an error: it no longer speaks for this file.
+      if (worker.current) worker.current.onerror = worker.current.onmessage = null;
       worker.current?.terminate();
       worker.current = null;
+      if (folder.current) void forget(folder.current);
+      folder.current = null;
     };
     // The file and the search alone start this; the rest is read when it runs.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [file, waiting]);
 
-  const cleanUp = async () => {
-    const working = (step: Busy["step"]) => setState((s) => (s.kind === "failed" || s.kind === "open" ? s : { ...s, busy: { step, done: 0, total: 1 } }));
-    let request: CheckRequest = { type: "clean" };
-    let moved: ArrayBuffer[] = [];
-    // The sound at the cleaned file's rate, only now that it is asked for; later rounds work on it as it is.
-    if (state.kind === "found") {
-      working("open");
-      try {
-        const sound = await decode(file, RATE);
-        request = { type: "clean", sound };
-        moved = sound.channels.map((c) => c.buffer as ArrayBuffer);
-      } catch (err) {
-        setState({ kind: "failed", error: t.errors[troubleOf(err)] });
-        return;
-      }
-    }
-    working("clean");
-    worker.current?.postMessage(request, moved);
+  const cleanUp = () => {
+    if (!worker.current) return;
+    setState((s) => (s.kind === "failed" || s.kind === "open" ? s : { ...s, busy: { step: "clean", done: 0, total: 1 } }));
+    const request: CheckRequest = { type: "clean" };
+    worker.current.postMessage(request);
   };
 
-  /** `wide`: alone on its line, the verdict's place; otherwise at a button's width, in the actions. */
   const progress = (busy: Busy, wide = false) => {
     const n = Math.round(100 * (busy.fraction ?? busy.done / Math.max(1, busy.total)));
-    const text = busy.step === "open" ? t.steps.open : busy.step === "write" ? t.steps.write : fill(t.steps[busy.step], { n });
+    const text = fill(t.steps[busy.step], { n });
     const left = busy.left == null ? "" : ` ${timeLeft(busy.left, m.where, fill)}`;
     return (
       <div className={`flex min-h-13 flex-col justify-center gap-2 ${wide ? "w-full" : "w-full sm:w-fit sm:min-w-52"}`}>
@@ -220,7 +221,7 @@ export function Check({ file, elsewhere, note, facts, find, fold, hold, heard, a
               (busy ? (
                 progress(busy)
               ) : (
-                <button type="button" onClick={() => void cleanUp()} className={OUTLINE} data-testid="check-clean">
+                <button type="button" onClick={cleanUp} className={OUTLINE} data-testid="check-clean">
                   {plural(state.found.length, t.clean)}
                 </button>
               ))}
@@ -229,11 +230,11 @@ export function Check({ file, elsewhere, note, facts, find, fold, hold, heard, a
                 progress(busy)
               ) : (
                 <>
-                  <a href={state.url} download={`${name}-${t.suffix}.wav`} className={answered ? `${OUTLINE} text-center hover:border-mute` : PRIMARY} data-testid="check-download">
+                  <a href={state.url} download={`${name}-${t.suffix}.${state.extension}`} className={answered ? `${OUTLINE} text-center hover:border-mute` : PRIMARY} data-testid="check-download">
                     {t.download}
                   </a>
                   {state.left.length > 0 && (
-                    <button type="button" onClick={() => void cleanUp()} className={OUTLINE} data-testid="check-clean">
+                    <button type="button" onClick={cleanUp} className={OUTLINE} data-testid="check-clean">
                       {plural(state.left.length, t.clean)}
                     </button>
                   )}

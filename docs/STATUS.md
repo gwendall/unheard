@@ -73,8 +73,8 @@ What a visitor goes through, and where it lives:
   whole page takes a drop. In order, each as soon as it is known: what the file says about itself
   (`lib/client/metadata.ts`: GPS first and big, then date, time, device), its aircraft tones, each
   as it is found (its curve at once, its picture at the end), in the file's order, with a one-line verdict, then two actions side by side, "Find where" and "Take them out", and the link
-  to Somewhere else. "Find where" is there from the start and waits for nothing. The sound is decoded once, at 8 kHz (`soundOf`), for the check and the search; a running search stops the check, shows the tones it finds in the check's place, and the check starts again after it, so a phone never does both. The 48 kHz sound is decoded only when "Take them out" is pressed. A clear state for each failure: no sound (`check.errors.open`), a file past 2
-  GB (`lib/client/decode.ts`), no tone (no action offered unless a search is already open, and never "safe"), a day not in the
+  to Somewhere else. "Find where" is there from the start and waits for nothing. The search reads the sound once per file, at 8 kHz (`soundOf`, a stream where it can be), and the check reads it into its own store; a running search stops the check, shows the tones it finds in the check's place, and the check starts again after it, so a phone never does both. The 48 kHz sound is decoded only when "Take them out" is pressed. A clear state for each failure: no sound (`check.errors.open`), a file past 2
+  GB that can only be opened whole (`lib/client/decode.ts`), no tone (no action offered unless a search is already open, and never "safe"), a day not in the
   archive, no flight fitting. With no tag found it says only that, and that some cameras keep GPS
   where we do not look, never that the file is silent. The verdict and actions keep their places as
   results arrive, checked by rect in `e2e/where.spec.ts`; "What we check" comes back under the card
@@ -82,14 +82,20 @@ What a visitor goes through, and where it lives:
   Find where puts the focus on the first gap, and on no field on a touch screen.
   With a file in, the header drops its lead and keeps the heading, which does not move, and one line of privacy. Once a search has its answer, the answer comes first, the file's own findings under it, on both widths: "Find where" gives way to "Change the search", the file's actions go quiet, and "Share this result" is the one primary. A search's end brings the verdict into view, instantly under reduced motion, unless the visitor has scrolled away.
 - **Take them out** (`components/Check.tsx`, `lib/client/check.worker.ts`,
-  `lib/core/leak.ts`): the defence colsto's viewers asked for ("what's the counter strat?"). A
-  video or sound file is decoded in the page (Web Audio), searched for aircraft tones with no
-  flight data in a worker (findTraces over overlapping 3-minute chunks, so a long stream stays in
-  bounded memory; it reports 40 to 400 Hz, and takes out with those tones what it finds up to
-  3.4 kHz in the same chunk), and the tones are taken out along their curves (scrub, 20 s windows,
-  the emptied band filled with noise at its neighbours' level) on the sound at its own rate. The cleaned sound is searched again, 
-  downloaded as a WAV. Nothing leaves the device. Measured
-  by `evals/leak.eval.ts`: on AeroSonicDB, tones found in 9 of 9 clips, 6 named before, none after.
+  `lib/core/leak.ts`, `lib/core/stream.ts`, `lib/client/media.ts`): the defence colsto's viewers
+  asked for ("what's the counter strat?"). A worker reads the video or sound file as a stream
+  (Mediabunny and WebCodecs, 8 MiB of the file at most in memory; Web Audio in the page, the whole
+  file at once, only for a container or a codec that cannot be streamed) and keeps its sound at
+  8 kHz in the browser's private files (`lib/client/disk.ts`; in memory where there are none, 115 MB
+  an hour). It searches that for aircraft tones with no flight data (findTraces over overlapping
+  3-minute chunks; it reports 40 to 400 Hz, and takes out with those tones what it finds up to
+  3.4 kHz in the same chunk). "Take them out" runs the rounds of take out and look again on that copy
+  (scrub, the emptied band filled with noise at its neighbours' level), then takes every curve out of
+  the file's own sound in one more pass, 20 s at a time, and searches what comes out again: that is
+  what is shown before and after and downloaded as a WAV, written to the private files as it goes.
+  Nothing leaves the device; those files go when the visitor moves on, or on a later visit if a tab
+  died. Measured by `evals/leak.eval.ts`, which runs that same path: on AeroSonicDB, tones found in
+  9 of 9 clips, 6 named before, none after.
 
 - **Find where** (`components/FindWhere.tsx`, `components/PlaceMap.tsx`,
   `lib/client/where.ts`, `lib/client/where.worker.ts`): a spot and a start
