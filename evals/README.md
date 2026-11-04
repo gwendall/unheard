@@ -44,9 +44,15 @@ request, CI posts this run's counts next to the base branch's (`scripts/eval-del
   truth, which must stay first or second): distance and start error, how often the truth is among the
   answers, how often the confidence flag is right, and the CPU time of a search. Each part writes
   `evals/reports/wherewhen-<part>-<km>-<windows>.md`, so the parts can run at once. Slow (minutes
-  per recording); never in CI. The where page's numbers (`where.result.honest`, `fewText`, `wrongText`
-  and `proof.whereValue` in `messages/*.json`) come from "When a place is named" in `docs/STATUS.md`,
-  a wider set of files than this eval reads: update them with that measure.
+  per recording); never in CI.
+- `wherewhen-named` (`evals/wherewhen-named.eval.ts`): when a place is named (`namesAPlace` in
+  `lib/client/where.ts`), on the 112 files the where page's numbers are measured on, 100 km with the
+  hour known: right, wrong and refused by file length, before and with the rule, with
+  `NULLS=1` the same searches hours and days away from the recording, where anything named is wrong,
+  `KINDS=` to take some of the files. The page's numbers (`where.result.honest`, `fewText`, `thinText`,
+  `wrongText` and `proof.whereValue` in `messages/*.json`) quote it: update them with it, except the day only row (9 in 9), measured with the same search by a
+  throwaway harness. About an hour of CPU, about eight with the nulls; never in CI. It fails on a wrong place named on the files
+  themselves; the nulls are a measure to read.
 
 ## Check a video
 
