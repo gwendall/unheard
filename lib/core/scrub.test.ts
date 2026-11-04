@@ -3,7 +3,7 @@ import { heardAt, STANDARD_AIR } from "./doppler";
 import type { Listener } from "./geo";
 import { matchAll, POSSIBLE } from "./match";
 import { scrub, type Curve } from "./scrub";
-import { buildStack } from "./spectrogram";
+import { buildStack, computeSpectrogram } from "./spectrogram";
 import { flybyFixes, synthesize } from "./synth";
 import { buildTrack } from "./track";
 
@@ -82,8 +82,8 @@ describe("scrub", () => {
     const before = await scoreOf(raw);
     expect(before).toBeGreaterThan(POSSIBLE.score);
     const after = await scoreOf(scrub(raw, RATE, [curveOf()]));
-    // Noise alone peaks around 3 to 4 (lib/core/match.ts).
-    expect(after).toBeLessThan(4.5);
+    // Noise alone peaks around 3 to 5 (lib/core/match.ts): 3.1 to 4.8 over 8 seeds of this file, 3.5 to 4.7 after the scrub.
+    expect(after).toBeLessThan(5);
   });
 
   it("still takes it out when the curve is a little off, as a detected one is", async () => {
@@ -143,6 +143,32 @@ describe("scrub", () => {
     // Filled, the band and its shoulders sit where the sound 12 Hz away does, a second time too.
     for (const x of [filled, twice]) for (const d of [-4, 0, 4]) expect(Math.abs(along(x, d) - along(x, 12))).toBeLessThan(0.5);
     expect(await scoreOf(twice)).toBeLessThan(4.5);
+  });
+
+  it("gives back the power of bands that overlap: a hum's harmonics leave no hollow between them", () => {
+    // Plain noise and rumble, no tone: nothing should change but the noise itself. Two curves wander
+    // around 50 Hz as the search draws a hum, and their harmonics up to 300 Hz touch each other. Each
+    // band read as its level the band beside it, already empty: 10 to 20 dB too low from 170 to 340 Hz.
+    const seconds = 70;
+    const raw = synthesize({ start: START, duration: seconds, sampleRate: RATE, air: STANDARD_AIR, sources: [], noise: 1, rumble: 1, seed: 3 });
+    const wander = (phase: number): Curve => {
+      const times = Array.from({ length: seconds * 4 + 1 }, (_, i) => i / 4);
+      return { times, freq: times.map((t) => 50 + 1.5 * Math.sin(1.7 * t + phase) + 0.7 * Math.sin(5.3 * t + 2 * phase)) };
+    };
+    const cleaned = scrub(raw, RATE, [wander(0), wander(2)]);
+    const rowPower = (x: Float32Array, lo: number) => {
+      const spec = computeSpectrogram(x, RATE, { windowSeconds: 1, hopSeconds: 0.25, minHz: 20, maxHz: 1000 });
+      const [b0, b1] = [lo, lo + 20].map((f) => Math.round((f - spec.minHz) / spec.binHz));
+      let sum = 0;
+      for (let k = 12; k < spec.frames - 12; k++) for (let b = b0; b < b1; b++) sum += 10 ** (spec.db[k * spec.bins + b] / 10);
+      return 10 * Math.log10(sum);
+    };
+    for (let lo = 60; lo < 340; lo += 20) expect(Math.abs(rowPower(cleaned, lo) - rowPower(raw, lo)), `${lo} Hz`).toBeLessThan(1.5);
+  });
+
+  it("leaves digital silence silent", () => {
+    const quiet = new Float32Array(RATE * 12);
+    expect(Array.from(scrub(quiet, RATE, [{ times: [0, 12], freq: [100, 90] }])).every((v) => v === 0)).toBe(true);
   });
 
   it("draws the same noise when the sound differs only in its last bits", () => {

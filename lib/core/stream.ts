@@ -7,7 +7,7 @@
 //
 // What holds the sound is a SoundSource: a decoder over a file (lib/client/media.ts), or memory.
 
-import { chunksOf, findTonesWith, inline, spanOf, type Audio, type CleanOptions, type FindOptions, type Pieces, type Reader, type Sound, type Tone } from "./leak";
+import { chunksOf, findTonesWith, inline, spanOf, takeOutChannels, type Audio, type CleanOptions, type FindOptions, type Pieces, type Reader, type Sound, type Tone } from "./leak";
 import { inOrder } from "./parallel";
 import { ANALYSIS_RATE } from "./rate";
 import { RESAMPLE_REACH, resampleAt } from "./resample";
@@ -266,12 +266,12 @@ export async function* cleanedBlocks(source: SoundSource, rounds: Curve[][], opt
     }
   }
   try {
-    // A channel is taken out on its own, whatever the others hold: each is a piece.
+    // Each channel, or each of two channels' axes, is a piece.
     yield* inOrder(blocks(), Math.max(1, Math.ceil(runner.size / source.channels)), async (block) => {
       if ("kept" in block) return block.kept;
       const { rounds, from, to } = block;
-      const out = await Promise.all(block.channels.map((ch) => runner.takeOut({ channels: [ch], rate, rounds, scrub: options.scrub }, () => {})));
-      return out.map(([ch]) => ch.subarray(from, to));
+      const out = await takeOutChannels(runner, { channels: block.channels, rate, rounds, scrub: options.scrub });
+      return out.map((ch) => ch.subarray(from, to));
     });
   } finally {
     await sound.close();

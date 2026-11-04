@@ -120,7 +120,7 @@ const COLUMNS = 64;
  * 3. Each cell takes the best of its neighbours within `toleranceHz`: a model curve a little off
  *    still lands on the line. The map is then standardised again per frame, so noise averages zero.
  */
-export function evidenceMap(spec: Spectrogram, toleranceHz = 0.5, tolerance = 0.0015, work?: Float32Array): Float32Array {
+export function evidenceMap(spec: Spectrogram, toleranceHz = 0.5, tolerance = 0.0015, work?: Float32Array, levels = false): Float32Array {
   const { frames, bins, db } = spec;
   // ±toleranceHz, or ±0.15 % of the frequency when wider: the model's error is a fraction of a
   // m/s of radial speed, so it grows with the tone (2.7 Hz at a jet fan's 1.8 kHz).
@@ -128,6 +128,7 @@ export function evidenceMap(spec: Spectrogram, toleranceHz = 0.5, tolerance = 0.
   for (let b = 0; b < bins; b++) reachOf[b] = Math.max(0, Math.round(Math.max(toleranceHz, tolerance * (spec.minHz + b * spec.binHz)) / spec.binHz));
   const z = work && work.length >= frames * bins ? work : new Float32Array(frames * bins);
   // Per frequency, a block of neighbours at a time: each frequency's own column, in place.
+  const sound = levels ? levelled(spec) : db;
   const block = new Float32Array(frames * COLUMNS);
   const meds = new Float64Array(COLUMNS);
   const scales = new Float64Array(COLUMNS);
@@ -135,7 +136,7 @@ export function evidenceMap(spec: Spectrogram, toleranceHz = 0.5, tolerance = 0.
     const width = Math.min(COLUMNS, bins - b0);
     for (let k = 0; k < frames; k++) {
       const row = k * bins + b0;
-      for (let c = 0; c < width; c++) block[c * frames + k] = db[row + c];
+      for (let c = 0; c < width; c++) block[c * frames + k] = sound[row + c];
     }
     for (let c = 0; c < width; c++) {
       const at = c * frames;
@@ -146,7 +147,7 @@ export function evidenceMap(spec: Spectrogram, toleranceHz = 0.5, tolerance = 0.
     }
     for (let k = 0; k < frames; k++) {
       const row = k * bins + b0;
-      for (let c = 0; c < width; c++) z[row + c] = (db[row + c] - meds[c]) / scales[c];
+      for (let c = 0; c < width; c++) z[row + c] = (sound[row + c] - meds[c]) / scales[c];
     }
   }
   // Bins that share a reach form a band: a max over more neighbours runs higher, so each band is
@@ -196,6 +197,96 @@ export function evidenceMap(spec: Spectrogram, toleranceHz = 0.5, tolerance = 0.
   return out;
 }
 
+/** Decibels apart that make a loud stretch and a quiet one, and the seconds each must last. */
+const LEVEL_GAP = 12;
+const LEVEL_SECONDS = 20;
+const LEVEL_SHAPE_HZ = 20;
+
+/**
+ * The frames of a recording that holds stretches at very different levels, grouped by level (each
+ * frame's median over frequency). Only one group when it holds none.
+ */
+function levelGroups(spec: Spectrogram): Int32Array[] {
+  const { frames, bins, db, times } = spec;
+  const hop = frames > 1 ? times[1] - times[0] : 0.25;
+  const fewest = Math.ceil(LEVEL_SECONDS / hop);
+  const everyFrame = Int32Array.from({ length: frames }, (_, k) => k);
+  if (frames < 2 * fewest) return [everyFrame];
+  const level = new Float32Array(frames);
+  for (let k = 0; k < frames; k++) level[k] = median(db.subarray(k * bins, (k + 1) * bins));
+  const split = (group: Int32Array, depth: number): Int32Array[] => {
+    if (depth === 0 || group.length < 2 * fewest) return [group];
+    const order = Array.from(group).sort((a, b) => level[a] - level[b]);
+    let total = 0;
+    for (const k of order) total += level[k];
+    let below = 0;
+    let best = -1;
+    let at = 0;
+    for (let i = 1; i < order.length; i++) {
+      below += level[order[i - 1]];
+      const m0 = below / i;
+      const m1 = (total - below) / (order.length - i);
+      const between = i * (order.length - i) * (m1 - m0) * (m1 - m0);
+      if (between > best) {
+        best = between;
+        at = i;
+      }
+    }
+    const lows = order.slice(0, at);
+    const highs = order.slice(at);
+    if (lows.length < fewest || highs.length < fewest) return [group];
+    const mean = (xs: number[]) => xs.reduce((a, k) => a + level[k], 0) / xs.length;
+    if (mean(highs) - mean(lows) < LEVEL_GAP) return [group];
+    return [...split(Int32Array.from(lows), depth - 1), ...split(Int32Array.from(highs), depth - 1)];
+  };
+  return split(everyFrame, 2);
+}
+
+/**
+ * The spectrogram with its stretches brought to one level, for a recording that holds a loud one and
+ * a quiet one. A frequency compared with itself across both has a median and a spread that say
+ * nothing of either, different from one frequency to the next: stripes in the loud stretch that a
+ * ridge can hop along. Plain noise, 40 dB lower after 85 s, gave lines up to confidence 40 in 4 files
+ * of 6.
+ *
+ * What comes off a stretch is its broad shape only: the median of its frequencies' medians over
+ * LEVEL_SHAPE_HZ either side, so a line stays. Taking each frequency's own median in each stretch
+ * instead would cost the tones that make the stretch: a plane falling 3 Hz in the minute it was
+ * louder sits in that minute's median, and went unseen at the confidence of 173 to 339 it has here.
+ */
+function levelled(spec: Spectrogram): Float32Array {
+  const groups = levelGroups(spec);
+  if (groups.length < 2) return spec.db;
+  const { bins, binHz, db } = spec;
+  const reach = Math.max(1, Math.round(LEVEL_SHAPE_HZ / binHz));
+  const out = new Float32Array(db.length);
+  const meds = new Float32Array(bins);
+  const part = new Float32Array(2 * reach + 1);
+  for (const group of groups) {
+    const block = new Float32Array(group.length * COLUMNS);
+    for (let b0 = 0; b0 < bins; b0 += COLUMNS) {
+      const width = Math.min(COLUMNS, bins - b0);
+      for (let i = 0; i < group.length; i++) {
+        const row = group[i] * bins + b0;
+        for (let c = 0; c < width; c++) block[c * group.length + i] = db[row + c];
+      }
+      for (let c = 0; c < width; c++) meds[b0 + c] = medianInPlace(block, c * group.length, group.length);
+    }
+    const shape = new Float32Array(bins);
+    for (let b = 0; b < bins; b++) {
+      const lo = Math.max(0, b - reach);
+      const hi = Math.min(bins - 1, b + reach);
+      for (let i = lo; i <= hi; i++) part[i - lo] = meds[i];
+      shape[b] = medianInPlace(part, 0, hi - lo + 1);
+    }
+    for (const k of group) {
+      const row = k * bins;
+      for (let b = 0; b < bins; b++) out[row + b] = db[row + b] - shape[b];
+    }
+  }
+  return out;
+}
+
 /** One resolution of the recording: its spectrogram, its evidence map, and for every frame of
  * the base layer, the frame of this one centred nearest to it. */
 export type Layer = { window: number; spec: Spectrogram; evidence: Float32Array; index: Int32Array };
@@ -219,6 +310,8 @@ export type StackOptions = {
   toleranceHz?: number;
   tolerance?: number;
   pad?: number;
+  /** Stretches at very different levels are brought to one before they are compared (levelled). */
+  levels?: boolean;
   /** How far the stack has got, 0 to 1, after each window (a window costs its length). */
   onProgress?: (share: number) => void;
 };
@@ -226,7 +319,7 @@ export type StackOptions = {
 export function buildStack(samples: Float32Array, sampleRate: number, options: StackOptions = {}): Stack {
   // Up to 3.8 kHz: propellers and rotors sit below 500 Hz, but jet fans hum around 1 to 2 kHz
   // (evals/real-audio: the three 737s were found at 0.9 to 1.9 kHz, none below 1 kHz).
-  const { windows = WINDOWS, hopSeconds = 0.25, minHz = 20, maxHz = 3800, toleranceHz = 0.5, tolerance = 0.0015, pad = 1, onProgress } = options;
+  const { windows = WINDOWS, hopSeconds = 0.25, minHz = 20, maxHz = 3800, toleranceHz = 0.5, tolerance = 0.0015, pad = 1, levels = false, onProgress } = options;
   for (let i = 1; i < windows.length; i++) if (Math.abs(windows[i] * 2 - windows[i - 1]) > 1e-9) throw new Error("each window must halve the one before");
   const layers: Layer[] = [];
   const cost = windows.reduce((a, w) => a + w, 0);
@@ -237,7 +330,7 @@ export function buildStack(samples: Float32Array, sampleRate: number, options: S
   for (const window of windows) {
     const spec = computeSpectrogram(samples, sampleRate, { windowSeconds: window, hopSeconds, minHz, maxHz, pad });
     work ??= new Float32Array(spec.db.length);
-    const evidence = evidenceMap(spec, toleranceHz, tolerance, work);
+    const evidence = evidenceMap(spec, toleranceHz, tolerance, work, levels);
     spec.db = new Float32Array(0);
     layers.push({ window, spec, evidence, index: new Int32Array(0) });
     done += window;

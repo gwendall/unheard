@@ -96,9 +96,17 @@ What a visitor goes through, and where it lives:
   an hour). It searches that for aircraft tones with no flight data (findTraces over overlapping
   3-minute chunks; it reports 40 to 400 Hz, and takes out with those tones what it finds up to
   3.4 kHz in the same chunk). "Take them out" runs the rounds of take out and look again on that copy
-  (scrub, the emptied band filled with noise at its neighbours' level), then takes every curve out of
-  the file's own sound in one more pass, 20 s at a time, and searches what comes out again: that is
-  what is shown before and after and written to the private files as it goes. A video comes back as
+  (scrub: what each cell of time and frequency lost follows from the curves, and it gets that power
+  back as new noise, at the level of the cells that lost little, however far away, so bands that
+  overlap leave no hollow), then takes every curve out of the file's own sound in one more pass,
+  20 s at a time (two channels along their main axes, so the mix keeps its level in the band and a
+  silent channel stays silent), and searches what comes out again: that is what is shown before and
+  after and written to the private files as it goes. Where a stretch is 12 dB louder or quieter than the rest,
+  the search first brings it to one level, taking off only its broad shape (`levelled`): a level that
+  stops draws no line, and a faint plane through it stays. Once a tone is found, the look again goes
+  down to confidence 2 (`LOOK_AGAIN_CONFIDENCE`), and the page still reports from 4. A plane's faint start
+  stays when the search finds that plane only later: on a 30-minute test sound, 228-220 Hz from 1 to 21 s stays in
+  7 of 8 draws, and the page reports it in 3, when a ridge joins it to a flat tone. A video comes back as
   a video (`lib/client/remux.ts`, MP4, MOV, WebM, Matroska): the same packets, never re-encoded, under
   the cleaned sound (AAC or Opus from the browser's encoder, AAC from a WebAssembly one where it has
   none, loaded only then), in a new file with no tag, no date and no other track; the page names what

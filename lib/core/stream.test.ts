@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { STANDARD_AIR } from "./doppler";
-import { chunksOf, cleanOut, curvesOf, findChunk, findTones, findTonesWith, readerOf, takeOutOf, type Audio, type Pieces } from "./leak";
+import { chunksOf, cleanOut, curvesOf, findChunk, findTones, findTonesWith, inline, readerOf, takeOutChannels, takeOutOf, type Audio, type Pieces } from "./leak";
 import { ANALYSIS_RATE } from "./pipeline";
+import { scrub, type Curve } from "./scrub";
+import { computeSpectrogram } from "./spectrogram";
 import { analysisWriter, BLOCK_SECONDS, cleanedBlocks, memorySource, memoryStore, readInto, storedSound, takeOutOfFile } from "./stream";
 import { flybyFixes, synthesize, type Flyby } from "./synth";
 import { buildTrack } from "./track";
@@ -218,5 +220,120 @@ describe("the same work over pieces", () => {
     // At most its size at work, and one just read.
     expect(log.slice(0, 3)).toEqual(["read 0", `read ${piece - margin}`, `read ${2 * piece - margin}`]);
     expect(log[3]).toBe("write 0");
+  });
+});
+
+describe("a stereo file, loud then quiet", () => {
+  const rate = ANALYSIS_RATE;
+
+  /** Noise and rumble, with the plane and the hum if asked, 40 dB lower after `loud` seconds: a clip with its end left silent. */
+  function shaped(seconds: number, loud: number, seed: number, heard: boolean): Float32Array {
+    const track = buildTrack(flybyFixes(listener, { closestAt: START + 45, offset: 500, heading: 70, speed: 60, altitude: 640 }, START - 60, START + seconds + 4, 2), listener)!;
+    const sources = heard ? [{ track, f0: 92, level: 0.37 }] : [];
+    const hum = heard ? [{ freq: 50, level: 1 }] : [];
+    const x = synthesize({ start: START, duration: seconds, sampleRate: rate, air: STANDARD_AIR, sources, noise: 1, rumble: 1, hum, seed });
+    for (let i = loud * rate; i < x.length; i++) x[i] *= 0.01;
+    return x;
+  }
+
+  /** The two channels of a phone: the same sound, with a little of each channel's own. */
+  function twoChannels(mid: Float32Array, seed: number): Audio {
+    const own = synthesize({ start: START, duration: mid.length / rate, sampleRate: rate, air: STANDARD_AIR, sources: [], noise: 0.05, seed });
+    return { channels: [mid.map((v, i) => v + own[i]), mid.map((v, i) => v - own[i])], sampleRate: rate };
+  }
+
+  async function checked(file: Audio) {
+    const source = memorySource(file);
+    const store = memoryStore();
+    const { length } = await readInto(source, store);
+    const tones = findTones(store.read, chunksOf(length));
+    const rounds: Curve[][] = [];
+    const { cleaned, left } = await cleanOut(storedSound(store, length), tones, { onRound: (_, t) => rounds.push(curvesOf(t)) });
+    const blocks: Float32Array[][] = [];
+    const still = await takeOutOfFile(source, rounds, store, length, (block) => void blocks.push(block.map((ch) => ch.slice())));
+    return { tones, cleaned, left, still, out: file.channels.map((_, c) => concat(blocks.map((b) => b[c]))) };
+  }
+
+  it("finds no line in plain noise that stops: its level is no tone", () => {
+    // Each frequency compared with itself across both stretches drew stripes in the loud one: lines up to confidence 40 in 4 files of 6.
+    for (const seed of [6, 11]) {
+      const x = shaped(180, 85, seed, false);
+      expect(findTones((a, n) => x.slice(a, a + n), chunksOf(x.length)).map((t) => t.confidence)).toEqual([]);
+    }
+  }, 120_000);
+
+  it("still sees a plane falling slowly through the minute it was louder: a level that stops takes no tone with it", () => {
+    // Each stretch's own median per frequency holds a line this slow, and made it vanish: it stands at confidence 173 to 361 here.
+    const x = synthesize({ start: START, duration: 180, sampleRate: rate, air: STANDARD_AIR, sources: [], noise: 1, rumble: 1, seed: 3 });
+    const phase = [0, 0, 0];
+    for (let i = 0; i < x.length; i++) {
+      const t = i / rate;
+      if (t < 60 || t >= 120) {
+        x[i] *= 0.1;
+        continue;
+      }
+      const f = 110 - 0.05 * (t - 60) + 0.3 * Math.sin((2 * Math.PI * t) / 23);
+      phase.forEach((_, k) => {
+        phase[k] += (2 * Math.PI * f * (k + 1)) / rate;
+        x[i] += (0.5 / (k + 1)) * Math.sin(phase[k]);
+      });
+    }
+    const [tone] = findTones((a, n) => x.slice(a, a + n), chunksOf(x.length));
+    expect(tone.confidence).toBeGreaterThan(50);
+    expect(tone.times[0]).toBeGreaterThan(55);
+    expect(tone.times[tone.times.length - 1]).toBeLessThan(125);
+    expect(tone.freq[0]).toBeGreaterThan(108);
+    expect(tone.freq[tone.freq.length - 1]).toBeLessThan(108);
+  }, 120_000);
+
+  it("takes the plane out and leaves no line behind it, the same every time", async () => {
+    // Before the level groups and the fill in time and frequency, this came out with lines at confidence 265 and 98.
+    const file = twoChannels(shaped(180, 85, 8, true), 9);
+    const a = await checked(file);
+    expect(a.tones.length).toBeGreaterThan(0);
+    expect(a.still.map((t) => t.confidence)).toEqual([]);
+    // The look again goes lower than what is reported: nothing under a tone's confidence reaches the page.
+    for (const t of [...a.cleaned, ...a.left]) expect(t.confidence).toBeGreaterThanOrEqual(4);
+    const { read, length } = readerOf({ channels: a.out, sampleRate: rate });
+    expect(findTones(read, chunksOf(length)).map((t) => t.confidence)).toEqual([]);
+    const b = await checked(file);
+    expect(b.out).toEqual(a.out);
+  }, 300_000);
+
+  /** Mean power of `x` around `f` (`half` Hz either side), through a 1 s window, from `from` to `to` seconds. */
+  function power(x: Float32Array, f: number, half: number, from: number, to: number): number {
+    const spec = computeSpectrogram(x.subarray(from * rate, to * rate), rate, { windowSeconds: 1, hopSeconds: 0.25, minHz: 20, maxHz: 1000 });
+    const [b0, b1] = [f - half, f + half].map((v) => Math.round((v - spec.minHz) / spec.binHz));
+    let sum = 0;
+    for (let k = 0; k < spec.frames; k++) for (let b = b0; b <= b1; b++) sum += 10 ** (spec.db[k * spec.bins + b] / 10);
+    return 10 * Math.log10(sum);
+  }
+
+  const steady: Curve = { times: [0, 40], freq: [200, 200] };
+
+  it("keeps the level of the mix in the band: noise of its own in each channel would add up 3 dB low", async () => {
+    const mid = shaped(40, 40, 5, false);
+    const file = twoChannels(mid, 6);
+    const [l, r] = await takeOutChannels(inline, { channels: file.channels.map((c) => c.slice()), rate, rounds: [[steady]], scrub: { harmonics: 1 } });
+    const mix = l.map((v, i) => (v + r[i]) / 2);
+    expect(Math.abs(power(mix, 200, 3, 4, 36) - power(mid, 200, 3, 4, 36))).toBeLessThan(1);
+    // Each channel keeps its level too.
+    expect(Math.abs(power(l, 200, 3, 4, 36) - power(file.channels[0], 200, 3, 4, 36))).toBeLessThan(1);
+  });
+
+  it("leaves a silent channel silent, and a channel beside it as a channel alone", async () => {
+    const left = shaped(40, 40, 5, false);
+    const silent = new Float32Array(left.length);
+    const [l, r] = await takeOutChannels(inline, { channels: [left.slice(), silent], rate, rounds: [[steady]], scrub: { harmonics: 1 } });
+    expect(r.every((v) => v === 0)).toBe(true);
+    expect(l).toEqual(scrub(left, rate, [steady], { harmonics: 1 }));
+  });
+
+  it("gives every sample nothing touched back exactly", async () => {
+    const file = twoChannels(shaped(60, 60, 5, false), 6);
+    const short: Curve = { times: [10, 20], freq: [200, 190] };
+    const [l, r] = await takeOutChannels(inline, { channels: file.channels.map((c) => c.slice()), rate, rounds: [[short]] });
+    expect(l.subarray(30 * rate)).toEqual(file.channels[0].subarray(30 * rate));
+    expect(r.subarray(30 * rate)).toEqual(file.channels[1].subarray(30 * rate));
   });
 });
