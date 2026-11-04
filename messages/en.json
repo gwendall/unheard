@@ -130,6 +130,20 @@
     "saved": "The picture is saved and the text copied: paste them where you like.",
     "error": "Could not make the picture on this browser."
   },
+  "placeMap": {
+      "label": "Map of the answer",
+      "loading": "Loading the map...",
+      "failed": "The map could not load here, so this is the answer on a plain plot.",
+      "credit": "Map data © {osm} contributors (ODbL), tiles by {protomaps}. Place names from {geonames} (CC BY 4.0). All of it comes from our own files.",
+      "other": "Answer {n}",
+      "zoomIn": "Zoom in",
+      "zoomOut": "Zoom out",
+      "showSpot": "Look closer at the spot",
+      "showFlights": "Show the whole flights",
+      "gestureWindows": "Use Ctrl + scroll to zoom the map",
+      "gestureMac": "Use ⌘ + scroll to zoom the map",
+      "gestureTouch": "Use two fingers to move the map"
+  },
   "plots": {
     "you": "You",
     "spectrum": "Spectrum of the recording around the aircraft's tone",
@@ -305,7 +319,8 @@
           "The planes you found are kept in this browser's storage to show your list on the home page. Nothing of it is sent, and Clear removes it.",
           "The language you pick in the menu is kept in a cookie for a year, so the site opens in it next time.",
           "On Somewhere else, the page asks our server for the aircraft over the place you pick, never with your own position, and your recording stays on the page.",
-        "A file you open here stays on the page and is never sent. If you use your location to search, it stays on the page too. To search, the page requests the flight tiles of the day and area you search, and tiles of the ground's height for that area from Amazon's open terrain data. A place name you type goes to Open-Meteo to find it on the map, and only that name."
+        "A file you open here stays on the page and is never sent. If you use your location to search, it stays on the page too. To search, the page requests the flight tiles of the day and area you search, and tiles of the ground's height for that area from Amazon's open terrain data. A place name you type goes to Open-Meteo to find it on the map, and only that name.",
+        "Once a result is on your screen, the page names the spot and draws it on a map from files in Unheard's own storage (Tigris): the squares of the map and the place names around the answer, nothing else. OpenStreetMap, Google and other map services are asked nothing. Unheard saves none of it; the storage's request logs keep it for a short time, the way the host's do."
         ]
       },
       {

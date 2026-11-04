@@ -130,6 +130,20 @@
     "saved": "L'image est enregistrée et le texte copié : collez-les où vous voulez.",
     "error": "Impossible de créer l'image dans ce navigateur."
   },
+  "placeMap": {
+      "label": "Carte de la réponse",
+      "loading": "Chargement de la carte...",
+      "failed": "La carte n'a pas pu se charger ici : voici la réponse sur un schéma.",
+      "credit": "Données de la carte © contributeurs {osm} (ODbL), tuiles {protomaps}. Noms de lieux {geonames} (CC BY 4.0). Le tout vient de nos propres fichiers.",
+      "other": "Réponse {n}",
+      "zoomIn": "Zoomer",
+      "zoomOut": "Dézoomer",
+      "showSpot": "Regarder le lieu de plus près",
+      "showFlights": "Montrer les vols en entier",
+      "gestureWindows": "Ctrl + molette pour zoomer sur la carte",
+      "gestureMac": "⌘ + molette pour zoomer sur la carte",
+      "gestureTouch": "Deux doigts pour déplacer la carte"
+  },
   "plots": {
     "you": "Vous",
     "spectrum": "Spectre de l'enregistrement autour de la note de l'avion",
@@ -305,7 +319,8 @@
           "Les avions que vous avez trouvés sont gardés dans le stockage de ce navigateur pour afficher votre liste sur l'accueil. Rien n'en est envoyé, et « Effacer » la supprime.",
           "La langue choisie dans le menu est gardée un an dans un cookie, pour que le site s'ouvre dans cette langue la fois suivante.",
           "Sur Ailleurs, la page demande à notre serveur les avions au-dessus du lieu que vous choisissez, jamais avec votre propre position, et votre enregistrement reste sur la page.",
-        "Un fichier ouvert ici reste sur la page et n'est jamais envoyé. Si vous utilisez votre position pour chercher, elle reste sur la page aussi. Pour chercher, la page demande les tuiles de vols du jour et de la zone cherchés, et des tuiles de hauteur du sol pour cette zone aux données ouvertes d'Amazon. Un nom de lieu saisi part chez Open-Meteo pour le trouver sur la carte, et seulement ce nom."
+        "Un fichier ouvert ici reste sur la page et n'est jamais envoyé. Si vous utilisez votre position pour chercher, elle reste sur la page aussi. Pour chercher, la page demande les tuiles de vols du jour et de la zone cherchés, et des tuiles de hauteur du sol pour cette zone aux données ouvertes d'Amazon. Un nom de lieu saisi part chez Open-Meteo pour le trouver sur la carte, et seulement ce nom.",
+        "Une fois le résultat à l'écran, la page nomme le lieu et le dessine sur une carte depuis les fichiers d'Unheard, sur son propre stockage (Tigris) : les carrés de carte et les noms de lieux autour de la réponse, rien d'autre. OpenStreetMap, Google et les autres services de cartes ne reçoivent aucune demande. Unheard n'en garde rien ; les journaux du stockage les gardent peu de temps, comme ceux de l'hébergeur."
         ]
       },
       {

@@ -99,6 +99,11 @@ aircraft's sound, a better matcher, or build a listening station. See
 ## Credits
 
 - [adsb.lol](https://adsb.lol) and its feeders, for open flight data.
+- Place names: [GeoNames](https://www.geonames.org), [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/),
+  as static files in our own bucket (`docs/places-format.md`).
+- Map: © [OpenStreetMap](https://www.openstreetmap.org/copyright) contributors,
+  [ODbL 1.0](https://opendatacommons.org/licenses/odbl/1-0/), in a build by
+  [Protomaps](https://protomaps.com), in our own bucket too (`docs/map.md`).
 - [Open-Meteo](https://open-meteo.com), for elevation and temperature.
 - The authors of [AeroSonicDB](https://zenodo.org/records/10215080), for the first real
   recordings the matcher was tested on.
