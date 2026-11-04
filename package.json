@@ -17,6 +17,8 @@
     "history:build": "node scripts/history-index.ts",
     "places:build": "node scripts/places-build.ts",
     "where": "tsx scripts/where.ts",
+    "speed": "tsx scripts/speed-core.ts",
+    "speed:browser": "tsx scripts/speed-browser.ts",
     "scoreboard": "node scripts/scoreboard.ts",
     "e2e": "playwright test",
     "e2e:fixture": "tsx scripts/make-e2e-fixture.ts",

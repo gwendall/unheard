@@ -144,6 +144,10 @@ Thresholds: strong at score 9 and lead 2.5, possible at 6.5 and 1.5 (`lib/core/m
   microphone is recovered from the published offsets (2 m rms), the start from the UTC ridge.
 - Speed: median 0.7 s (real audio, 60 s clips) to 2.1 s (synthetic, 120 s) per analysis in
   Node on this Mac, before the line check of 2026-11-03, which about doubles it (Next #5).
+  Measured with `pnpm speed` (Node, CPU time, golden comparison of results) and `pnpm
+  speed:browser` (real Chromium: time to the verdict, memory, first load). Baseline 2026-11-04,
+  main at d7d87c5: an 85 s file checked in 5.4 s CPU, a 10 minute file in 42.7 s (536 MB of JS
+  heap), a real 60 s 22 kHz clip with 11 curves in 50 s, of which taking them out is 74 %.
 - Somewhere else (2026-11-03, `evals/somewhere-else`, CI corpus: 15 made-up skies and 15 real
   Phoenix skies, voice notes of 30 to 60 s). The page's own check names the planted plane
   strongly in 0.90 of scenes, and never a plane it did not plant. With the true tracks of that
