@@ -8,16 +8,18 @@ import { TonePicture } from "@/components/TonePicture";
 import { decode, troubleOf } from "@/lib/client/decode";
 import type { FileMetadata } from "@/lib/client/metadata";
 import { aircraftType } from "@/lib/client/types";
-import { clockOf, coordinates, geocode, metresApart, offsetAt, OLDEST_DAY, osmLink, parseCoordinates, secondsLeft, SQUARE, windowOf, type Place, type Prefill, type Zone } from "@/lib/client/where";
+import { clockOf, coordinates, metresApart, offsetAt, OLDEST_DAY, osmLink, parseCoordinates, secondsLeft, SQUARE, windowOf, type Place, type Prefill, type Zone } from "@/lib/client/where";
 import type { Guess, WhereEvent, WhereRequest, WhereResult, WhereStep } from "@/lib/client/where.worker";
 import { ANALYSIS_RATE } from "@/lib/core/pipeline";
+import { nearestPlace, placeLabel, searchPlaces, type NearPlace, type PlaceHit } from "@/lib/client/places";
 import { paintWhere } from "@/lib/client/where-card";
 import { httpFetcher, readDays } from "@/lib/history";
 
 // "Find where", once a file is open: what is missing asked for, the day and hour already filled in
 // from the file, then the search in a worker, cancellable, and its answer. The sound is decoded
 // here and handed to the worker; only the day's flight tiles for the area searched, the ground's
-// height tiles and a typed place name go out.
+// height tiles, the place names of those squares and the first letters of a typed name are asked
+// for, all from our own files.
 
 /** `since`: when this step last started over, for the estimate. */
 type Busy = { step: WhereStep | "open"; done: number; total: number; since: number };
@@ -26,6 +28,22 @@ type Found = Extract<WhereResult, { kind: "found" }>;
 
 /** Planes a guess names in its lead, the rest counted. */
 const NAMED = 6;
+/** How long an answer waits for its name before it comes with its coordinates alone: nothing moves later. */
+const NAMING_MS = 1500;
+
+const spotKey = (p: { lat: number; lon: number }) => `${p.lat},${p.lon}`;
+
+/** The towns nearest a result's answers, by what the moment allows. */
+async function namesOf(result: WhereResult, locale: string): Promise<Map<string, NearPlace>> {
+  const names = new Map<string, NearPlace>();
+  if (result.kind !== "found") return names;
+  const asked = result.guesses.map(async (g) => {
+    const near = await nearestPlace(g.lat, g.lon, { locale });
+    if (near) names.set(spotKey(g), near);
+  });
+  await Promise.race([Promise.all(asked), new Promise((done) => setTimeout(done, NAMING_MS))]);
+  return names;
+}
 
 const QUIET = "text-mute underline-offset-4 transition hover:text-ink hover:underline";
 const SECOND = "rounded-full border border-line px-5 py-3 text-ink transition hover:border-mute disabled:opacity-50";
@@ -45,7 +63,9 @@ export function FindWhere({ picked, archive }: { picked: Picked; archive: string
   const [zone, setZone] = useState<Zone>(picked.prefill.zone);
   const [text, setText] = useState(spot ? coordinates(spot) : "");
   const [place, setPlace] = useState<Place | null>(spot ? { name: coordinates(spot), lat: spot.lat, lon: spot.lon } : null);
-  const [matches, setMatches] = useState<Place[] | null>(null);
+  const [matches, setMatches] = useState<PlaceHit[] | null>(null);
+  const [active, setActive] = useState(0);
+  const [names, setNames] = useState<Map<string, NearPlace>>(new Map());
   const [locating, setLocating] = useState(false);
   const [busy, setBusy] = useState<Busy | null>(null);
   const [now, setNow] = useState(0);
@@ -54,7 +74,7 @@ export function FindWhere({ picked, archive }: { picked: Picked; archive: string
   const [shown, setShown] = useState(0);
   const worker = useRef<Worker | null>(null);
   const run = useRef(0);
-  const typing = useRef<{ timer?: ReturnType<typeof setTimeout>; abort?: AbortController }>({});
+  const typing = useRef<{ timer?: ReturnType<typeof setTimeout>; asked: number }>({ asked: 0 });
   const placeField = useRef<HTMLInputElement>(null);
   const dayField = useRef<HTMLElement | null>(null);
   const started = useRef(false);
@@ -104,17 +124,38 @@ export function FindWhere({ picked, archive }: { picked: Picked; archive: string
   const chooseText = (value: string) => {
     setText(value);
     setMatches(null);
-    typing.current.abort?.abort();
+    setActive(0);
+    const asked = ++typing.current.asked;
     clearTimeout(typing.current.timer);
     const typed = parseCoordinates(value);
     setPlace(typed && { name: coordinates(typed), ...typed });
     if (typed || value.trim().length < 2) return;
-    // A pause in the typing, then the name alone goes to the geocoder.
+    // A short pause in the typing, then our own files: only the first letters reach them.
     typing.current.timer = setTimeout(() => {
-      const abort = new AbortController();
-      typing.current.abort = abort;
-      geocode(value.trim(), locale, abort.signal).then(setMatches, () => undefined);
-    }, 350);
+      void searchPlaces(value.trim(), { locale, limit: 5 }).then((hits) => {
+        if (asked === typing.current.asked) setMatches(hits);
+      });
+    }, 150);
+  };
+
+  const pick = (hit: PlaceHit) => {
+    const name = placeLabel(hit, true);
+    typing.current.asked++;
+    setPlace({ name, lat: hit.lat, lon: hit.lon, zone: hit.zone });
+    setText(name);
+    setMatches(null);
+  };
+
+  /** The field's keys while it offers places: the focus stays in the field. */
+  const onPlaceKey = (key: string, prevent: () => void) => {
+    if (!matches?.length) return;
+    if (key === "ArrowDown" || key === "ArrowUp") {
+      prevent();
+      setActive((at) => (at + (key === "ArrowDown" ? 1 : -1) + matches.length) % matches.length);
+    } else if (key === "Enter") {
+      prevent();
+      pick(matches[active]);
+    } else if (key === "Escape") setMatches(null);
   };
 
   /** The browser's own position, kept here: it only picks the square to search. */
@@ -142,6 +183,11 @@ export function FindWhere({ picked, archive }: { picked: Picked; archive: string
     setNow(Date.now());
     setBusy({ step: "open", done: 0, total: 1, since: Date.now() });
     setSearchedDay(!time);
+    // Coordinates come with no time zone. A local hour needs one: the town nearest them gives it,
+    // asked only now, from the same square the search reads.
+    const local = zone === "local" && !place.zone ? (await nearestPlace(place.lat, place.lon))?.zone : place.zone;
+    if (mine !== run.current) return;
+    const searched = windowOf({ day: chosen, time, zone }, { lon: place.lon, zone: local });
     let audio: Awaited<ReturnType<typeof decode>>;
     try {
       audio = await decode(picked.file, ANALYSIS_RATE);
@@ -153,26 +199,29 @@ export function FindWhere({ picked, archive }: { picked: Picked; archive: string
     }
     if (mine !== run.current) return;
     const w = new Worker(new URL("../lib/client/where.worker.ts", import.meta.url), { type: "module" });
-    const onEvent = (e: WhereEvent) => {
+    const onEvent = async (e: WhereEvent) => {
       // A step that goes back starts over: its estimate with it.
       if (e.type === "progress") return setBusy((b) => (b?.step === e.step && e.done >= b.done ? { ...b, done: e.done, total: e.total } : { step: e.step, done: e.done, total: e.total, since: Date.now() }));
       w.terminate();
       worker.current = null;
-      setBusy(null);
       if (e.type === "result") {
+        // The answer and its name arrive as one: nothing moves under the visitor.
+        const named = await namesOf(e.result, locale);
+        if (mine !== run.current) return;
         const box = panel.current?.getBoundingClientRect();
         watching.current = !!box && box.bottom > 0 && box.top < window.innerHeight;
+        setNames(named);
         setResult(e.result);
-      }
-      else setError(fill(t.errors.failed, { message: e.message }));
+      } else setError(fill(t.errors.failed, { message: e.message }));
+      setBusy(null);
     };
-    w.onmessage = (e: MessageEvent<WhereEvent>) => onEvent(e.data);
-    w.onerror = (e) => onEvent({ type: "error", message: e.message || "worker" });
+    w.onmessage = (e: MessageEvent<WhereEvent>) => void onEvent(e.data);
+    w.onerror = (e) => void onEvent({ type: "error", message: e.message || "worker" });
     worker.current = w;
     const request: WhereRequest = {
       ...audio,
       history: new URL(archive, window.location.href).href,
-      window: span,
+      window: searched,
       area: { lat: place.lat, lon: place.lon, side: SQUARE },
     };
     w.postMessage(request, audio.channels.map((c) => c.buffer as ArrayBuffer));
@@ -220,19 +269,32 @@ export function FindWhere({ picked, archive }: { picked: Picked; archive: string
 
   /** Under the flag, an answer; otherwise every word stays a guess, however close it may be. */
   const startOf = (g: Guess, sure: boolean) => {
-    const offset = place ? offsetAt(place, g.start) : 0;
+    const local = names.get(spotKey(g))?.zone ?? place?.zone;
+    const offset = offsetAt({ lon: g.lon, zone: local }, g.start);
     const line = fill(sure ? t.result.started : t.result.startedGuess, { day: new Date(g.start * 1000).toISOString().slice(0, 10), utc: clockOf(g.start), local: clockOf(g.start, offset) });
-    return place?.zone ? line : `${line} ${t.result.about}`;
+    return local ? line : `${line} ${t.result.about}`;
+  };
+
+  /** "Near Oyster Bay, New York, United States", or nothing out at sea or with the names out of reach. */
+  const nearText = (g: Guess) => {
+    const near = names.get(spotKey(g));
+    return near ? fill(t.result.near, { place: placeLabel(near, true) }) : null;
   };
 
   /** The best answer, first and whole. It stays put while the other answers are looked through. */
   const lead = (g: Guess, sure: boolean) => {
     const named = g.planes.map((p) => p.registration || p.hex);
     const more = named.length - NAMED;
+    const near = nearText(g);
     return (
       <div className="flex flex-col gap-2">
+        {near && (
+          <p className="text-2xl font-semibold tracking-tight text-balance text-ink sm:text-3xl" data-testid="where-place-name">
+            {near}
+          </p>
+        )}
         <div className="flex flex-wrap items-baseline gap-x-6 gap-y-1">
-          <p className="font-mono text-2xl text-ink tabular-nums" data-testid="where-spot">
+          <p className={`font-mono tabular-nums ${near ? "text-lg text-mute" : "text-2xl text-ink"}`} data-testid="where-spot">
             {coordinates(g)}
           </p>
           <a href={osmLink(g)} target="_blank" rel="noreferrer" className={QUIET} data-testid="where-osm">
@@ -256,14 +318,21 @@ export function FindWhere({ picked, archive }: { picked: Picked; archive: string
     <div className="grid gap-8 lg:grid-cols-2">
       <div className="flex flex-col gap-3 lg:sticky lg:top-6 lg:self-start">
         <SpotPlot guess={g} sure={sure} />
-        <p className="text-sm text-faint">{t.result.credit}</p>
+        <p className="text-sm text-pretty text-faint">
+          {t.result.credit} {t.placesCredit}
+        </p>
       </div>
       <div className="flex flex-col gap-8">
         {(!best || g.mirror) && (
           <div className="flex flex-col gap-2">
             {!best && (
               <>
-                <p className="font-mono text-xl text-ink tabular-nums" data-testid="where-shown-spot">
+                {nearText(g) && (
+                  <p className="text-xl font-semibold tracking-tight text-balance text-ink" data-testid="where-shown-name">
+                    {nearText(g)}
+                  </p>
+                )}
+                <p className={`font-mono tabular-nums ${nearText(g) ? "text-mute" : "text-xl text-ink"}`} data-testid="where-shown-spot">
                   {coordinates(g)}
                 </p>
                 <p className="text-mute tabular-nums" data-testid="where-shown-start">
@@ -370,35 +439,63 @@ export function FindWhere({ picked, archive }: { picked: Picked; archive: string
         {t.hourWhy}
       </p>
       {when}
-      <label className="flex flex-col gap-2">
-        <span className="font-medium text-ink">{t.place}</span>
-        <span className="flex flex-col gap-2 sm:flex-row">
-          <input ref={placeField} type="text" value={text} onChange={(e) => chooseText(e.target.value)} placeholder={t.placePlaceholder} autoComplete="off" className={`${FIELD} min-w-0 grow`} data-testid="where-place" />
+      <div className="flex flex-col gap-2">
+        <label htmlFor="where-place-field" className="w-fit font-medium text-ink">
+          {t.place}
+        </label>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          {/* The places offered lie over what follows: nothing moves as they come and go. */}
+          <div className="relative min-w-0 grow">
+            <input
+              ref={placeField}
+              id="where-place-field"
+              type="text"
+              role="combobox"
+              aria-expanded={!!matches?.length}
+              aria-controls="where-matches"
+              aria-autocomplete="list"
+              aria-activedescendant={matches?.length ? `where-match-${active}` : undefined}
+              value={text}
+              onChange={(e) => chooseText(e.target.value)}
+              onKeyDown={(e) => onPlaceKey(e.key, () => e.preventDefault())}
+              onBlur={() => {
+                typing.current.asked++;
+                setMatches(null);
+              }}
+              placeholder={t.placePlaceholder}
+              autoComplete="off"
+              className={`${FIELD} w-full`}
+              data-testid="where-place"
+            />
+            {!!matches?.length && (
+              <ul id="where-matches" role="listbox" aria-label={t.place} className="absolute top-full left-0 z-20 mt-1 flex w-full flex-col gap-0.5 rounded-xl border border-line bg-deep p-1 shadow-xl shadow-night" data-testid="where-matches">
+                {matches.map((p, i) => (
+                  <li
+                    key={`${p.lat},${p.lon}`}
+                    id={`where-match-${i}`}
+                    role="option"
+                    aria-selected={i === active}
+                    // The field keeps the focus, so the list is still there for the click.
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => pick(p)}
+                    className={`cursor-pointer rounded-lg px-3 py-2 text-pretty text-ink transition ${i === active ? "bg-line/70" : "hover:bg-line/40"}`}
+                  >
+                    {placeLabel(p, true)}
+                  </li>
+                ))}
+              </ul>
+            )}
+            {matches?.length === 0 && (
+              <p role="status" className="absolute top-full left-0 z-20 mt-1 w-full rounded-xl border border-line bg-deep px-4 py-2 text-pretty text-mute shadow-xl shadow-night" data-testid="where-no-place">
+                {t.noPlace}
+              </p>
+            )}
+          </div>
           <button type="button" onClick={locate} disabled={locating} className={`${SECOND} shrink-0`} data-testid="where-locate">
             {locating ? t.locating : t.locate}
           </button>
-        </span>
-      </label>
-      {matches && !place && (
-        <ul className="flex flex-col gap-1" data-testid="where-matches">
-          {matches.length === 0 && <li className="text-pretty text-mute">{t.noPlace}</li>}
-          {matches.map((p) => (
-            <li key={`${p.lat},${p.lon}`}>
-              <button
-                type="button"
-                className="w-full rounded-xl px-4 py-2 text-left text-ink transition hover:bg-line/50"
-                onClick={() => {
-                  setPlace(p);
-                  setText(p.name);
-                  setMatches(null);
-                }}
-              >
-                {p.name}
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
+        </div>
+      </div>
       <p className="text-sm text-pretty text-mute" data-testid="where-place-hint">
         {place ? fill(t.placeChosen, { place: place.name }) : t.placeHint}
       </p>
@@ -409,7 +506,8 @@ export function FindWhere({ picked, archive }: { picked: Picked; archive: string
           <button type="button" onClick={() => void search()} disabled={!span} className={BUTTON} data-testid="where-search">
             {t.search}
           </button>
-          {span && (
+          {/* Coordinates and a local hour: the time zone is only asked for when the search starts. */}
+          {span && (zone === "utc" || place?.zone) && (
             <p className="text-sm text-balance text-mute tabular-nums" data-testid="where-window">
               {fill(t.window, { from: `${new Date(span[0] * 1000).toISOString().slice(0, 10)} ${clockOf(span[0]).slice(0, 5)}`, to: `${new Date(span[1] * 1000).toISOString().slice(0, 10)} ${clockOf(span[1]).slice(0, 5)}` })}
             </p>
@@ -464,11 +562,12 @@ export function FindWhere({ picked, archive }: { picked: Picked; archive: string
             <div className="flex flex-col gap-2" data-testid="where-share">
               <Share
                 label={t.result.share}
-                text={fill(t.result.shareText, { verdict: said.title, place: coordinates(best, 2) })}
+                text={fill(t.result.shareText, { verdict: said.title, place: nearText(best) ?? coordinates(best, 2) })}
                 card={{
                   lead: said.title,
-                  name: coordinates(best, 2),
-                  detail: new Date(best.start * 1000).toISOString().slice(0, 10),
+                  name: nearText(best) ?? coordinates(best, 2),
+                  // The day, and the coordinates once the name has taken their place above.
+                  detail: `${new Date(best.start * 1000).toISOString().slice(0, 10)}${nearText(best) ? ` - ${coordinates(best)}` : ""}`,
                   facts: [
                     [`${clockOf(best.start).slice(0, 5)} UTC`, t.result.cardStart],
                     [String(best.planes.length), t.result.cardFlyovers],
@@ -483,7 +582,8 @@ export function FindWhere({ picked, archive }: { picked: Picked; archive: string
           {found && best && found.guesses.length > 1 && (
             <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap" role="group" aria-label={t.result.guesses} data-testid="where-guesses">
               {found.guesses.map((g, i) => {
-                const values = { n: i + 1, place: coordinates(g, 2), distance: f.km(metresApart(best, g)) };
+                const near = names.get(spotKey(g));
+                const values = { n: i + 1, place: near ? placeLabel(near) : coordinates(g, 2), distance: f.km(metresApart(best, g)) };
                 return (
                   <button
                     key={`${g.lat},${g.lon},${g.start}`}

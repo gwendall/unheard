@@ -93,9 +93,9 @@ What a visitor goes through, and where it lives:
 - **Find where** (`components/FindWhere.tsx`, `components/SpotPlot.tsx`,
   `lib/client/where.ts`, `lib/client/where.worker.ts`): a spot and a start
   time out, in the browser. It asks only what is missing: the day and hour come filled in from the
-  file (the page says from which tag), and roughly where is a name through Open-Meteo's geocoder,
-  coordinates, or "Use my location" (a 100 km square); with nothing missing it goes straight to the
-  search. The sound
+  file (the page says from which tag), and roughly where is a town offered as you type (`searchPlaces`,
+  our own gazetteer), coordinates, or "Use my location" (a 100 km square); with nothing missing it
+  goes straight to the search. The sound
   is decoded at the analysis rate, then a worker finds the tones, fetches that day's tiles for the
   area, and runs `whereWhen`, with an estimate of the time left and a way to cancel; the tones and
   "Take them out" stay usable meanwhile. "Probably here" only under the confidence flag, else "Best guess" and
@@ -103,7 +103,10 @@ What a visitor goes through, and where it lives:
   (the history keeps no callsign), type, distance and passing time, its spectrum with the curve.
   A share card (`lib/client/where-card.ts`, the same `drawCard`) holds the plot, one curve, the place
   and the time; it is drawn only on the sharer's click, and nothing is sent until they choose where.
-  Local time comes from the place's zone (geocoder) or, for typed coordinates, the longitude.
+  The answer leads with the town nearest it (`nearestPlace`, "Near Oyster Bay, New York", waited for
+  1.5 s at most so the answer arrives whole), coordinates second, and the answers' chips read as town
+  names. Local time comes from that town's zone; a local hour with typed coordinates asks the nearest
+  town when the search starts, the same square it reads; the longitude only when no name answers.
   - **The flight archive is one setting**, `NEXT_PUBLIC_HISTORY_URL` (`lib/archive.ts`, read at
     build time): without it the page says the archive is not connected and offers no search; what
     a file says, its tones and taking them out still work. On production it is `https://unheard-history.t3.tigrisbucket.io` (no trailing slash;

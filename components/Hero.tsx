@@ -31,7 +31,9 @@ export function Hero({ onListen, onExample, error, qr }: { onListen: () => void;
     (file: File) => {
       holdFile(file);
       setOpening(true);
-      router.push(where);
+      // Always from the top of the page, wherever on the home it was dropped.
+      window.scrollTo({ top: 0, behavior: "instant" });
+      router.push(where, { scroll: false });
     },
     [router, where],
   );
