@@ -73,7 +73,7 @@ SEEDS=10 pnpm eval evals/synthetic   # a quick eval, about a minute
 | Synthetic eval | 66+ made-up scenes: faint, far, windy, crowded sky, plane missing from the data | `pnpm eval evals/synthetic` | CI (ratchet) |
 | Real tracks | real ADS-B recorded with `pnpm record-sky`, made-up sound, half the polls | `pnpm eval evals/real-tracks` | CI (ratchet) |
 | Real audio | AeroSonicDB recordings + ADS-B Exchange history, Livermore phone recordings + their ADS-B tracks, and the page's own capture bundles | `node scripts/fetch-aerosonic.ts && node scripts/fetch-livermore.ts && pnpm eval evals/real-audio` | on demand (data not in git) |
-| E2E | the real page in Chromium, fake microphone playing a fixture, replayed ADS-B | `BASE_URL=<url> pnpm e2e` | on demand |
+| E2E | the real page in Chromium, fake microphone playing a fixture, replayed ADS-B | `BASE_URL=<url> pnpm e2e` | CI |
 
 See `evals/README.md` for the metrics, the baseline and how to add real recordings.
 
