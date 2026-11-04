@@ -38,26 +38,40 @@ export function pathsOf(flights: Flight[], centre: Listener, from: number, to: n
       const n = Math.floor(f.t[b - 1]) - t0 + 1;
       if (n >= 10) {
         const p: Path = { f: fi, t0, n, x: new Float32Array(n), y: new Float32Array(n), z: new Float32Array(n), vx: new Float32Array(n), vy: new Float32Array(n), vz: new Float32Array(n) };
+        const { t: ft, lat, lon, altFt, track, gs, vrate } = f;
         let k = a;
+        // Velocities as vectors: a track angle does not interpolate across north. Worked out once per pair of fixes.
+        let pair = -1;
+        let v0x = 0;
+        let v0y = 0;
+        let v0z = 0;
+        let v1x = 0;
+        let v1y = 0;
+        let v1z = 0;
         for (let i = 0; i < n; i++) {
           const t = t0 + i;
-          while (k < b - 2 && f.t[k + 1] <= t) k++;
-          const u = f.t[k + 1] > f.t[k] ? (t - f.t[k]) / (f.t[k + 1] - f.t[k]) : 0;
-          const lerp = (c: ArrayLike<number>) => c[k] + u * (c[k + 1] - c[k]);
-          const q = toLocal(centre, lerp(f.lat), lerp(f.lon), 0);
+          while (k < b - 2 && ft[k + 1] <= t) k++;
+          const u = ft[k + 1] > ft[k] ? (t - ft[k]) / (ft[k + 1] - ft[k]) : 0;
+          const q = toLocal(centre, lat[k] + u * (lat[k + 1] - lat[k]), lon[k] + u * (lon[k + 1] - lon[k]), 0);
           p.x[i] = q[0];
           p.y[i] = q[1];
-          p.z[i] = lerp(f.altFt) * FT;
-          // Velocities as vectors: a track angle does not interpolate across north.
-          const v = (j: number) => {
-            const th = f.track[j] * RAD;
-            const gs = f.gs[j] * KT;
-            return [gs * Math.sin(th), gs * Math.cos(th), (f.vrate[j] * FT) / 60];
-          };
-          const [v0, v1] = [v(k), v(k + 1)];
-          p.vx[i] = v0[0] + u * (v1[0] - v0[0]);
-          p.vy[i] = v0[1] + u * (v1[1] - v0[1]);
-          p.vz[i] = v0[2] + u * (v1[2] - v0[2]);
+          p.z[i] = (altFt[k] + u * (altFt[k + 1] - altFt[k])) * FT;
+          if (k !== pair) {
+            pair = k;
+            const th0 = track[k] * RAD;
+            const gs0 = gs[k] * KT;
+            v0x = gs0 * Math.sin(th0);
+            v0y = gs0 * Math.cos(th0);
+            v0z = (vrate[k] * FT) / 60;
+            const th1 = track[k + 1] * RAD;
+            const gs1 = gs[k + 1] * KT;
+            v1x = gs1 * Math.sin(th1);
+            v1y = gs1 * Math.cos(th1);
+            v1z = (vrate[k + 1] * FT) / 60;
+          }
+          p.vx[i] = v0x + u * (v1x - v0x);
+          p.vy[i] = v0y + u * (v1y - v0y);
+          p.vz[i] = v0z + u * (v1z - v0z);
         }
         paths.push(p);
       }
@@ -209,161 +223,240 @@ const ringsOf = (ratio: number, maxRange: number) => {
 };
 
 /** Every moment of every path, every slant distance on each side, every tone slid along the curve. */
-export async function scanTracks(tones: Tone[], paths: Path[], flights: Flight[], o: ScanOptions): Promise<Scan> {
+/** What a scan keeps from one path to the next, and the memory its loops reuse. */
+type ScanState = {
+  o: ScanOptions;
+  tones: Tone[];
+  /** Per tone: the fall between its two ends, read before any slide. */
+  falls: Float64Array;
+  fits: Fits[];
+  limits: number[];
+  hist: Float64Array[];
+  curve: Float32Array;
+  R: Float64Array;
+  A: Float64Array;
+  res: Float32Array;
+  rings: Float64Array;
+  /** Per ring, (d * ratio) squared: the patch of ground a spot stands for. */
+  rings2: Float64Array;
+  last: Int32Array;
+  speeds: Float64Array;
+  anyJets: boolean;
+  W: number;
+  spots: number;
+  slides: number;
+};
+
+/**
+ * The spots along one flight's track, each read against every tone. Apart from the async loop
+ * that calls it: in a loop that can be suspended V8 optimises far less, and this one runs for
+ * every path of a day of flights.
+ */
+function scanPath(st: ScanState, p: Path, jet: boolean) {
+  const { o, tones, falls, fits, limits, hist, curve, R, A, res, rings, rings2, last, anyJets, W } = st;
   const every = o.every ?? 4;
-  const ratio = o.ratio ?? 1.12;
   const margin = o.margin ?? 15;
   const keep = o.keep ?? 200_000;
-  const [w0, w1] = o.window;
+  const w0 = o.window[0];
+  const w1 = o.window[1];
+  const half = o.half;
+  const maxRange = o.maxRange;
+  const ground = o.ground;
   const T = tones.length;
-  const fits = tones.map(() => fitsOf(4096));
-  const limits = tones.map(() => o.limit ?? 0.5);
-  const hist = tones.map(() => new Float64Array(BINS));
-  const longest = Math.max(...tones.map((t) => t.length));
-  const W = longest + margin + 2;
-  const curve = new Float32Array(2 * W + 1).fill(NaN);
-  const R = new Float64Array(2 * W + 64);
-  const A = new Float64Array(2 * W + 64);
-  const res = new Float32Array(FRAMES + 1);
-  const anyJets = tones.some((t) => t.jets);
-  const rings = ringsOf(ratio, o.maxRange);
-  const last = new Int32Array(rings.length);
   const c = o.c;
+  if (jet && !anyJets) return;
+  const { x: px, y: py, z: pz, vx, vy, vz, n: pn, t0 } = p;
+  if (st.speeds.length < pn) st.speeds = new Float64Array(2 * pn);
+  const speeds = st.speeds;
+  last.fill(-1_000_000);
   let spots = 0;
   let slides = 0;
+  for (let j = 0; j < pn; j++) {
+    const speed = Math.hypot(vx[j], vy[j]);
+    speeds[j] = speed;
+    if (speed < 15) continue;
+    const gx = px[j];
+    const gy = py[j];
+    if (Math.abs(gx) > half + maxRange || Math.abs(gy) > half + maxRange) continue;
+    const h0 = Math.max(10, pz[j] - ground(gx, gy));
+    const ux = vy[j] / speed;
+    const uy = -vx[j] / speed;
+    for (let ring = 0; ring < rings.length; ring++) {
+      const d = rings[ring];
+      if (d < h0) continue;
+      // A spot this far stands for a tenth of its distance along the track (or `every` seconds);
+      // a turn sweeps the far rings faster than it moves along.
+      const gap = j - last[ring];
+      if (gap < Math.max(every, Math.round((0.12 * d) / speed))) {
+        const l = last[ring];
+        const cross = (vx[l] * vy[j] - vy[l] * vx[j]) / (speeds[l] * speed + 1e-6);
+        if (Math.abs(cross) < 0.1) continue;
+      }
+      last[ring] = j;
+      const across = Math.sqrt(d * d - h0 * h0);
+      // The patch of ground this spot stands for, each side of the track: for the rate of fits.
+      const cell = Math.max(every * speed, 0.12 * d) * (Math.sqrt(rings2[ring] - h0 * h0) - across);
+      const width = d / speed;
+      const stride = Math.max(1, Math.min(4, Math.floor(width / 10)));
+      for (let side = across < 1 ? 1 : -1; side <= 1; side += 2) {
+        const lx = gx + side * across * ux;
+        const ly = gy + side * across * uy;
+        if (Math.abs(lx) > half || Math.abs(ly) > half) continue;
+        const lz = ground(lx, ly);
+        spots++;
+        // No tone can read this spot: the curve below would be for nothing.
+        const dx0 = px[j] - lx;
+        const dy0 = py[j] - ly;
+        const dz0 = pz[j] - lz;
+        const moment = t0 + j + Math.sqrt(dx0 * dx0 + dy0 * dy0 + dz0 * dz0) / c;
+        let wanted = false;
+        for (let ti = 0; ti < T && !wanted; ti++) {
+          const tone = tones[ti];
+          if ((jet && !tone.jets) || speed < tone.minSpeed) continue;
+          const s0 = moment - tone.first;
+          wanted = !(s0 + margin < w0 || s0 - tone.length - margin > w1);
+        }
+        if (!wanted) continue;
+        // The curve: emission on whole seconds around the moment, then on whole seconds of
+        // receive time from the moment's sound arriving (far spots every stride seconds).
+        const from = j - stride * Math.floor(Math.min(W + 8, j) / stride);
+        const to = j + Math.min(W + 8, pn - 1 - j);
+        let m = 0;
+        let hereR = 0;
+        for (let e = from; e <= to; e += stride, m++) {
+          const dx = px[e] - lx;
+          const dy = py[e] - ly;
+          const dz = pz[e] - lz;
+          const r = Math.sqrt(dx * dx + dy * dy + dz * dz);
+          R[m] = e - j + r / c;
+          if (e === j) hereR = R[m];
+          const a = -(vx[e] * dx + vy[e] * dy + vz[e] * dz) / (r * c);
+          // -log(1 - a), to the third order.
+          A[m] = r < maxRange ? a + a * a * (0.5 + a / 3) : NaN;
+        }
+        if (m < 2) continue;
+        let q = 0;
+        let lo = Infinity;
+        let hi = -Infinity;
+        for (let i = -W; i <= W; i++) {
+          const u = hereR + i;
+          while (q < m - 2 && R[q + 1] <= u) q++;
+          if (u < R[0] || u > R[m - 1]) curve[i + W] = NaN;
+          else {
+            const v = A[q] + ((u - R[q]) / (R[q + 1] - R[q])) * (A[q + 1] - A[q]);
+            curve[i + W] = v;
+            if (v < lo) lo = v;
+            if (v > hi) hi = v;
+          }
+        }
+        const start0 = t0 + j + hereR;
+        for (let ti = 0; ti < T; ti++) {
+          const tone = tones[ti];
+          if ((jet && !tone.jets) || speed < tone.minSpeed || hi - lo < tone.fall - 0.03) continue;
+          const dt = tone.dt;
+          const y = tone.y;
+          const length = tone.length;
+          // Only the starts in the window: outside it this tone cannot have been heard here.
+          const s0 = start0 - tone.first;
+          if (s0 + margin < w0 || s0 - length - margin > w1) continue;
+          const nf = dt.length;
+          const end = nf - 1;
+          const fall = falls[ti];
+          const limit = limits[ti] * nf;
+          const d0 = dt[0];
+          const d1 = dt[1];
+          const d2 = dt[end - 1];
+          const d3 = dt[end];
+          const counts = hist[ti];
+          let best = Infinity;
+          let at = 0;
+          for (let i0 = -length - margin; i0 <= margin; i0 += stride) {
+            // The two ends first: most slides stop here.
+            const base = W + i0;
+            const ends = curve[base + d0] + curve[base + d1] - curve[base + d2] - curve[base + d3];
+            if (Math.abs(ends - fall) > 0.06) continue;
+            slides++;
+            let count = 0;
+            let sum = 0;
+            for (let k = 0; k < nf; k++) {
+              const v = curve[base + dt[k]];
+              if (v === v) sum += res[count++] = y[k] - v;
+            }
+            if (count * 2 < nf) continue;
+            const mean = sum / count;
+            let l = (nf - count) * MISS;
+            for (let k = 0; k < count && l < limit; k++) {
+              const z = Math.abs(res[k] - mean) * RHO_K;
+              l += z < RHO_MAX ? RHO[z | 0] : MISS;
+            }
+            if (l >= limit) continue;
+            counts[Math.min(BINS - 1, Math.floor(l / nf / BIN))] += cell * stride;
+            if (l < best) {
+              best = l;
+              at = i0;
+            }
+          }
+          if (best === Infinity) continue;
+          const start = s0 + at;
+          if (start < w0 || start > w1) continue;
+          let list = fits[ti];
+          if (list.n === list.x.length) {
+            if (list.n >= keep) {
+              limits[ti] = halve(list);
+              if (best >= limits[ti] * nf) continue;
+            } else fits[ti] = list = growFits(list, Math.min(keep, 2 * list.n));
+          }
+          const a = list.n++;
+          list.x[a] = lx;
+          list.y[a] = ly;
+          list.start[a] = start;
+          list.f[a] = p.f;
+          list.loss[a] = best / nf;
+          list.d[a] = d;
+        }
+      }
+    }
+  }
+  st.spots += spots;
+  st.slides += slides;
+}
+
+export async function scanTracks(tones: Tone[], paths: Path[], flights: Flight[], o: ScanOptions): Promise<Scan> {
+  const ratio = o.ratio ?? 1.12;
+  const margin = o.margin ?? 15;
+  const [w0, w1] = o.window;
+  const longest = Math.max(...tones.map((t) => t.length));
+  const W = longest + margin + 2;
+  const rings = ringsOf(ratio, o.maxRange);
+  const st: ScanState = {
+    o,
+    tones,
+    falls: Float64Array.from(tones, ({ y, dt }) => y[0] + y[1] - y[dt.length - 2] - y[dt.length - 1]),
+    fits: tones.map(() => fitsOf(4096)),
+    limits: tones.map(() => o.limit ?? 0.5),
+    hist: tones.map(() => new Float64Array(BINS)),
+    curve: new Float32Array(2 * W + 1).fill(NaN),
+    R: new Float64Array(2 * W + 64),
+    A: new Float64Array(2 * W + 64),
+    res: new Float32Array(FRAMES + 1),
+    rings: Float64Array.from(rings),
+    rings2: Float64Array.from(rings, (d) => (d * ratio) ** 2),
+    last: new Int32Array(rings.length),
+    speeds: new Float64Array(4096),
+    anyJets: tones.some((t) => t.jets),
+    W,
+    spots: 0,
+    slides: 0,
+  };
   let done = 0;
   for (const p of paths) {
     if (++done % 200 === 0) {
       o.onProgress?.(done, paths.length);
       await yieldNow();
     }
-    const jet = flights[p.f].kind === KIND.jet;
-    if (jet && !anyJets) continue;
-    const { x: px, y: py, z: pz, vx, vy, vz, n: pn, t0 } = p;
-    last.fill(-1_000_000);
-    for (let j = 0; j < pn; j++) {
-      const speed = Math.hypot(vx[j], vy[j]);
-      if (speed < 15) continue;
-      const gx = px[j];
-      const gy = py[j];
-      if (Math.abs(gx) > o.half + o.maxRange || Math.abs(gy) > o.half + o.maxRange) continue;
-      const h0 = Math.max(10, pz[j] - o.ground(gx, gy));
-      const [ux, uy] = [vy[j] / speed, -vx[j] / speed];
-      for (let ring = 0; ring < rings.length; ring++) {
-        const d = rings[ring];
-        if (d < h0) continue;
-        // A spot this far stands for a tenth of its distance along the track (or `every` seconds);
-        // a turn sweeps the far rings faster than it moves along.
-        const gap = j - last[ring];
-        if (gap < Math.max(every, Math.round((0.12 * d) / speed))) {
-          const l = last[ring];
-          const cross = (vx[l] * vy[j] - vy[l] * vx[j]) / (Math.hypot(vx[l], vy[l]) * speed + 1e-6);
-          if (Math.abs(cross) < 0.1) continue;
-        }
-        last[ring] = j;
-        const across = Math.sqrt(d * d - h0 * h0);
-        // The patch of ground this spot stands for, each side of the track: for the rate of fits.
-        const cell = Math.max(every * speed, 0.12 * d) * (Math.sqrt((d * ratio) ** 2 - h0 * h0) - across);
-        const width = d / speed;
-        const stride = Math.max(1, Math.min(4, Math.floor(width / 10)));
-        for (let side = across < 1 ? 1 : -1; side <= 1; side += 2) {
-          const lx = gx + side * across * ux;
-          const ly = gy + side * across * uy;
-          if (Math.abs(lx) > o.half || Math.abs(ly) > o.half) continue;
-          const lz = o.ground(lx, ly);
-          spots++;
-          // The curve: emission on whole seconds around the moment, then on whole seconds of
-          // receive time from the moment's sound arriving (far spots every stride seconds).
-          const from = j - stride * Math.floor(Math.min(W + 8, j) / stride);
-          const to = j + Math.min(W + 8, pn - 1 - j);
-          let m = 0;
-          let hereR = 0;
-          for (let e = from; e <= to; e += stride, m++) {
-            const dx = px[e] - lx;
-            const dy = py[e] - ly;
-            const dz = pz[e] - lz;
-            const r = Math.sqrt(dx * dx + dy * dy + dz * dz);
-            R[m] = e - j + r / c;
-            if (e === j) hereR = R[m];
-            const a = -(vx[e] * dx + vy[e] * dy + vz[e] * dz) / (r * c);
-            // -log(1 - a), to the third order.
-            A[m] = r < o.maxRange ? a + a * a * (0.5 + a / 3) : NaN;
-          }
-          if (m < 2) continue;
-          let q = 0;
-          let lo = Infinity;
-          let hi = -Infinity;
-          for (let i = -W; i <= W; i++) {
-            const u = hereR + i;
-            while (q < m - 2 && R[q + 1] <= u) q++;
-            if (u < R[0] || u > R[m - 1]) curve[i + W] = NaN;
-            else {
-              const v = A[q] + ((u - R[q]) / (R[q + 1] - R[q])) * (A[q + 1] - A[q]);
-              curve[i + W] = v;
-              if (v < lo) lo = v;
-              if (v > hi) hi = v;
-            }
-          }
-          const start0 = t0 + j + hereR;
-          for (let ti = 0; ti < T; ti++) {
-            const tone = tones[ti];
-            if ((jet && !tone.jets) || speed < tone.minSpeed || hi - lo < tone.fall - 0.03) continue;
-            const { dt, y, length } = tone;
-            // Only the starts in the window: outside it this tone cannot have been heard here.
-            const s0 = start0 - tone.first;
-            if (s0 + margin < w0 || s0 - length - margin > w1) continue;
-            const nf = dt.length;
-            const end = nf - 1;
-            const fall = y[0] + y[1] - y[end - 1] - y[end];
-            const limit = limits[ti] * nf;
-            let best = Infinity;
-            let at = 0;
-            for (let i0 = -length - margin; i0 <= margin; i0 += stride) {
-              // The two ends first: most slides stop here.
-              const base = W + i0;
-              const [c0, c1, c2, c3] = [curve[base + dt[0]], curve[base + dt[1]], curve[base + dt[end - 1]], curve[base + dt[end]]];
-              const ends = c0 + c1 - c2 - c3;
-              if (Math.abs(ends - fall) > 0.06) continue;
-              slides++;
-              let count = 0;
-              let sum = 0;
-              for (let k = 0; k < nf; k++) {
-                const v = curve[base + dt[k]];
-                if (v === v) sum += res[count++] = y[k] - v;
-              }
-              if (count * 2 < nf) continue;
-              const mean = sum / count;
-              let l = (nf - count) * MISS;
-              for (let k = 0; k < count && l < limit; k++) {
-                const z = Math.abs(res[k] - mean) * RHO_K;
-                l += z < RHO_MAX ? RHO[z | 0] : MISS;
-              }
-              if (l >= limit) continue;
-              hist[ti][Math.min(BINS - 1, Math.floor(l / nf / BIN))] += cell * stride;
-              if (l < best) [best, at] = [l, i0];
-            }
-            if (best === Infinity) continue;
-            const start = s0 + at;
-            if (start < w0 || start > w1) continue;
-            let list = fits[ti];
-            if (list.n === list.x.length) {
-              if (list.n >= keep) {
-                limits[ti] = halve(list);
-                if (best >= limits[ti] * nf) continue;
-              } else fits[ti] = list = growFits(list, Math.min(keep, 2 * list.n));
-            }
-            const a = list.n++;
-            list.x[a] = lx;
-            list.y[a] = ly;
-            list.start[a] = start;
-            list.f[a] = p.f;
-            list.loss[a] = best / nf;
-            list.d[a] = d;
-          }
-        }
-      }
-    }
+    scanPath(st, p, flights[p.f].kind === KIND.jet);
   }
+  const { fits, limits, hist, spots, slides } = st;
   // Cumulative: expected flights under each bin's top at a random spot and second.
   const volume = (2 * o.half) ** 2 * Math.max(60, w1 - w0);
   const rate = hist.map((h) => {

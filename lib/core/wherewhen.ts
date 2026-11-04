@@ -333,7 +333,7 @@ export async function whereWhen(segments: Segment[], flights: Flight[], options:
   const tS = performance.now();
   const smooth = used.map((f, i) => {
     if (i % 100 === 0) o.onProgress?.("smooth", i, used.length);
-    return smoothFlight(f, centre);
+    return smoothFlight(f, centre, w0 - 600, w1 + duration + 600);
   });
   ms.smooth = Math.round(performance.now() - tS);
 
