@@ -34,7 +34,7 @@ export type Plane = { hex: string; registration: string; type: string; metres: n
 export type PlanePath = { hex: string; points: [number, number][]; closest: [number, number] };
 /** A tone of the file, as the page draws it. */
 export type ToneView = { tone: Tone; picture: Picture };
-export type Guess = { lat: number; lon: number; start: number; mirror: { lat: number; lon: number } | null; planes: Plane[]; paths: PlanePath[] };
+export type Guess = { lat: number; lon: number; start: number; mirror: { lat: number; lon: number } | null; planes: Plane[]; paths: PlanePath[]; atSea?: boolean };
 
 export type WhereResult =
   | { kind: "none" }
@@ -107,7 +107,7 @@ function guessOf(a: Answer, byHex: Map<string, Flight>, tones: Tone[], ground: (
       paths.set(p.hex, pass.path);
     }
   }
-  return { lat: a.lat, lon: a.lon, start: a.start, mirror: a.mirror && { lat: a.mirror.lat, lon: a.mirror.lon }, planes: [...planes.values()].sort((x, y) => x.at - y.at), paths: [...paths.values()] };
+  return { lat: a.lat, lon: a.lon, start: a.start, mirror: a.mirror && { lat: a.mirror.lat, lon: a.mirror.lon }, planes: [...planes.values()].sort((x, y) => x.at - y.at), paths: [...paths.values()], atSea: a.atSea };
 }
 
 function viewsOf(guesses: Guess[], tones: Tone[], read: Reader, length: number, duration: number): Record<number, ToneView> {

@@ -16,7 +16,8 @@
 // 3. Together. Every flyover heard must agree on one spot and one start: each tone's best fits add
 //    the worth of the other tones' fits next to them.
 // 4. The best distinct spots and times are read exactly with every trace, and lose ground for every
-//    aircraft that passed close during the recording but is heard nowhere (silence rules spots out).
+//    aircraft that passed close during the recording but is heard nowhere (silence rules spots out)
+//    and when they lie out on the water (lib/core/sea.ts: down, never out).
 // 5. Fine. locate() searches around the best few, with the flight data of that time.
 //
 // The answer's worth is the sum of its flights' surprises: how it compares with the number of
@@ -30,6 +31,7 @@ import { inParallel } from "./parallel";
 import { fromLocal, toLocal, type Listener } from "./geo";
 import { firstAfter, MISS, RANGE, readFast, smoothFlight, SWEEP, within } from "./guess";
 import { locate, type Area } from "./locate";
+import { AT_SEA, keepBest, seaOf } from "./sea";
 import { gridOfGround, joinFits, pathsOf, scanPart, scanTracksWith, toneOf, worthOf, type ScanRunner } from "./tracks";
 
 export { findSegments, flybys, type Flyby, type Segment, type SegmentWatch } from "./flyby";
@@ -116,6 +118,8 @@ export type Answer = {
   wellHeard: number;
   /** Aircraft that passed close during the recording and are heard in no trace. */
   silent: string[];
+  /** Out on the water, away from any land (lib/core/sea.ts). */
+  atSea: boolean;
   planes: Explained[];
   /** The twin spot across the leading aircraft's track, when there is a distinct one. */
   mirror: { lat: number; lon: number; score: number } | null;
@@ -135,6 +139,7 @@ export type Hypothesis = {
   evidence: number;
   worth: number;
   silent: string[];
+  atSea: boolean;
 };
 
 export type WhereWhen = {
@@ -164,7 +169,8 @@ export type WhereWhen = {
 /** How far the best answer must lead the next one (another spot or time), in nats. */
 export const LEAD = 3;
 /** How far its worth must pass the size of the search, in nats. Chance alone gets far: on colsto's
- * day a wrong answer 39 km off passes it by 5.6, two flyovers heard well and 3.1 ahead of the truth. */
+ * day a wrong answer 39 km off passes it by 5.6, two flyovers heard well and 3.1 ahead of the truth
+ * by the sound alone (it lies at sea: lib/core/sea.ts ranks it second now). */
 export const MARGIN = 8;
 
 const FT = 0.3048;
@@ -304,6 +310,7 @@ export async function whereWhen(segments: Segment[], flights: Flight[], options:
   const o = { ...DEFAULTS, ...Object.fromEntries(Object.entries(options).filter(([, v]) => v !== undefined)) } as typeof DEFAULTS & WhereWhenOptions;
   const air = o.air ?? { groundTempC: 15 };
   const ground = o.ground ?? (() => 0);
+  const atSea = seaOf(ground, o.area);
   // The stretches of the recording searched for traces, file seconds: silence counts only there.
   const ends = segments.map((g) => {
     const times = g.stack.base.times;
@@ -484,6 +491,9 @@ export async function whereWhen(segments: Segment[], flights: Flight[], options:
     const close = (c: Pick) => Math.abs(c.start - pr.start) <= 30 && Math.hypot(...offset(pr, c)) <= 1000;
     Object.assign(probe, { pool: pool.findIndex(close) + 1, lite: lite.findIndex((x) => close(x.cd)) + 1 });
   }
+  // What a spot is worth by the sound alone, then with the prior against the open water.
+  const heardOf = (h: { worth: number; silent: string[] }) => h.worth - SILENT * h.silent.length;
+  const rankOf = (h: { worth: number; silent: string[]; atSea: boolean }) => heardOf(h) - (h.atSea ? AT_SEA : 0);
   // The best of them read with every trace, silence counted.
   const hypotheses: Hypothesis[] = [];
   const everyTrace = shapes.map((_, ti) => ti);
@@ -498,8 +508,9 @@ export async function whereWhen(segments: Segment[], flights: Flight[], options:
       const w = reads[ti].f >= 0 ? worthOf(scan, i, reads[ti].loss) : -1;
       if (w > top) [top, trace] = [w, ti];
     });
-    hypotheses.push({ lat: cd.lat, lon: cd.lon, start: cd.start, loss: cd.loss, hex: used[cd.f].hex, trace, reads, evidence, worth, silent });
-    const added = worth - SILENT * silent.length;
+    const hypothesis: Hypothesis = { lat: cd.lat, lon: cd.lon, start: cd.start, loss: cd.loss, hex: used[cd.f].hex, trace, reads, evidence, worth, silent, atSea: atSea(cd.lat, cd.lon) };
+    hypotheses.push(hypothesis);
+    const added = rankOf(hypothesis);
     if (added > bestRead) {
       bestRead = added;
       tell("joint", cd, used[cd.f].hex, added);
@@ -509,14 +520,14 @@ export async function whereWhen(segments: Segment[], flights: Flight[], options:
       await tick();
     }
   }
-  const rankOf = (h: { worth: number; silent: string[] }) => h.worth - SILENT * h.silent.length;
   hypotheses.sort((x, y) => rankOf(y) - rankOf(x) || y.evidence - x.evidence);
+  keepBest(hypotheses, heardOf);
   ms.joint = Math.round(performance.now() - t3);
   if (probe && o.probe) {
     // The truth read like a hypothesis, and how many hypotheses rank above it.
     const at = readAll(o.probe.lat, o.probe.lon, o.probe.start, everyTrace, 1);
     const silent = silenceAt(at.listener, o.probe.start, at.reads);
-    Object.assign(probe, { worth: at.worth, evidence: at.evidence, silent: silent.length, above: hypotheses.filter((h) => rankOf(h) > rankOf({ worth: at.worth, silent })).length });
+    Object.assign(probe, { worth: at.worth, evidence: at.evidence, silent: silent.length, above: hypotheses.filter((h) => rankOf(h) > rankOf({ worth: at.worth, silent, atSea: atSea(o.probe!.lat, o.probe!.lon) })).length });
   }
 
   // 5. locate() around the best few, with the flight data of that time as polls, then every
@@ -553,16 +564,18 @@ export async function whereWhen(segments: Segment[], flights: Flight[], options:
       worth: use.worth,
       wellHeard: wellHeard(use.reads, shapes),
       silent: use.silent,
+      atSea: atSea(use.lat, use.lon),
       planes,
       mirror: loc.mirror ? { lat: loc.mirror.lat, lon: loc.mirror.lon, score: loc.mirror.score } : null,
     });
-    const rank = rankOf(use);
+    const rank = rankOf({ ...use, atSea: atSea(use.lat, use.lon) });
     if (rank > bestFine) {
       bestFine = rank;
       tell("fine", use, planes[0]?.hex ?? h.hex, rank);
     }
   }
   answers.sort((x, y) => rankOf(y) - rankOf(x) || y.evidence - x.evidence);
+  keepBest(answers, heardOf);
   const distinct: Answer[] = [];
   for (const ans of answers) {
     const twin = distinct.find((d) => Math.hypot(...offset(d, ans)) < 300 && Math.abs(d.start - ans.start) < 20);
@@ -576,7 +589,8 @@ export async function whereWhen(segments: Segment[], flights: Flight[], options:
   // One flyover is never enough over a day (on Livermore R01, thousands of aircraft, spots and
   // starts fit its one pass better than the truth): two heard well, by two aircraft, at one spot
   // and one start, worth more than the search's size can make by chance, ahead of every other answer.
-  const confident = !!best && best.wellHeard >= 2 && rankOf(best) >= searched + MARGIN && (!rival || rankOf(best) - rankOf(rival) >= LEAD);
+  // Ahead by the sound alone: the prior against the water never raises the flag.
+  const confident = !!best && best.wellHeard >= 2 && rankOf(best) >= searched + MARGIN && (!rival || rankOf(best) - heardOf(rival) >= LEAD);
   return { answers: distinct, confident, searched, traces: traces.length, flybys: summary, flights: used.length, candidates: ms.fits, probe, hypotheses: hypotheses.slice(0, 50), ms };
 }
 
