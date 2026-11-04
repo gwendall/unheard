@@ -16,25 +16,40 @@ export type Segment = { stack: Stack; offset: number; traces: Trace[] };
 /** Traces as locate() reads them: propeller and rotor tones up to jet fans (3.4 kHz). */
 const TRACES = { fMin: 40, fMax: 3400 };
 
+/** Watching the search of a long file: how far it has got, 0 to 1, and each segment as soon as it holds a trace. */
+export type SegmentWatch = { onProgress?: (fraction: number) => void; onSegment?: (segment: Segment) => void };
+
+/** A chunk's share building its stack, the rest searching it. */
+const STACK_SHARE = 0.45;
+
 /**
  * The traces of a recording, whole when it is short; a long one (colsto's hour) chunk by chunk,
  * 180 s every 120 s up to 1 kHz (propellers and rotors), a tone found twice in an overlap kept
  * once. Only the chunks that hold a trace are kept. `searched` is what silence may count on.
  */
-export function findSegments(samples: Float32Array, sampleRate: number, chunk = 180, step = 120): { segments: Segment[]; searched: [number, number][] } {
+export function findSegments(samples: Float32Array, sampleRate: number, chunk = 180, step = 120, watch: SegmentWatch = {}): { segments: Segment[]; searched: [number, number][] } {
   const total = samples.length / sampleRate;
+  const { onProgress, onSegment } = watch;
   if (total <= chunk + 60) {
-    const stack = buildStack(samples, sampleRate);
-    return { segments: [{ stack, offset: 0, traces: findTraces(stack, TRACES).traces }], searched: [[0, total]] };
+    const stack = buildStack(samples, sampleRate, { onProgress: (s) => onProgress?.(STACK_SHARE * s) });
+    const segment = { stack, offset: 0, traces: findTraces(stack, TRACES, (s) => onProgress?.(STACK_SHARE + (1 - STACK_SHARE) * s)).traces };
+    onSegment?.(segment);
+    return { segments: [segment], searched: [[0, total]] };
   }
+  const chunks = Math.max(1, Math.ceil((total - 30) / step));
   const segments: Segment[] = [];
   const middle = (g: { stack: Stack; offset: number }, t: Trace) => g.offset + g.stack.base.times[(t.from + t.to) >> 1];
   const pitch = (t: Trace) => t.freq[(t.from + t.to) >> 1];
-  for (let offset = 0; offset + 30 < total; offset += step) {
-    const stack = buildStack(samples.subarray(Math.round(offset * sampleRate), Math.min(samples.length, Math.round((offset + chunk) * sampleRate))), sampleRate, { maxHz: 1000 });
+  for (let offset = 0, i = 0; offset + 30 < total; offset += step, i++) {
+    const at = (share: number) => onProgress?.((i + share) / chunks);
+    const stack = buildStack(samples.subarray(Math.round(offset * sampleRate), Math.min(samples.length, Math.round((offset + chunk) * sampleRate))), sampleRate, { maxHz: 1000, onProgress: (s) => at(STACK_SHARE * s) });
     const here = { stack, offset };
-    const traces = findTraces(stack, { ...TRACES, fMax: 400 }).traces.filter((t) => !segments.some((g) => g.traces.some((u) => Math.abs(middle(g, u) - middle(here, t)) < 20 && Math.abs(Math.log(pitch(u) / pitch(t))) < 0.02)));
-    if (traces.length) segments.push({ stack, offset, traces });
+    const traces = findTraces(stack, { ...TRACES, fMax: 400 }, (s) => at(STACK_SHARE + (1 - STACK_SHARE) * s)).traces.filter((t) => !segments.some((g) => g.traces.some((u) => Math.abs(middle(g, u) - middle(here, t)) < 20 && Math.abs(Math.log(pitch(u) / pitch(t))) < 0.02)));
+    if (traces.length) {
+      const segment = { stack, offset, traces };
+      segments.push(segment);
+      onSegment?.(segment);
+    }
   }
   return { segments, searched: [[0, total]] };
 }

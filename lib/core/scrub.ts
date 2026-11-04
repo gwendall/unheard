@@ -34,12 +34,14 @@ export type ScrubOptions = {
    * a new line appears where the old one ran.
    */
   fill?: boolean;
+  /** Called as the work goes: a step per curve, then another per curve's fill. */
+  onStep?: (done: number, total: number) => void;
 };
 
 /** Harmonics taken out by default, the fundamental included. */
 export const HARMONICS = 6;
 
-const DEFAULTS: Required<ScrubOptions> = { harmonics: HARMONICS, width: 3, passes: 3, fill: true };
+const DEFAULTS: Required<ScrubOptions> = { harmonics: HARMONICS, width: 3, passes: 3, fill: true, onStep: () => {} };
 
 /** The curve's frequency at every sample (NaN where unknown), linearly between its points. */
 function perSample(curve: Curve, n: number, rate: number): Float64Array {
@@ -94,7 +96,9 @@ export function scrub(samples: Float32Array, sampleRate: number, curves: Curve[]
   const re = new Float64Array(n);
   const im = new Float64Array(n);
   const weight = new Float64Array(n);
-  for (const curve of curves) {
+  const steps = curves.length * (o.fill ? 2 : 1);
+  for (const [index, curve] of curves.entries()) {
+    o.onStep(index, steps);
     const f = perSample(curve, n, sampleRate);
     const phase = phaseOf(f, sampleRate);
     const width = curve.width ?? o.width;
@@ -176,7 +180,8 @@ function fill(out: Float64Array, rate: number, curves: Curve[], o: Required<Scru
   const BLOCK = 64;
   const blocks = Math.ceil(n / BLOCK);
   const earlier: Float32Array[] = [];
-  for (const curve of curves) {
+  for (const [index, curve] of curves.entries()) {
+    o.onStep(curves.length + index, 2 * curves.length);
     const f = perSample(curve, n, rate);
     const phase = phaseOf(f, rate);
     const coarse = Float32Array.from({ length: blocks }, (_, j) => f[Math.min(n - 1, j * BLOCK + (BLOCK >> 1))]);

@@ -31,8 +31,23 @@ import { firstAfter, MISS, RANGE, readFast, smoothFlight, SWEEP, within } from "
 import { locate, type Area } from "./locate";
 import { groundGrid, joinFits, pathsOf, scanTracks, toneOf, worthOf } from "./tracks";
 
-export { findSegments, flybys, type Flyby, type Segment } from "./flyby";
+export { findSegments, flybys, type Flyby, type Segment, type SegmentWatch } from "./flyby";
 export { readAt } from "./guess";
+
+export type WhereStage = "shape" | "smooth" | "candidates" | "coarse" | "joint" | "fine";
+
+/** The search's best guess while it still runs. */
+export type BestSoFar = {
+  /** How it has been read: the tones' fits joined, every tone read exactly, or refined by locate(). */
+  stage: "coarse" | "joint" | "fine";
+  lat: number;
+  lon: number;
+  start: number;
+  /** The aircraft that leads it. */
+  hex: string;
+  /** What it is worth so far: only comparable within a stage. */
+  worth: number;
+};
 
 export type WhereWhenOptions = {
   /** UTC seconds: the earliest and the latest the recording may have started. */
@@ -53,9 +68,16 @@ export type WhereWhenOptions = {
   searched?: [number, number][];
   /** @deprecated Ignored: the search reads real tracks, its cost follows the flights in the window. */
   budget?: number;
-  /** Called as the search goes: the stage and how far into it ("candidates": the tracks scanned,
-   * "coarse": the join, "joint": every trace read, "fine": locate()). */
-  onProgress?: (stage: "candidates" | "coarse" | "joint" | "fine", done: number, total: number) => void;
+  /** Called as the search goes: the stage and how far into it ("shape": each trace read on its
+   * own, "smooth": the flights, "candidates": the tracks scanned, "coarse": the join, "joint":
+   * every trace read, "fine": locate()). */
+  onProgress?: (stage: WhereStage, done: number, total: number) => void;
+  /**
+   * The best guess so far, each time it changes, from the first rough one on: the search may still
+   * drop it, so it says what it is ("coarse", "joint", "fine") and says nothing of confidence. The
+   * answer is what whereWhen returns.
+   */
+  onBest?: (best: BestSoFar) => void;
   /** The evals' truth: report how the candidates near it ranked (never used to search). */
   probe?: { lat: number; lon: number; start: number };
 };
@@ -288,7 +310,10 @@ export async function whereWhen(segments: Segment[], flights: Flight[], options:
 
   // 1. Each trace on its own: its tone at rest (a jet's fan or not) and the leads a person can check.
   const c0 = pathSpeed(air, 300);
-  const shapes = heard.map((x) => shapeOf(x.t, x.y, c0));
+  const shapes = heard.map((x, ti) => {
+    o.onProgress?.("shape", ti, heard.length);
+    return shapeOf(x.t, x.y, c0);
+  });
   const readings = shapes.map(flybyOf);
   ms.shape = Math.round(performance.now() - t0);
 
@@ -306,7 +331,10 @@ export async function whereWhen(segments: Segment[], flights: Flight[], options:
   const index = indexOf(used);
   // Each flight smoothed once: the tracks every read below is made of.
   const tS = performance.now();
-  const smooth = used.map((f) => smoothFlight(f, centre));
+  const smooth = used.map((f, i) => {
+    if (i % 100 === 0) o.onProgress?.("smooth", i, used.length);
+    return smoothFlight(f, centre);
+  });
   ms.smooth = Math.round(performance.now() - tS);
 
   // 2. Fits: for each flyover's tone, the spots and starts where a flight's real curve follows it.
@@ -331,6 +359,8 @@ export async function whereWhen(segments: Segment[], flights: Flight[], options:
   });
   ms.join = Math.round(performance.now() - t2);
   o.onProgress?.("coarse", 1, 1);
+  const tell = (stage: BestSoFar["stage"], at: { lat: number; lon: number; start: number }, hex: string, worth: number) => o.onBest?.({ stage, lat: at.lat, lon: at.lon, start: at.start, hex, worth });
+  if (seeds.length) tell("coarse", { ...fromLocal(centre, seeds[0].x, seeds[0].y), start: seeds[0].start }, used[seeds[0].f].hex, seeds[0].score);
   let probe: WhereWhen["probe"];
   if (o.probe) {
     const pr = o.probe;
@@ -440,6 +470,7 @@ export async function whereWhen(segments: Segment[], flights: Flight[], options:
   // The best of them read with every trace, silence counted.
   const hypotheses: Hypothesis[] = [];
   const everyTrace = shapes.map((_, ti) => ti);
+  let bestRead = -Infinity;
   for (const { cd } of lite.slice(0, PICKS)) {
     const { listener, reads, evidence, worth } = readAll(cd.lat, cd.lon, cd.start, everyTrace, 1);
     const silent = silenceAt(listener, cd.start, reads);
@@ -451,6 +482,11 @@ export async function whereWhen(segments: Segment[], flights: Flight[], options:
       if (w > top) [top, trace] = [w, ti];
     });
     hypotheses.push({ lat: cd.lat, lon: cd.lon, start: cd.start, loss: cd.loss, hex: used[cd.f].hex, trace, reads, evidence, worth, silent });
+    const added = worth - SILENT * silent.length;
+    if (added > bestRead) {
+      bestRead = added;
+      tell("joint", cd, used[cd.f].hex, added);
+    }
     if (hypotheses.length % 50 === 0) {
       o.onProgress?.("joint", hypotheses.length, Math.min(PICKS, lite.length));
       await tick();
@@ -470,6 +506,7 @@ export async function whereWhen(segments: Segment[], flights: Flight[], options:
   // trace read again at the spot and start it found.
   const t4 = performance.now();
   const answers: Answer[] = [];
+  let bestFine = -Infinity;
   for (const [i, h] of hypotheses.slice(0, o.refine).entries()) {
     o.onProgress?.("fine", i, Math.min(o.refine, hypotheses.length));
     const ids = near(index, h.lat, h.lon, h.start - 60, h.start + duration + 60, 12_000);
@@ -502,6 +539,11 @@ export async function whereWhen(segments: Segment[], flights: Flight[], options:
       planes,
       mirror: loc.mirror ? { lat: loc.mirror.lat, lon: loc.mirror.lon, score: loc.mirror.score } : null,
     });
+    const rank = rankOf(use);
+    if (rank > bestFine) {
+      bestFine = rank;
+      tell("fine", use, planes[0]?.hex ?? h.hex, rank);
+    }
   }
   answers.sort((x, y) => rankOf(y) - rankOf(x) || y.evidence - x.evidence);
   const distinct: Answer[] = [];

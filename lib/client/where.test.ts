@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { clockOf, coordinates, daysOf, distinctAnswers, metresApart, offsetAt, osmLink, parseCoordinates, passesOf, prefillOf, secondsLeft, windowOf } from "./where";
+import { clockOf, coordinates, daysOf, distinctAnswers, metresApart, offsetAt, osmLink, parseCoordinates, passesOf, prefillOf, secondsLeft, windowOf, partsOf } from "./where";
 
 const at = (iso: string) => Date.parse(iso) / 1000;
 
@@ -115,5 +115,16 @@ describe("passes", () => {
     expect(passesOf([40, 45, 60])).toBe(1);
     expect(passesOf([40, 45, 120])).toBe(2);
     expect(passesOf([37, 63, 77])).toBe(2);
+  });
+});
+
+describe("partsOf", () => {
+  it("shares the whole job out, finding tones more of it the longer the file", () => {
+    const sum = (seconds: number) => partsOf(seconds).reduce((a, [, share]) => a + share, 0);
+    expect(sum(60)).toBeCloseTo(1, 12);
+    expect(sum(3600)).toBeCloseTo(1, 12);
+    const find = (seconds: number) => partsOf(seconds).find(([part]) => part === "find")![1];
+    expect(find(60)).toBeLessThan(0.05);
+    expect(find(3600)).toBeGreaterThan(0.5);
   });
 });

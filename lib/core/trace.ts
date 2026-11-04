@@ -320,7 +320,7 @@ function spreadOf(scores: number[]): { mid: number; spread: number } {
  * Finds the tones in a recording, strongest first. Needs no flight data: what it returns is what
  * anyone holding the recording could see in it.
  */
-export function findTraces(stack: Stack, options: TraceOptions = {}): Traces {
+export function findTraces(stack: Stack, options: TraceOptions = {}, onProgress?: (share: number) => void): Traces {
   const o = { ...DEFAULTS, ...Object.fromEntries(Object.entries(options).filter(([, v]) => v !== undefined)) } as Required<TraceOptions>;
   const g = gridOf(stack, o);
   const { K, B, freqs } = g;
@@ -347,7 +347,18 @@ export function findTraces(stack: Stack, options: TraceOptions = {}): Traces {
   // step along the frequency axis), so tones no longer line up across blocks but the noise keeps
   // its texture.
   const shifts = scrambles(K, B, o.nulls, o.block);
-  const nullWith = (mask: Uint8Array) => spreadOf(shifts.map((shift) => bestPath(g, o, mask, shift)?.score ?? 0));
+  // Each pass over the grid costs about the same: the null twice, and a few ridges.
+  const passes = 2 * o.nulls + 3;
+  let passed = 0;
+  const onePass = () => onProgress?.(Math.min(1, ++passed / passes));
+  const nullWith = (mask: Uint8Array) =>
+    spreadOf(
+      shifts.map((shift) => {
+        const score = bestPath(g, o, mask, shift)?.score ?? 0;
+        onePass();
+        return score;
+      }),
+    );
   let nul = nullWith(new Uint8Array(K * B));
 
   // Ridges, best first: each one found is masked before looking for the next, until they no
@@ -355,6 +366,7 @@ export function findTraces(stack: Stack, options: TraceOptions = {}): Traces {
   const found: Path[] = [];
   for (let attempt = 0; attempt < o.maxTraces + 2; attempt++) {
     const path = bestPath(g, o, maskOf(found), null);
+    onePass();
     if (!path || (path.score - nul.mid) / nul.spread < o.minConfidence / 2) break;
     found.push(path);
   }
@@ -393,6 +405,7 @@ export function findTraces(stack: Stack, options: TraceOptions = {}): Traces {
     traces.push({ from: path.from, to: path.to, freq, strength, score: path.score, confidence, seconds: (path.to - path.from + 1) * hop, fall });
     if (traces.length === o.maxTraces) break;
   }
+  onProgress?.(1);
   return { traces, null: nul };
 }
 

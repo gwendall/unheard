@@ -8,7 +8,7 @@ import type { Stack } from "./spectrogram";
 import type { Trace } from "./trace";
 import { buildTrack } from "./track";
 import { BIN, FLOOR, joinFits, pathsOf, scanTracks, surprise, toneOf, worthOf, type Fits, type Scan, type Tone } from "./tracks";
-import { whereWhen } from "./wherewhen";
+import { whereWhen, type BestSoFar } from "./wherewhen";
 
 const air = { groundTempC: 15 };
 const c = pathSpeed(air, 300);
@@ -155,8 +155,24 @@ describe("whereWhen from the real tracks", () => {
     const stack = { base: { times: ta.times } } as unknown as Stack;
     const segments: Segment[] = [{ stack, offset: 0, traces: [ta.trace, tb.trace] }];
     const decoys = [straight("a00009", 3000, 500), straight("a0000a", -4000, 200)];
-    const ww = await whereWhen(segments, [a, b, ...decoys], { window, area: { lat: centre.lat, lon: centre.lon, side: 50_000 }, air, refine: 0 });
+    const stages = new Set<string>();
+    const bests: BestSoFar[] = [];
+    const ww = await whereWhen(segments, [a, b, ...decoys], {
+      window,
+      area: { lat: centre.lat, lon: centre.lon, side: 50_000 },
+      air,
+      refine: 0,
+      onProgress: (stage) => stages.add(stage),
+      onBest: (b) => bests.push(b),
+    });
     const best = ww.hypotheses[0];
+    // The search says how far it is, and its best guess before the end, the last one the answer's.
+    for (const stage of ["shape", "smooth", "coarse"]) expect(stages.has(stage)).toBe(true);
+    expect(bests[0].stage).toBe("coarse");
+    const last = bests[bests.length - 1];
+    expect(last.stage).toBe("joint");
+    expect(Math.hypot(...toLocal(listener, last.lat, last.lon, 0).slice(0, 2))).toBeLessThan(1000);
+    expect(Math.abs(last.start - start)).toBeLessThan(20);
     const away = toLocal(listener, best.lat, best.lon, 0);
     expect(Math.hypot(away[0], away[1])).toBeLessThan(1000);
     expect(Math.abs(best.start - start)).toBeLessThan(20);

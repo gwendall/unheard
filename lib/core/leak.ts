@@ -187,7 +187,17 @@ export type FindOptions = {
   stack?: StackOptions;
   /** Called before each chunk, and once at the end with done = total. */
   onChunk?: (done: number, total: number) => void;
+  /** How far the search has got, 0 to 1, several times a chunk: for a bar that moves on a short file too. */
+  onProgress?: (fraction: number) => void;
+  /**
+   * The tones found so far, strongest first, each time a chunk adds some. What is returned in the
+   * end also says which lines go with them (`beside`).
+   */
+  onTones?: (tones: Tone[]) => void;
 };
+
+/** Shares of a chunk's work, measured on the real clips: the stack, the tones' band, the wide band of the lines. */
+const CHUNK_SHARES = { stack: 0.45, trace: 0.1, along: 0.45 };
 
 /**
  * What the check reports: findTraces' defaults (40 to 400 Hz, propeller planes and helicopters),
@@ -221,10 +231,15 @@ export function findTones(read: Reader, chunks: Chunk[], rate = ANALYSIS_RATE, o
   const along = options.along === undefined ? ALONG : options.along;
   chunks.forEach((c, i) => {
     options.onChunk?.(i, chunks.length);
-    const stack = buildStack(read(c.start, c.end - c.start), rate, options.stack);
-    const here = findTraces(stack, trace).traces;
+    const at = (share: number) => options.onProgress?.((i + share) / chunks.length);
+    const { stack: inStack, trace: inTrace, along: inAlong } = CHUNK_SHARES;
+    const stack = buildStack(read(c.start, c.end - c.start), rate, { ...options.stack, onProgress: (s) => at(inStack * s) });
+    const here = findTraces(stack, trace, (s) => at(inStack + inTrace * s)).traces;
     for (const t of here) found.push(toneOf(t, stack.base.times, c.start / rate));
-    if (along && here.length) for (const t of findTraces(stack, along).traces) wide.push(toneOf(t, stack.base.times, c.start / rate));
+    // On copies: merging marks the tones it keeps, and the last merge below starts from these.
+    if (here.length && options.onTones) options.onTones(mergeTones(found.map((t) => ({ ...t }))));
+    if (along && here.length) for (const t of findTraces(stack, along, (s) => at(inStack + inTrace + inAlong * s)).traces) wide.push(toneOf(t, stack.base.times, c.start / rate));
+    at(1);
   });
   options.onChunk?.(chunks.length, chunks.length);
   const tones = mergeTones(found);
@@ -305,6 +320,8 @@ export type CleanOptions = {
   window?: number;
   margin?: number;
   onWindow?: (done: number, total: number) => void;
+  /** How far the whole of `clean` has got, 0 to 1, several times a window. */
+  onShare?: (share: number) => void;
 };
 
 /**
@@ -348,7 +365,15 @@ export function clean(audio: Audio, curves: Curve[], options: CleanOptions = {})
       .filter(({ span }) => span.end >= (s0 - 1) / rate && span.start <= s1 / rate)
       .map(({ c }) => ({ ...c, times: Float64Array.from(c.times, (t) => t - s0 / rate) }));
     flush(s0);
-    pending.push({ at: w0, data: channels.map((ch) => scrub(ch.subarray(s0, s1), rate, local, options.scrub).slice(w0 - s0, w1 - s0)) });
+    pending.push({
+      at: w0,
+      data: channels.map((ch, c) =>
+        scrub(ch.subarray(s0, s1), rate, local, {
+          ...options.scrub,
+          onStep: (done, total) => options.onShare?.((i + (c + done / total) / channels.length) / windows.length),
+        }).slice(w0 - s0, w1 - s0),
+      ),
+    });
   });
   flush(Infinity);
   options.onWindow?.(windows.length, windows.length);
@@ -362,7 +387,16 @@ export type CleanOutOptions = CleanOptions & {
   rounds?: number;
   /** Called with the tones of each round, before they are taken out (round 0: the ones given). */
   onRound?: (round: number, tones: Tone[]) => void;
+  /**
+   * How far the whole job has got, 0 to 1, many times a round. How many rounds it takes shows only
+   * as they come: each is counted as the last but one, so this can step back when another comes.
+   * `estimator` (progress.ts) holds the bar still until it catches up.
+   */
+  onProgress?: (fraction: number) => void;
 };
+
+/** A round's share taking out, the rest looking again: measured on the real clips. */
+const CLEAN_SHARE = 0.8;
 
 /**
  * Takes `tones` out of `audio` (in place), looks again where the sound changed, and takes out
@@ -377,13 +411,27 @@ export function cleanOut(audio: Audio, tones: Tone[], options: CleanOutOptions =
   let current = tones;
   for (let round = 0; round < rounds && current.length; round++) {
     options.onRound?.(round, current);
-    clean(audio, current.flatMap(ridgesOf).map((t) => curveOf(t)), options);
+    const inRound = (share: number) => options.onProgress?.((round + share) / (round + 2));
+    clean(audio, current.flatMap(ridgesOf).map((t) => curveOf(t)), {
+      ...options,
+      onShare: (s) => {
+        options.onShare?.(s);
+        inRound(CLEAN_SHARE * s);
+      },
+    });
     cleaned.push(...current);
     // The chunks whose sound changed: those that reach a tone just taken out, its curve's ends included.
     const touched = current.flatMap(ridgesOf).map((t) => ({ start: t.times[0] - EXTEND - 1, end: t.times[t.times.length - 1] + EXTEND + 1 }));
     const changed = chunks.filter((c) => touched.some((s) => s.start * ANALYSIS_RATE <= c.end && s.end * ANALYSIS_RATE >= c.start));
-    current = findTones(read, changed, ANALYSIS_RATE, options.find);
+    current = findTones(read, changed, ANALYSIS_RATE, {
+      ...options.find,
+      onProgress: (s) => {
+        options.find?.onProgress?.(s);
+        inRound(CLEAN_SHARE + (1 - CLEAN_SHARE) * s);
+      },
+    });
   }
+  options.onProgress?.(1);
   return { cleaned, left: current };
 }
 
