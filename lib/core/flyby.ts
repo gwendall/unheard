@@ -7,6 +7,7 @@
 // frequency, speed, closest distance and time).
 
 import { pathSpeed, type Air } from "./doppler";
+import { inParallel } from "./parallel";
 import { buildStack, type Stack } from "./spectrogram";
 import { findTraces, type Trace } from "./trace";
 
@@ -22,6 +23,34 @@ export type SegmentWatch = { onProgress?: (fraction: number) => void; onSegment?
 /** A chunk's share building its stack, the rest searching it. */
 const STACK_SHARE = 0.45;
 
+/** A stretch of a long recording on its own: its stack and the lines it holds. */
+export type Stretch = { stack: Stack; traces: Trace[] };
+
+/** A stretch's search reads up to 1 kHz (propellers and rotors) and keeps lines up to 400 Hz. */
+export function stretchOf(samples: Float32Array, sampleRate: number, onShare?: (share: number) => void): Stretch {
+  const stack = buildStack(samples, sampleRate, { maxHz: 1000, onProgress: (s) => onShare?.(STACK_SHARE * s) });
+  return { stack, traces: findTraces(stack, { ...TRACES, fMax: 400 }, (s) => onShare?.(STACK_SHARE + (1 - STACK_SHARE) * s)).traces };
+}
+
+const middle = (g: { stack: Stack; offset: number }, t: Trace) => g.offset + g.stack.base.times[(t.from + t.to) >> 1];
+const pitch = (t: Trace) => t.freq[(t.from + t.to) >> 1];
+
+/** A stretch's lines not already found in the ones before it: a tone found twice in an overlap is kept once. */
+function newLines(segments: Segment[], { stack, traces }: Stretch, offset: number): Segment | null {
+  const here = { stack, offset };
+  const fresh = traces.filter((t) => !segments.some((g) => g.traces.some((u) => Math.abs(middle(g, u) - middle(here, t)) < 20 && Math.abs(Math.log(pitch(u) / pitch(t))) < 0.02)));
+  return fresh.length ? { stack, offset, traces: fresh } : null;
+}
+
+/** The stretches of a long recording. */
+const offsetsOf = (total: number, step: number) => {
+  const offsets: number[] = [];
+  for (let offset = 0; offset + 30 < total; offset += step) offsets.push(offset);
+  return offsets;
+};
+
+const stretchSamples = (samples: Float32Array, sampleRate: number, offset: number, chunk: number) => samples.subarray(Math.round(offset * sampleRate), Math.min(samples.length, Math.round((offset + chunk) * sampleRate)));
+
 /**
  * The traces of a recording, whole when it is short; a long one (colsto's hour) chunk by chunk,
  * 180 s every 120 s up to 1 kHz (propellers and rotors), a tone found twice in an overlap kept
@@ -36,21 +65,53 @@ export function findSegments(samples: Float32Array, sampleRate: number, chunk = 
     onSegment?.(segment);
     return { segments: [segment], searched: [[0, total]] };
   }
-  const chunks = Math.max(1, Math.ceil((total - 30) / step));
+  const offsets = offsetsOf(total, step);
   const segments: Segment[] = [];
-  const middle = (g: { stack: Stack; offset: number }, t: Trace) => g.offset + g.stack.base.times[(t.from + t.to) >> 1];
-  const pitch = (t: Trace) => t.freq[(t.from + t.to) >> 1];
-  for (let offset = 0, i = 0; offset + 30 < total; offset += step, i++) {
-    const at = (share: number) => onProgress?.((i + share) / chunks);
-    const stack = buildStack(samples.subarray(Math.round(offset * sampleRate), Math.min(samples.length, Math.round((offset + chunk) * sampleRate))), sampleRate, { maxHz: 1000, onProgress: (s) => at(STACK_SHARE * s) });
-    const here = { stack, offset };
-    const traces = findTraces(stack, { ...TRACES, fMax: 400 }, (s) => at(STACK_SHARE + (1 - STACK_SHARE) * s)).traces.filter((t) => !segments.some((g) => g.traces.some((u) => Math.abs(middle(g, u) - middle(here, t)) < 20 && Math.abs(Math.log(pitch(u) / pitch(t))) < 0.02)));
-    if (traces.length) {
-      const segment = { stack, offset, traces };
+  for (const [i, offset] of offsets.entries()) {
+    const stretch = stretchOf(stretchSamples(samples, sampleRate, offset, chunk), sampleRate, (share) => onProgress?.((i + share) / offsets.length));
+    const segment = newLines(segments, stretch, offset);
+    if (segment) {
       segments.push(segment);
       onSegment?.(segment);
     }
   }
+  return { segments, searched: [[0, total]] };
+}
+
+/** Where a long recording's stretches run: a worker each, or here. */
+export type StretchRunner = { size: number; stretch: (samples: Float32Array, sampleRate: number, onShare: (share: number) => void) => Promise<Stretch> };
+
+/** The stretches run here, one at a time. */
+export const here: StretchRunner = { size: 1, stretch: async (samples, sampleRate, onShare) => stretchOf(samples, sampleRate, onShare) };
+
+/**
+ * `findSegments`, a long recording's stretches over `runner`. Whether a line is new depends on the
+ * stretches before it, so they join in order, whichever finishes first: the same segments, and
+ * `onSegment` as soon as all those before a stretch are in.
+ */
+export async function findSegmentsWith(runner: StretchRunner, samples: Float32Array, sampleRate: number, chunk = 180, step = 120, watch: SegmentWatch = {}): Promise<{ segments: Segment[]; searched: [number, number][] }> {
+  const total = samples.length / sampleRate;
+  if (total <= chunk + 60) return findSegments(samples, sampleRate, chunk, step, watch);
+  const { onProgress, onSegment } = watch;
+  const offsets = offsetsOf(total, step);
+  const shares = new Float64Array(offsets.length);
+  const arrived = new Array<Stretch | undefined>(offsets.length);
+  const segments: Segment[] = [];
+  let joined = 0;
+  await inParallel(offsets, runner.size, async (offset, i) => {
+    arrived[i] = await runner.stretch(stretchSamples(samples, sampleRate, offset, chunk), sampleRate, (share) => {
+      shares[i] = share;
+      onProgress?.(shares.reduce((a, x) => a + x, 0) / offsets.length);
+    });
+    for (; arrived[joined]; joined++) {
+      const segment = newLines(segments, arrived[joined]!, offsets[joined]);
+      arrived[joined] = undefined;
+      if (segment) {
+        segments.push(segment);
+        onSegment?.(segment);
+      }
+    }
+  });
   return { segments, searched: [[0, total]] };
 }
 

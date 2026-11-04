@@ -113,6 +113,12 @@ describe("partsOf", () => {
     expect(sum(3600)).toBeCloseTo(1, 12);
     const find = (seconds: number) => partsOf(seconds).find(([part]) => part === "find")![1];
     expect(find(60)).toBeLessThan(0.05);
-    expect(find(3600)).toBeGreaterThan(0.5);
+    expect(find(3600)).toBeGreaterThan(0.4);
+  });
+  it("counts the workers: what splits takes less of the job, what does not takes more", () => {
+    const share = (part: string, workers: number) => partsOf(3600, workers).find(([p]) => p === part)![1];
+    expect(share("find", 6)).toBeLessThan(share("find", 1));
+    expect(share("fine", 6)).toBeGreaterThan(share("fine", 1));
+    expect(partsOf(3600, 6).reduce((a, [, s]) => a + s, 0)).toBeCloseTo(1, 12);
   });
 });

@@ -10,6 +10,7 @@
 // per spot and second, in the whole square and window. That rate is what a fit is worth: a flat tone
 // any flight explains counts for little, a long steep one for a lot.
 
+import { inParallel } from "./parallel";
 import { KIND, type Flight } from "../history";
 import { fromLocal, toLocal, type Listener } from "./geo";
 
@@ -120,7 +121,7 @@ export type ScanOptions = {
   /** Earliest and latest start of the recording, UTC seconds. */
   window: [number, number];
   /** Ground height in the frame (x, y metres). */
-  ground: (x: number, y: number) => number;
+  ground: GroundGrid;
   /** Speed of sound on the path, m/s. */
   c: number;
   maxRange: number;
@@ -196,22 +197,29 @@ function halve(a: Fits): number {
 
 
 /** The ground read back from a grid of 500 m around the frame's origin: the scan asks millions of times. */
-export function groundGrid(ground: (lat: number, lon: number) => number, centre: Listener, half: number): (x: number, y: number) => number {
+/** The ground as a grid in the frame: plain numbers, so it can go to a worker. */
+export type GroundGrid = { heights: Float32Array; size: number; half: number; step: number };
+
+export function gridOfGround(ground: (lat: number, lon: number) => number, centre: Listener, half: number): GroundGrid {
   const step = 500;
   const size = Math.ceil((2 * half) / step) + 1;
-  const grid = new Float32Array(size * size);
+  const heights = new Float32Array(size * size);
   for (let i = 0; i < size; i++) {
     for (let j = 0; j < size; j++) {
       const { lat, lon } = fromLocal(centre, -half + j * step, -half + i * step);
-      grid[i * size + j] = ground(lat, lon);
+      heights[i * size + j] = ground(lat, lon);
     }
   }
-  return (x, y) => {
+  return { heights, size, half, step };
+}
+
+export const groundOfGrid =
+  ({ heights, size, half, step }: GroundGrid) =>
+  (x: number, y: number): number => {
     const j = Math.round((x + half) / step);
     const i = Math.round((y + half) / step);
-    return i < 0 || j < 0 || i >= size || j >= size ? 0 : grid[i * size + j];
+    return i < 0 || j < 0 || i >= size || j >= size ? 0 : heights[i * size + j];
   };
-}
 
 const yieldNow = () => new Promise((r) => setTimeout(r, 0));
 
@@ -226,12 +234,14 @@ const ringsOf = (ratio: number, maxRange: number) => {
 /** What a scan keeps from one path to the next, and the memory its loops reuse. */
 type ScanState = {
   o: ScanOptions;
+  ground: (x: number, y: number) => number;
   tones: Tone[];
   /** Per tone: the fall between its two ends, read before any slide. */
   falls: Float64Array;
   fits: Fits[];
   limits: number[];
   hist: Float64Array[];
+  work: Float64Array;
   curve: Float32Array;
   R: Float64Array;
   A: Float64Array;
@@ -253,7 +263,7 @@ type ScanState = {
  * every path of a day of flights.
  */
 function scanPath(st: ScanState, p: Path, jet: boolean) {
-  const { o, tones, falls, fits, limits, hist, curve, R, A, res, rings, rings2, last, anyJets, W } = st;
+  const { o, tones, falls, fits, limits, hist, work, curve, R, A, res, rings, rings2, last, anyJets, W } = st;
   const every = o.every ?? 4;
   const margin = o.margin ?? 15;
   const keep = o.keep ?? 200_000;
@@ -261,7 +271,7 @@ function scanPath(st: ScanState, p: Path, jet: boolean) {
   const w1 = o.window[1];
   const half = o.half;
   const maxRange = o.maxRange;
-  const ground = o.ground;
+  const ground = st.ground;
   const T = tones.length;
   const c = o.c;
   if (jet && !anyJets) return;
@@ -370,6 +380,7 @@ function scanPath(st: ScanState, p: Path, jet: boolean) {
           const counts = hist[ti];
           let best = Infinity;
           let at = 0;
+          const slidesBefore = slides;
           for (let i0 = -length - margin; i0 <= margin; i0 += stride) {
             // The two ends first: most slides stop here.
             const base = W + i0;
@@ -396,6 +407,7 @@ function scanPath(st: ScanState, p: Path, jet: boolean) {
               at = i0;
             }
           }
+          work[ti] += (length + 2 * margin) / stride + (slides - slidesBefore) * nf;
           if (best === Infinity) continue;
           const start = s0 + at;
           if (start < w0 || start > w1) continue;
@@ -421,20 +433,35 @@ function scanPath(st: ScanState, p: Path, jet: boolean) {
   st.slides += slides;
 }
 
-export async function scanTracks(tones: Tone[], paths: Path[], flights: Flight[], o: ScanOptions): Promise<Scan> {
+/**
+ * A scan's counts for some of the tones. What a tone keeps depends on that tone alone and on the
+ * paths' order, so tones can be scanned apart and the parts joined: the same fits, limits and
+ * rates. `longest`: the longest of all the tones, which sets how much of each curve is read.
+ */
+export type ScanPart = {
+  fits: Fits[];
+  limits: number[];
+  hist: Float64Array[];
+  spots: number;
+  slides: number;
+  /** Per tone, how much reading it took: starts tried, and the frames of those that got past the two ends. */
+  work: Float64Array;
+};
+
+export async function scanPart(tones: Tone[], paths: Path[], jets: Uint8Array, o: ScanOptions, longest: number): Promise<ScanPart> {
   const ratio = o.ratio ?? 1.12;
   const margin = o.margin ?? 15;
-  const [w0, w1] = o.window;
-  const longest = Math.max(...tones.map((t) => t.length));
   const W = longest + margin + 2;
   const rings = ringsOf(ratio, o.maxRange);
   const st: ScanState = {
     o,
+    ground: groundOfGrid(o.ground),
     tones,
     falls: Float64Array.from(tones, ({ y, dt }) => y[0] + y[1] - y[dt.length - 2] - y[dt.length - 1]),
     fits: tones.map(() => fitsOf(4096)),
     limits: tones.map(() => o.limit ?? 0.5),
     hist: tones.map(() => new Float64Array(BINS)),
+    work: new Float64Array(tones.length),
     curve: new Float32Array(2 * W + 1).fill(NaN),
     R: new Float64Array(2 * W + 64),
     A: new Float64Array(2 * W + 64),
@@ -448,15 +475,50 @@ export async function scanTracks(tones: Tone[], paths: Path[], flights: Flight[]
     spots: 0,
     slides: 0,
   };
-  let done = 0;
-  for (const p of paths) {
-    if (++done % 200 === 0) {
-      o.onProgress?.(done, paths.length);
+  for (let i = 0; i < paths.length; i++) {
+    if ((i + 1) % 200 === 0) {
+      o.onProgress?.(i + 1, paths.length);
       await yieldNow();
     }
-    scanPath(st, p, flights[p.f].kind === KIND.jet);
+    scanPath(st, paths[i], jets[i] === 1);
   }
-  const { fits, limits, hist, spots, slides } = st;
+  const { fits, limits, hist, work, spots, slides } = st;
+  return { fits, limits, hist, work, spots, slides };
+}
+
+/** Where a scan's parts run: a worker each, or here. */
+export type ScanRunner = {
+  size: number;
+  part: (tones: Tone[], paths: Path[], jets: Uint8Array, options: Omit<ScanOptions, "onProgress">, longest: number, onShare: (share: number) => void) => Promise<ScanPart>;
+};
+
+/** The tones as `count` groups of about the same work. */
+function groupsOf(work: Float64Array, count: number): number[][] {
+  const groups = Array.from({ length: Math.min(count, work.length) }, () => ({ work: 0, tones: [] as number[] }));
+  for (const ti of Array.from(work, (_, i) => i).sort((a, b) => work[b] - work[a] || a - b)) {
+    const lightest = groups.reduce((a, g) => (g.work < a.work ? g : a));
+    lightest.work += work[ti];
+    lightest.tones.push(ti);
+  }
+  return groups.map((g) => g.tones);
+}
+
+/** One path in this many is read first, to see what each tone costs. */
+const SAMPLE = 32;
+
+/** Joins the parts of a scan, and reads each tone's rate of fits off its counts. */
+function joined(tones: Tone[], groups: number[][], parts: ScanPart[], o: Pick<ScanOptions, "half" | "window" | "limit">): Scan {
+  const [w0, w1] = o.window;
+  const fits = new Array<Fits>(tones.length);
+  const limits = new Array<number>(tones.length);
+  const hist = new Array<Float64Array>(tones.length);
+  groups.forEach((group, g) =>
+    group.forEach((ti, i) => {
+      fits[ti] = parts[g].fits[i];
+      limits[ti] = parts[g].limits[i];
+      hist[ti] = parts[g].hist[i];
+    }),
+  );
   // Cumulative: expected flights under each bin's top at a random spot and second.
   const volume = (2 * o.half) ** 2 * Math.max(60, w1 - w0);
   const rate = hist.map((h) => {
@@ -468,7 +530,38 @@ export async function scanTracks(tones: Tone[], paths: Path[], flights: Flight[]
     for (let b = 0; b < BINS && out[b] === 0; b++) out[b] = first;
     return out;
   });
-  return { fits, rate, limits, spots, slides };
+  // Spots are counted per path, whatever its tones: a part with no jet's tone skips the jets' paths.
+  return { fits, rate, limits, spots: Math.max(0, ...parts.map((p) => p.spots)), slides: parts.reduce((a, p) => a + p.slides, 0) };
+}
+
+const jetsOf = (paths: Path[], flights: Flight[]) => Uint8Array.from(paths, (p) => (flights[p.f].kind === KIND.jet ? 1 : 0));
+const longestOf = (tones: Tone[]) => Math.max(...tones.map((t) => t.length));
+
+export async function scanTracks(tones: Tone[], paths: Path[], flights: Flight[], o: ScanOptions): Promise<Scan> {
+  const part = await scanPart(tones, paths, jetsOf(paths, flights), o, longestOf(tones));
+  return joined(tones, [tones.map((_, i) => i)], [part], o);
+}
+
+/** `scanTracks`, groups of tones over `runner`: the same scan, each worker reading every path for its tones. */
+export async function scanTracksWith(runner: ScanRunner, tones: Tone[], paths: Path[], flights: Flight[], o: ScanOptions): Promise<Scan> {
+  const count = Math.min(runner.size, tones.length);
+  if (count < 2) return scanTracks(tones, paths, flights, o);
+  const jets = jetsOf(paths, flights);
+  const { onProgress, ...plain } = o;
+  const longest = longestOf(tones);
+  // What a tone costs depends on its fall and on the paths more than on anything read off it: a
+  // tone that hardly falls can cost several times another as long. What this reads is thrown away.
+  const sample = paths.filter((_, i) => i % SAMPLE === 0);
+  const { work } = await scanPart(tones, sample, jetsOf(sample, flights), plain, longest);
+  const groups = groupsOf(work, count);
+  const shares = new Float64Array(groups.length);
+  const parts = await inParallel(groups, groups.length, (group, g) =>
+    runner.part(group.map((ti) => tones[ti]), paths, jets, plain, longest, (share) => {
+      shares[g] = share;
+      onProgress?.(Math.round((paths.length * shares.reduce((a, x) => a + x, 0)) / groups.length), paths.length);
+    }),
+  );
+  return joined(tones, groups, parts, o);
 }
 
 /** Fits of one tone sorted by (start bin, x cell), for looking up spots and starts close by. */

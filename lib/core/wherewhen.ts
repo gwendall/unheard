@@ -26,10 +26,11 @@ import type { Poll, PolledAircraft } from "../adsb";
 import { isProp, KIND, type Flight } from "../history";
 import { pathSpeed, type Air } from "./doppler";
 import { flybyOf, framesOf, shapeOf, type Flyby, type Segment, type Shape } from "./flyby";
+import { inParallel } from "./parallel";
 import { fromLocal, toLocal, type Listener } from "./geo";
 import { firstAfter, MISS, RANGE, readFast, smoothFlight, SWEEP, within } from "./guess";
 import { locate, type Area } from "./locate";
-import { groundGrid, joinFits, pathsOf, scanTracks, toneOf, worthOf } from "./tracks";
+import { gridOfGround, joinFits, pathsOf, scanPart, scanTracksWith, toneOf, worthOf, type ScanRunner } from "./tracks";
 
 export { findSegments, flybys, type Flyby, type Segment, type SegmentWatch } from "./flyby";
 export { readAt } from "./guess";
@@ -49,6 +50,16 @@ export type BestSoFar = {
   worth: number;
 };
 
+/** Where the search's separable work runs: workers, or here. */
+export type WherePieces = ScanRunner & { shape: (t: Float64Array, y: Float64Array, c: number) => Promise<Shape> };
+
+/** One at a time, here: the evals and a device with no workers to spare. */
+export const hereOnly: WherePieces = {
+  size: 1,
+  shape: async (t, y, c) => shapeOf(t, y, c),
+  part: (tones, paths, jets, options, longest, onShare) => scanPart(tones, paths, jets, { ...options, onProgress: (done, total) => onShare(done / total) }, longest),
+};
+
 export type WhereWhenOptions = {
   /** UTC seconds: the earliest and the latest the recording may have started. */
   window: [number, number];
@@ -57,6 +68,8 @@ export type WhereWhenOptions = {
   /** Ground height at a point, metres above sea level (default 0). */
   ground?: (lat: number, lon: number) => number;
   air?: Air;
+  /** Where the search's separable work runs (default: here, one at a time). The result is the same. */
+  pieces?: WherePieces;
   /** Spots and times refined by locate() at the end. */
   refine?: number;
   /** Answers returned. */
@@ -310,9 +323,13 @@ export async function whereWhen(segments: Segment[], flights: Flight[], options:
 
   // 1. Each trace on its own: its tone at rest (a jet's fan or not) and the leads a person can check.
   const c0 = pathSpeed(air, 300);
-  const shapes = heard.map((x, ti) => {
-    o.onProgress?.("shape", ti, heard.length);
-    return shapeOf(x.t, x.y, c0);
+  const pieces = o.pieces ?? hereOnly;
+  let shaped = 0;
+  o.onProgress?.("shape", 0, heard.length);
+  const shapes = await inParallel(heard, pieces.size, async (x) => {
+    const shape = await pieces.shape(x.t, x.y, c0);
+    o.onProgress?.("shape", ++shaped, heard.length);
+    return shape;
   });
   const readings = shapes.map(flybyOf);
   ms.shape = Math.round(performance.now() - t0);
@@ -342,7 +359,7 @@ export async function whereWhen(segments: Segment[], flights: Flight[], options:
   const leads = leadTraces(shapes, heard.map((x) => x.trace.confidence));
   const tones = leads.map((ti) => toneOf(ti, shapes[ti].times, shapes[ti].logs, readings[ti].f0 >= JET_TONE, c0));
   const paths = pathsOf(smooth, centre, w0 - 120, w1 + duration + 120, tones.some((t) => t.jets));
-  const scan = await scanTracks(tones, paths, smooth, { half, window: o.window, ground: groundGrid(ground, centre, half + o.maxRange), c: c0, maxRange: o.maxRange, onProgress: (done, total) => o.onProgress?.("candidates", done, total) });
+  const scan = await scanTracksWith(pieces, tones, paths, smooth, { half, window: o.window, ground: gridOfGround(ground, centre, half + o.maxRange), c: c0, maxRange: o.maxRange, onProgress: (done, total) => o.onProgress?.("candidates", done, total) });
   ms.scan = Math.round(performance.now() - t1);
   ms.spots = scan.spots;
   ms.fits = scan.fits.reduce((sum, f) => sum + f.n, 0);

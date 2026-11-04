@@ -108,25 +108,29 @@ export function distinctAnswers<A extends { lat: number; lon: number; start: num
   return answers.filter((a) => a === best || !best.mirror || metresApart(best.mirror, a) > 300 || Math.abs(a.start - best.start) > 20).slice(0, count);
 }
 
+/** The share of the scan each worker repeats, measured on colsto's hour. */
+const SCAN_CURVES = 0.17;
+
 /** The where page's stages, each step of the worker with the search's own. */
 export type WherePart = "find" | "flights" | "shape" | "smooth" | "candidates" | "coarse" | "joint" | "fine";
 
 /**
- * Shares of the page's job for a file this long, seconds: finding the tones follows the file's
- * length, the rest what the window and the area hold. From colsto's hour (`pnpm speed where`):
- * tones 85 s of CPU, then 60 s of search, as these stages share it.
+ * Shares of the page's job for a file this long, seconds, over `workers`: finding the tones follows
+ * the file's length, the rest what the window and the area hold. CPU seconds on colsto's hour
+ * (`pnpm speed where`). What splits whole goes that many times faster; each of the scan's workers
+ * also works out the curves its tones read, so a part of the scan stays whatever their number.
  */
-export function partsOf(seconds: number): readonly (readonly [WherePart, number])[] {
-  const find = seconds / (seconds + 2600);
-  const rest = 1 - find;
-  return [
-    ["find", find],
-    ["flights", 0.03 * rest],
-    ["shape", 0.2 * rest],
-    ["smooth", 0.17 * rest],
-    ["candidates", 0.45 * rest],
-    ["coarse", 0.06 * rest],
-    ["joint", 0.03 * rest],
-    ["fine", 0.06 * rest],
+export function partsOf(seconds: number, workers = 1): readonly (readonly [WherePart, number])[] {
+  const parts: [WherePart, number][] = [
+    ["find", (0.0104 * seconds) / workers],
+    ["flights", 1.6],
+    ["shape", 7.4 / workers],
+    ["smooth", 0.3],
+    ["candidates", 22 * (SCAN_CURVES + (1 - SCAN_CURVES) / workers)],
+    ["coarse", 5],
+    ["joint", 0.9],
+    ["fine", 6.2],
   ];
+  const sum = parts.reduce((a, [, cost]) => a + cost, 0);
+  return parts.map(([part, cost]) => [part, cost / sum] as const);
 }

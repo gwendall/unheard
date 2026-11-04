@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { pathSpeed } from "./doppler";
-import { flybyOf, shapeOf } from "./flyby";
+import { findSegments, findSegmentsWith, flybyOf, shapeOf, stretchOf, type StretchRunner } from "./flyby";
+import { STANDARD_AIR } from "./doppler";
+import { flybyFixes, synthesize } from "./synth";
+import { buildTrack } from "./track";
 
 const c = pathSpeed({ groundTempC: 15 }, 300);
 
@@ -36,4 +39,38 @@ describe("flyby", () => {
     const f = flybyOf(shapeOf(t, y, c));
     expect(f.speeds[1]).toBeGreaterThan(1.6 * f.speeds[0]);
   });
+});
+
+describe("a long recording's stretches over workers", () => {
+  const listener = { lat: 48.85, lon: 2.35, elevation: 40 };
+  const START = 1_800_000_000;
+  const RATE = 8000;
+  const DURATION = 130;
+  const track = buildTrack(flybyFixes(listener, { closestAt: START + 65, offset: 500, heading: 70, speed: 60, altitude: 640, turnRate: 0.2 }, START - 60, START + DURATION + 4, 2), listener)!;
+  const samples = synthesize({ start: START, duration: DURATION, sampleRate: RATE, air: STANDARD_AIR, sources: [{ track, f0: 110, level: 0.25 }], noise: 1, rumble: 1, hum: [{ freq: 50, level: 0.5 }], seed: 31 });
+  /** Stretches that finish the sooner the later they start, as workers may. */
+  function backwards(): StretchRunner {
+    let started = 0;
+    return {
+      size: 3,
+      stretch: async (part, rate, onShare) => {
+        const out = stretchOf(part, rate, onShare);
+        await new Promise((go) => setTimeout(go, 12 - 4 * (started++ % 3)));
+        return out;
+      },
+    };
+  }
+  const summary = (segments: Awaited<ReturnType<typeof findSegmentsWith>>["segments"]) => segments.map((g) => ({ offset: g.offset, traces: g.traces.map((t) => ({ from: t.from, to: t.to, score: t.score, confidence: t.confidence, freq: Array.from(t.freq) })) }));
+
+  it("finds the same segments, told in order", async () => {
+    const whole = findSegments(samples, RATE, 60, 40);
+    const told: number[] = [];
+    const shares: number[] = [];
+    const over = await findSegmentsWith(backwards(), samples, RATE, 60, 40, { onSegment: (g) => told.push(g.offset), onProgress: (s) => shares.push(s) });
+    expect(summary(over.segments)).toEqual(summary(whole.segments));
+    expect(whole.segments.length).toBeGreaterThan(1);
+    expect(over.searched).toEqual(whole.searched);
+    expect(told).toEqual(whole.segments.map((g) => g.offset));
+    expect(shares.at(-1)).toBeCloseTo(1, 9);
+  }, 120_000);
 });

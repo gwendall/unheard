@@ -19,7 +19,9 @@ import { matchAll } from "../lib/core/match";
 import { ANALYSIS_RATE, analyze, candidatesOf, type Recording } from "../lib/core/pipeline";
 import { resample } from "../lib/core/resample";
 import { buildStack } from "../lib/core/spectrogram";
-import { findSegments, whereWhen, type WhereWhen } from "../lib/core/wherewhen";
+import { shapeOf } from "../lib/core/flyby";
+import { scanPart } from "../lib/core/tracks";
+import { findSegments, whereWhen, type WherePieces, type WhereWhen } from "../lib/core/wherewhen";
 import { groundAround, historyAround, indexedDays } from "../evals/lib/history";
 import { syntheticScenario } from "../evals/lib/synthetic";
 
@@ -194,6 +196,38 @@ const whereGolden = (ww: WhereWhen) => ({
   hypotheses: ww.hypotheses.map((h) => ({ lat: h.lat, lon: h.lon, start: h.start, loss: h.loss, hex: h.hex, trace: h.trace, evidence: h.evidence, worth: h.worth, silent: h.silent })),
 });
 
+/**
+ * The search cut as the page's workers cut it (`--parts <n>`), each part run here after the last:
+ * what each costs, so what the slowest would cost on its own core, and the same answers.
+ */
+function partsRunner(size: number): { pieces: WherePieces; costs: { shapes: number[]; parts: number[] } } {
+  const costs = { shapes: [] as number[], parts: [] as number[] };
+  let turn: Promise<unknown> = Promise.resolve();
+  const inTurn = <T>(work: () => Promise<T>): Promise<T> => {
+    const out = turn.then(work);
+    turn = out;
+    return out;
+  };
+  return {
+    costs,
+    pieces: {
+      size,
+      shape: (t, y, c) =>
+        inTurn(async () => {
+          const [shape, cpu] = await measure(() => shapeOf(t, y, c));
+          costs.shapes.push(cpu);
+          return shape;
+        }),
+      part: (tones, paths, jets, options, longest, onShare) =>
+        inTurn(async () => {
+          const [part, cpu] = await measure(() => scanPart(tones, paths, jets, { ...options, onProgress: (done, total) => onShare(done / total) }, longest));
+          costs.parts.push(cpu);
+          return part;
+        }),
+    },
+  };
+}
+
 async function benchWhere() {
   const window = (flag("window") ?? "hour") as "hour" | "day";
   if (!hasColsto()) throw new Error("colsto's recording or its day of history is missing from evals/.cache");
@@ -210,8 +244,10 @@ async function benchWhere() {
       if (stage) byStage[stage] = Number(fixed((byStage[stage] ?? 0) + (user + system) / 1e6));
       mark = process.cpuUsage();
     };
-    const [ww, cpu] = await measure(() => whereWhen(segments, flights, { ...options, onProgress: (s) => { if (s !== stage) { close(); stage = s; } } }));
+    const cut = flag("parts") ? partsRunner(Number(flag("parts"))) : null;
+    const [ww, cpu] = await measure(() => whereWhen(segments, flights, { ...options, pieces: cut?.pieces, onProgress: (s) => { if (s !== stage) { close(); stage = s; } } }));
     close();
+    if (cut) console.log(`cut in ${cut.costs.parts.length}: parts ${cut.costs.parts.map((x) => fixed(x)).join(" ")} s, shapes ${fixed(cut.costs.shapes.reduce((a, x) => a + x, 0))} s in all`);
     stages.search = Math.min(stages.search, cpu);
     ms = ww.ms;
     console.log(`run ${run + 1}: ${fixed(cpu)} s CPU, ${ww.answers.length} answers, ${ww.candidates} fits, CPU by stage ${JSON.stringify(byStage)}, stages (wall ms) ${JSON.stringify(ww.ms)}`);
@@ -271,7 +307,7 @@ async function golden() {
   }
   if (hasColsto() && !args.includes("--no-where")) {
     const { segments, flights, options } = await colstoInput("hour");
-    out.where = whereGolden(await whereWhen(segments, flights, options));
+    out.where = whereGolden(await whereWhen(segments, flights, { ...options, pieces: flag("parts") ? partsRunner(Number(flag("parts"))).pieces : undefined }));
     console.log("where");
   }
   writeFileSync(positional[1], JSON.stringify(out));
