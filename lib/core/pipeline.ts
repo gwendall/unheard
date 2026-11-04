@@ -1,6 +1,7 @@
 // The whole analysis, from samples and polls to a verdict. The page, the tests and every eval
 // call this one function: what the evals measure is what runs in production.
 
+import { ANALYSIS_RATE } from "./rate";
 import { collect, type AircraftMeta, type Poll } from "../adsb";
 import type { Air } from "./doppler";
 import type { Listener } from "./geo";
@@ -10,8 +11,7 @@ import { buildStack, type Spectrogram, type Stack, type StackOptions } from "./s
 import type { Trace } from "./trace";
 import { buildTrack } from "./track";
 
-/** The sample rate the page resamples to before analysis: tones up to 4 kHz, light to process. */
-export const ANALYSIS_RATE = 8000;
+export { ANALYSIS_RATE };
 
 export type Recording = {
   /** Mono samples at `sampleRate`. */

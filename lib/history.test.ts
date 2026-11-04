@@ -94,6 +94,9 @@ describe("history tiles", () => {
     const got = await loadFlights(async (path) => files[path] ?? null, ["2026-05-16", "2026-05-17"], { lat: 37.6, lon: -121.6, side: 20_000 });
     expect(got.flights.map((f) => f.hex)).toEqual(["a1b2c3"]);
     expect(got.missing).toEqual(["2026-05-17"]);
+    const steps: number[][] = [];
+    await loadFlights(async (path) => files[path] ?? null, ["2026-05-16", "2026-05-17"], { lat: 37.6, lon: -121.6, side: 20_000 }, undefined, (done, total) => steps.push([done, total]));
+    expect(steps).toEqual([[0, 1], [1, 1]]);
   });
 });
 

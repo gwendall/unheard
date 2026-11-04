@@ -2,20 +2,29 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { Capture, keepAwake, openMicrophone, resample } from "@/lib/audio";
-import { analyze, ANALYSIS_RATE, type Analysis, type Recording } from "@/lib/core/pipeline";
+import dynamic from "next/dynamic";
+import type { Analysis, Recording } from "@/lib/core/pipeline";
+import { ANALYSIS_RATE } from "@/lib/core/rate";
 import type { Air } from "@/lib/core/doppler";
 import type { Listener as Spot } from "@/lib/core/geo";
 import { makeBundle, type Bundle } from "@/lib/bundle";
 import { Sky } from "@/lib/client/sky";
 import { nearbyFrom, type Nearby } from "@/lib/client/nearby";
-import { buildExample } from "@/lib/client/example";
 import { outlook, type Outlook } from "@/lib/client/chance";
 import type { Messages } from "@/lib/i18n";
 import { useI18n } from "./I18n";
 import { Waterfall } from "./Waterfall";
 import { Hero } from "./Hero";
-import { Result } from "./Result";
 import { countdown, ranked, SkyList, titleOf, useIdentities } from "./SkyList";
+
+// What only an analysis needs comes with the first analysis: the page opens without it.
+const loadResult = () => import("./Result").then((m) => m.Result);
+const Result = dynamic(loadResult, { ssr: false });
+const loadAnalysis = () => {
+  // The answer's page too, so it shows as soon as the analysis ends.
+  void loadResult();
+  return import("@/lib/core/pipeline");
+};
 
 /** Flight data followed before the first recorded sample: the sound heard first left the planes earlier. */
 const WARM_UP = 6_000;
@@ -197,6 +206,7 @@ export function Listener({ qr }: { qr: string }) {
     }
     setPhase({ kind: "analyzing", done: 0, total: 0 });
     await nextFrame();
+    const { analyze } = await loadAnalysis();
     const samples = await resample(captured.samples, captured.sampleRate, ANALYSIS_RATE);
     const rec: Recording = { samples, sampleRate: ANALYSIS_RATE, start: captured.start, listener: where.listener, air: where.air, polls: s.polls };
     const analysis = await analyze(rec, {}, (done, total) => setPhase({ kind: "analyzing", done, total }));
@@ -207,6 +217,7 @@ export function Listener({ qr }: { qr: string }) {
   const example = useCallback(async () => {
     setPhase({ kind: "analyzing", done: 0, total: 0 });
     await nextFrame();
+    const [{ analyze }, { buildExample }] = await Promise.all([loadAnalysis(), import("@/lib/client/example")]);
     const rec = buildExample();
     const analysis = await analyze(rec, {}, (done, total) => setPhase({ kind: "analyzing", done, total }));
     device.current = null;

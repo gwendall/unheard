@@ -10,7 +10,7 @@ import type { FileMetadata } from "@/lib/client/metadata";
 import { aircraftType } from "@/lib/client/types";
 import { clockOf, coordinates, metresApart, offsetAt, OLDEST_DAY, osmLink, parseCoordinates, secondsLeft, SQUARE, windowOf, type Place, type Prefill, type Zone } from "@/lib/client/where";
 import type { Guess, WhereEvent, WhereRequest, WhereResult, WhereStep } from "@/lib/client/where.worker";
-import { ANALYSIS_RATE } from "@/lib/core/pipeline";
+import { ANALYSIS_RATE } from "@/lib/core/rate";
 import { nearestPlace, placeLabel, searchPlaces, type NearPlace, type PlaceHit } from "@/lib/client/places";
 import { paintWhere } from "@/lib/client/where-card";
 import { httpFetcher, readDays } from "@/lib/history";

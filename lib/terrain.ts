@@ -3,6 +3,8 @@
 // zoom 10: pixels of about 120 m at 37°; SRTM, GMTED, NED and other public sources,
 // https://registry.opendata.aws/terrain-tiles/). No DOM, no Node: the caller supplies a fetcher.
 
+import { inParallel, MAX_FETCHES } from "./core/parallel";
+
 /** A terrarium tile's PNG bytes, or null when there is none. */
 export type TileFetcher = (z: number, x: number, y: number) => Promise<Uint8Array | null>;
 
@@ -74,12 +76,15 @@ export async function groundOf(tiles: TileFetcher, lat: number, lon: number, sid
   const dLat = half / 111_195;
   const dLon = half / (111_195 * Math.cos((lat * Math.PI) / 180));
   const heights = new Map<string, Float32Array>();
+  const wanted: [number, number][] = [];
   for (let x = Math.floor(xOf(lon - dLon)); x <= Math.floor(xOf(lon + dLon)); x++) {
-    for (let y = Math.floor(yOf(lat + dLat)); y <= Math.floor(yOf(lat - dLat)); y++) {
-      const png = await tiles(ZOOM, x, y);
-      if (png) heights.set(`${x}/${y}`, await decodeTerrarium(png));
-    }
+    for (let y = Math.floor(yOf(lat + dLat)); y <= Math.floor(yOf(lat - dLat)); y++) wanted.push([x, y]);
   }
+  // Several at a time: a square can touch a dozen of them.
+  await inParallel(wanted, MAX_FETCHES, async ([x, y]) => {
+    const png = await tiles(ZOOM, x, y);
+    if (png) heights.set(`${x}/${y}`, await decodeTerrarium(png));
+  });
   const at = (px: number, py: number) => {
     const x = Math.floor(px / 256);
     const y = Math.floor(py / 256);
