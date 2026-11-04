@@ -90,7 +90,7 @@ What a visitor goes through, and where it lives:
   downloaded as a WAV. Nothing leaves the device. Measured
   by `evals/leak.eval.ts`: on AeroSonicDB, tones found in 9 of 9 clips, 6 named before, none after.
 
-- **Find where** (`components/FindWhere.tsx`, `components/SpotPlot.tsx`,
+- **Find where** (`components/FindWhere.tsx`, `components/PlaceMap.tsx`,
   `lib/client/where.ts`, `lib/client/where.worker.ts`): a spot and a start
   time out, in the browser. It asks only what is missing: the day and hour come filled in from the
   file (the page says from which tag), and roughly where is a town offered as you type (`searchPlaces`,
@@ -99,7 +99,7 @@ What a visitor goes through, and where it lives:
   is decoded at the analysis rate, then a worker finds the tones, fetches that day's tiles for the
   area, and runs `whereWhen`, with an estimate of the time left and a way to cancel; the tones and
   "Take them out" stay usable meanwhile. "Probably here" only under the confidence flag, else "Best guess" and
-  up to two more answers; the plot, the start in UTC and local time, each plane with its registration
+  up to two more answers; the map (`SpotPlot` only as its fallback), the start in UTC and local time, each plane with its registration
   (the history keeps no callsign), type, distance and passing time, its spectrum with the curve.
   A share card (`lib/client/where-card.ts`, the same `drawCard`) holds the plot, one curve, the place
   and the time; it is drawn only on the sharer's click, and nothing is sent until they choose where.
