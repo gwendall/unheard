@@ -25,7 +25,7 @@
   "example": {
     "label": "Voir un exemple de résultat : un Cessna 172 Skyhawk retrouvé dans un enregistrement simulé",
     "chip": "Exemple simulé",
-    "file": "enregistrement-simule.wav",
+    "file": "simule.wav",
     "note": "Simulé : vrais avions, son fabriqué, mélangé pour montrer un cas net. Aucun de nos vrais enregistrements de test n'a obtenu de lieu : ils reçoivent « Impossible de dire ».",
     "own": "Essayer avec votre fichier",
     "failed": "L'exemple n'a pas pu se charger. Réessayez, ou utilisez votre fichier.",
@@ -547,6 +547,9 @@
     "around": "{date}, vers {time}",
     "plane": "{tail}, à {distance}, à {time}",
     "planeUnknown": "Avion de type inconnu",
+    "hear": "Écouter {plane}",
+    "pause": "Mettre {plane} en pause",
+    "soundNote": "Chaque bouton joue le son de ce fichier autour de cet avion, accéléré et filtré pour qu'on entende son bourdonnement.",
     "another": "Un autre fichier",
     "mapNote": "La carte et le nom du lieu viennent de notre propre stockage, et votre fichier n'est jamais envoyé. Notre hébergeur voit quelle zone a été demandée : quelques dizaines de km, jusqu'à environ un kilomètre si vous zoomez.",
     "why": {

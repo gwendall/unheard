@@ -8,6 +8,7 @@ import { CheckParts, type Heard } from "@/components/Check";
 import { useI18n } from "@/components/I18n";
 import { Share } from "@/components/Share";
 import { PlaceMap, type MapShot } from "@/components/PlaceMap";
+import { PlaneRows } from "@/components/PlaneRows";
 import { TonePicture } from "@/components/TonePicture";
 import { soundOf, troubleOf } from "@/lib/client/decode";
 import { isPhone } from "@/lib/client/device";
@@ -732,14 +733,7 @@ export function FindWhere({ picked, archive, finding, few, silent, when: fileWhe
             why={<span data-testid="answer-reason">{named ? plural(named.planes.length, a.why.named) : whyOf(result)}</span>}
             rows={
               named && (
-                <ul className="flex flex-col border-b border-line" data-testid="answer-planes">
-                  {named.planes.map((p) => (
-                    <li key={p.hex} className="flex min-w-0 flex-col gap-0.5 border-t border-line py-3" data-testid="answer-plane">
-                      <span className="font-medium text-ink">{aircraftType(p.type)?.name ?? (p.type || a.planeUnknown)}</span>
-                      <span className="text-sm text-pretty text-mute tabular-nums">{fill(a.plane, { tail: p.registration || p.hex, distance: f.km(p.metres), time: localOf(named, p.at).time })}</span>
-                    </li>
-                  ))}
-                </ul>
+                <PlaneRows file={picked.file} guess={named} views={found!.views} timeOf={(utc) => localOf(named, utc).time} />
               )
             }
             actions={

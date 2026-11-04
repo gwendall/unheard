@@ -38,6 +38,29 @@ for (const [width, height] of [[1440, 900], [390, 844]]) {
   });
 }
 
+test("each plane plays the file's own sound around its pass, one at a time", async ({ page }) => {
+  test.setTimeout(240_000);
+  await page.goto("/example");
+  await expect(page.getByTestId("where-verdict")).toBeVisible({ timeout: 200_000 });
+  const play = page.getByTestId("answer-plane-play");
+  await expect(play.first()).toBeEnabled({ timeout: 20_000 });
+  const audio = page.getByTestId("answer-plane-audio");
+  await play.first().click();
+  await expect(play.first()).toHaveAttribute("aria-pressed", "true");
+  await expect.poll(() => audio.evaluate((a: HTMLAudioElement) => a.currentTime), { timeout: 10_000 }).toBeGreaterThan(0);
+  // 40 s of the file, faster: a short clip, not the whole file.
+  const seconds = await audio.evaluate((a: HTMLAudioElement) => a.duration);
+  expect(seconds).toBeGreaterThan(4);
+  expect(seconds).toBeLessThanOrEqual(41);
+  await expect(play.nth(1)).toBeEnabled({ timeout: 20_000 });
+  await play.nth(1).click();
+  await expect(play.first()).toHaveAttribute("aria-pressed", "false");
+  await expect(play.nth(1)).toHaveAttribute("aria-pressed", "true");
+  await play.nth(1).click();
+  await expect(play.nth(1)).toHaveAttribute("aria-pressed", "false");
+  await expect(page.getByTestId("answer-sound-note")).toBeVisible();
+});
+
 test("a visitor's own file takes over, and is an ordinary file", async ({ page }) => {
   test.setTimeout(240_000);
   await page.goto("/example");
