@@ -72,6 +72,17 @@ request, CI posts this run's counts next to the base branch's (`scripts/eval-del
   `ONLY=synthetic,tracks,voice,ambient,real`, `SEEDS=n`, `VOICES=n`, `TAG=name`, `RESUME=1`.
   `ONLY=ambient60` cuts the street sound into 60 s recordings instead of 120 s.
 
+## The level of a tone
+
+- `level` (`evals/level.eval.ts`): whether the shape of a tone's level over time tells the plane
+  that made it from a plane whose curve merely follows it. It reads the level along the line a match
+  rides on, against -20 log10(range) and the air's absorption for the plane's own range, a far
+  plane's and the line's own flyby. Right planes (real audio) set the margins, on whole recordings
+  and on cuts of 60, 45 and 30 s; then how much of a far plane on those same lines, and which wrong
+  planes (the heard plane left out, the E2E's jet, home's sky), each veto would catch. colsto's hour
+  has its strongs listed, never used for a margin. It did not separate (`docs/STATUS.md`, "The level of
+  a tone"): measure only, no verdict reads it, never in CI. `ONLY=real,colsto,jet,home`.
+
 ## Corpora
 
 - `synthetic` (`evals/lib/synthetic.ts`): made-up flybys, exact truth, clock error, wind and
