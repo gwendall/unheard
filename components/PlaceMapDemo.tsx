@@ -33,6 +33,8 @@ const SCENES: Record<string, { guess: Guess; others: { lat: number; lon: number 
     others: [
       { lat: 40.8309, lon: -73.5801 },
       { lat: 40.9102, lon: -73.4603 },
+      // Far along the coast: it may or may not fit, and its name must never be cut by the edge.
+      { lat: 40.8601, lon: -73.3302 },
     ],
   },
   // A dense city, where the marks must hold their own among the names.
@@ -46,6 +48,18 @@ const SCENES: Record<string, { guess: Guess; others: { lat: number; lon: number 
       paths: [pass("abc123", [-3500, -1200], [3000, 1800])],
     },
     others: [],
+  },
+  // An empty desert, where the map has nearly nothing to say.
+  desert: {
+    guess: {
+      lat: 24.5,
+      lon: 8.1,
+      start: 1_778_900_000,
+      mirror: { lat: 24.54, lon: 8.16 },
+      planes: [plane("3c6444", "D-ABYA", 2400, 1_778_900_060), plane("4ca7b1", "EI-DWF", 3800, 1_778_900_190)],
+      paths: [pass("3c6444", [-14_000, -9000], [13_000, 11_000]), pass("4ca7b1", [12_000, -12_000], [-6000, 14_000])],
+    },
+    others: [{ lat: 24.42, lon: 8.03 }],
   },
 };
 
@@ -61,7 +75,10 @@ export function PlaceMapDemo({ scene, archive }: { scene?: string; archive?: str
       <h1 className="text-4xl font-semibold tracking-tight text-balance sm:text-5xl" data-testid="place-name">
         {name || " "}
       </h1>
-      <PlaceMap guess={guess} others={others} archive={archive} />
+      {/* As the page holds it: half the width from `lg`. */}
+      <div className="grid gap-8 lg:grid-cols-2">
+        <PlaceMap guess={guess} others={others} archive={archive} />
+      </div>
     </main>
   );
 }

@@ -18,7 +18,7 @@ export type OverlayLabels = {
 };
 
 type Geometry = { type: "Point"; coordinates: [number, number] } | { type: "LineString"; coordinates: [number, number][] };
-export type OverlayFeature = { type: "Feature"; properties: { kind: "ring" | "ring-label" | "track" | "closest" | "other" | "mirror" | "guess"; label?: string; side?: "east" | "west" }; geometry: Geometry };
+export type OverlayFeature = { type: "Feature"; properties: { kind: "ring" | "ring-label" | "track" | "closest" | "other" | "mirror" | "guess"; label?: string; radius?: number }; geometry: Geometry };
 export type Overlay = { type: "FeatureCollection"; features: OverlayFeature[] };
 
 /** The rings SpotPlot draws, and the same rule for which: up to about what was close. */
@@ -41,39 +41,39 @@ const lonLat = ({ lat, lon }: Spot): [number, number] => [lon, lat];
 export function overlayOf(guess: Guess, others: Spot[], labels: OverlayLabels): Overlay {
   const at = (east: number, north: number) => lonLat(fromLocal({ lat: guess.lat, lon: guess.lon, elevation: 0 }, east, north));
   const features: OverlayFeature[] = [];
-  /** Which side of the guess a mark is on: its words go back toward the guess. */
-  const sideOf = (lon: number) => (lon > guess.lon ? "east" : "west");
-
   const reach = reachOf(guess);
   for (const radius of RINGS.filter((r) => r < reach)) {
     const coordinates = Array.from({ length: CIRCLE_STEPS + 1 }, (_, i) => {
       const angle = (i / CIRCLE_STEPS) * 2 * Math.PI;
       return at(radius * Math.sin(angle), radius * Math.cos(angle));
     });
-    features.push({ type: "Feature", properties: { kind: "ring" }, geometry: { type: "LineString", coordinates } });
+    features.push({ type: "Feature", properties: { kind: "ring", radius }, geometry: { type: "LineString", coordinates } });
     features.push({
       type: "Feature",
-      properties: { kind: "ring-label", label: `${radius / 1000} km` },
+      properties: { kind: "ring-label", label: `${radius / 1000} km`, radius },
       geometry: { type: "Point", coordinates: at(radius * Math.sin(NORTH_EAST), radius * Math.cos(NORTH_EAST)) },
     });
   }
 
   for (const path of guess.paths) {
     features.push({ type: "Feature", properties: { kind: "track" }, geometry: { type: "LineString", coordinates: path.points.map(([e, n]) => at(e, n)) } });
-    features.push({ type: "Feature", properties: { kind: "closest", label: labels.plane(path.hex), side: path.closest[0] > 0 ? "east" : "west" }, geometry: { type: "Point", coordinates: at(path.closest[0], path.closest[1]) } });
+    features.push({ type: "Feature", properties: { kind: "closest", label: labels.plane(path.hex) }, geometry: { type: "Point", coordinates: at(path.closest[0], path.closest[1]) } });
   }
 
   others.forEach((other, i) => {
-    features.push({ type: "Feature", properties: { kind: "other", label: labels.other(i + 2), side: sideOf(other.lon) }, geometry: { type: "Point", coordinates: lonLat(other) } });
+    features.push({ type: "Feature", properties: { kind: "other", label: labels.other(i + 2) }, geometry: { type: "Point", coordinates: lonLat(other) } });
   });
-  if (guess.mirror) features.push({ type: "Feature", properties: { kind: "mirror", label: labels.mirror, side: sideOf(guess.mirror.lon) }, geometry: { type: "Point", coordinates: lonLat(guess.mirror) } });
+  if (guess.mirror) features.push({ type: "Feature", properties: { kind: "mirror", label: labels.mirror }, geometry: { type: "Point", coordinates: lonLat(guess.mirror) } });
   features.push({ type: "Feature", properties: { kind: "guess", label: labels.guess }, geometry: { type: "Point", coordinates: lonLat(guess) } });
 
   return { type: "FeatureCollection", features };
 }
 
-/** The view that holds the guess, its mirror and the tracks. */
-export function boundsOf(guess: Guess): Bounds {
+/** How far off another answer may be, for the size of the rest, and still share the picture. */
+const OTHER_REACH = 0.75;
+
+/** The view that holds the guess, its mirror, the tracks, and the other answers close enough to belong. */
+export function boundsOf(guess: Guess, others: Spot[] = []): Bounds {
   let west = guess.lon;
   let east = guess.lon;
   let south = guess.lat;
@@ -86,6 +86,8 @@ export function boundsOf(guess: Guess): Bounds {
   };
   if (guess.mirror) take(guess.mirror);
   for (const path of guess.paths) for (const [e, n] of path.points) take(fromLocal({ lat: guess.lat, lon: guess.lon, elevation: 0 }, e, n));
+  const span = metresApart({ lat: south, lon: west }, { lat: north, lon: east });
+  for (const other of others) if (metresApart(guess, other) <= span * OTHER_REACH) take(other);
   return [
     [west, south],
     [east, north],

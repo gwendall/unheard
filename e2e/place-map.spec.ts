@@ -53,6 +53,33 @@ test("the answer on a real map, and no host but ours", async ({ page }) => {
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/map-spot-desktop.png`, fullPage: true });
 });
 
+for (const scene of ["oyster", "city", "desert"]) {
+  for (const [width, height] of [[1440, 900], [390, 844]]) {
+    test(`keeps our words inside the frame, clear of each other and of the buttons: ${scene} at ${width} px`, async ({ page }) => {
+      await page.setViewportSize({ width, height });
+      await page.goto(`/en/dev-map?scene=${scene}`);
+      await ready(page);
+      const frame = (await page.getByTestId("place-map-canvas").boundingBox())!;
+      const button = (await page.getByTestId("place-map-in").boundingBox())!;
+      const words = JSON.parse((await figure(page).getAttribute("data-words")) ?? "[]") as { label: string; left: number; top: number; right: number; bottom: number }[];
+      const labels = words.map((w) => w.label);
+      expect(labels).toContain("Guess");
+      if (scene !== "city") expect(labels).toContain("Mirror");
+      const hit = (a: (typeof words)[number], b: Pick<(typeof words)[number], "left" | "top" | "right" | "bottom">) => a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
+      const control = { left: button.x - frame.x, top: button.y - frame.y, right: button.x - frame.x + button.width, bottom: button.y - frame.y + button.height * 3 };
+      for (const word of words) {
+        expect(word.left, word.label).toBeGreaterThanOrEqual(0);
+        expect(word.top, word.label).toBeGreaterThanOrEqual(0);
+        expect(word.right, word.label).toBeLessThanOrEqual(frame.width);
+        expect(word.bottom, word.label).toBeLessThanOrEqual(frame.height);
+        expect(hit(word, control), `${word.label} under the buttons`).toBe(false);
+        for (const other of words) if (other !== word) expect(hit(word, other), `${word.label} on ${other.label}`).toBe(false);
+      }
+      if (SHOTS) await page.screenshot({ path: `${SHOTS}/map-${scene}-${width}.png`, fullPage: true });
+    });
+  }
+}
+
 test("reads the tiles by range, without a body it does not need", async ({ page }) => {
   const ranges: { status: number; bytes: number }[] = [];
   page.on("response", (r) => {

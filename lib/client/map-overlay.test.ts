@@ -1,7 +1,8 @@
+import { layers } from "@protomaps/basemaps";
 import { describe, expect, it } from "vitest";
 import { metresApart } from "./where";
 import { boundsOf, overlayOf, type OverlayFeature, type OverlayLabels } from "./map-overlay";
-import { FLAVOR, MAP_FILE, styleOf } from "./map-style";
+import { FLAVOR, MAP_FILE, scaled, styleOf } from "./map-style";
 import type { Guess } from "./where.worker";
 
 const guess: Guess = {
@@ -40,12 +41,6 @@ describe("the answer on the map", () => {
     expect(metresApart(guess, point(ofKind("closest")[0]))).toBeCloseTo(1400, -1);
   });
 
-  it("sends each mark's words back toward the guess", () => {
-    expect(ofKind("closest").map((f) => f.properties.side)).toEqual(["west", "east"]);
-    expect(ofKind("other")[0].properties.side).toBe("west");
-    expect(ofKind("mirror")[0].properties.side).toBe("east");
-  });
-
   it("gives no mirror mark when there is none", () => {
     expect(overlayOf({ ...guess, mirror: null }, [], labels).features.some((f) => f.properties.kind === "mirror")).toBe(false);
   });
@@ -72,6 +67,13 @@ describe("the answer on the map", () => {
     expect(north - south).toBeGreaterThan(0.1);
   });
 
+  it("takes in another answer close enough to belong, and not one far away", () => {
+    const [[, ], [eastAlone]] = boundsOf(guess);
+    const near = { lat: guess.lat, lon: eastAlone + 0.01 };
+    expect(boundsOf(guess, [near])[1][0]).toBe(near.lon);
+    expect(boundsOf(guess, [{ lat: guess.lat, lon: guess.lon + 5 }])[1][0]).toBe(eastAlone);
+  });
+
   it("stands around a guess alone", () => {
     expect(boundsOf({ ...guess, mirror: null, paths: [] })).toEqual([
       [guess.lon, guess.lat],
@@ -93,7 +95,6 @@ describe("the style", () => {
   });
 
   it("is not a default map", () => {
-    expect(FLAVOR.earth).toBe("#0e1526");
     expect(FLAVOR.water).toBe("#05070d");
     expect(JSON.stringify(style)).not.toContain("#1f1f1f");
   });
@@ -104,7 +105,7 @@ describe("the style", () => {
     expect(ids.indexOf("answer-track")).toBeLessThan(ids.indexOf("roads_labels_minor"));
     expect(ids.indexOf("answer-track")).toBeGreaterThan(ids.indexOf("buildings"));
     expect(ids.indexOf("answer-guess")).toBeGreaterThan(names);
-    expect(ids.indexOf("answer-guess-label")).toBeGreaterThan(ids.indexOf("answer-mirror-label-east"));
+    expect(ids.indexOf("answer-guess-label")).toBeGreaterThan(ids.indexOf("answer-mirror-label"));
   });
 
   it("keeps the answer the only thing in colour", () => {
@@ -113,25 +114,30 @@ describe("the style", () => {
     expect(pois?.layout).toMatchObject({ "icon-image": "" });
   });
 
-  it("keeps names off the marks: the last layers hold room over the dots", () => {
+  it("keeps the map's names off the marks and the tracks: the last layers hold room", () => {
     const ids = style.layers.map((l) => l.id);
-    expect(ids.slice(-2)).toEqual(["answer-room-dots", "answer-room-guess"]);
+    expect(ids.slice(-4)).toEqual(["answer-room-tracks", "answer-room-edges", "answer-room-dots", "answer-room-guess"]);
     expect(style.layers.at(-1)?.paint).toEqual({ "text-opacity": 0 });
-    const east = style.layers.find((l) => l.id === "answer-other-labels-east");
-    const west = style.layers.find((l) => l.id === "answer-other-labels-west");
-    expect((east?.layout as Record<string, string[]>)["text-variable-anchor"][0]).toBe("right");
-    expect((west?.layout as Record<string, string[]>)["text-variable-anchor"][0]).toBe("left");
   });
 
-  it("always names the mirror, and lets a plane's name give way", () => {
-    expect(style.layers.find((l) => l.id === "answer-mirror-label-east")?.layout).toMatchObject({ "text-allow-overlap": true });
-    expect(style.layers.find((l) => l.id === "answer-closest-labels-east")?.layout).not.toHaveProperty("text-allow-overlap");
+  it("shows the answer's words where the placer put them, whatever else is there", () => {
+    for (const id of ["answer-guess-label", "answer-mirror-label", "answer-other-labels", "answer-closest-labels", "answer-ring-labels"]) {
+      const layer = style.layers.find((l) => l.id === id);
+      expect(layer).toMatchObject({ source: "answer-words", layout: { "text-allow-overlap": true, "text-anchor": "center" } });
+    }
   });
 
-  it("makes room for the guess's label: nothing draws over it", () => {
-    const label = style.layers.find((l) => l.id === "answer-guess-label");
-    expect(label?.layout).toMatchObject({ "text-allow-overlap": true });
-    expect(label?.layout).not.toHaveProperty("text-ignore-placement");
+  it("makes the land clearly lighter than the water, with an edge between them", () => {
+    const luminance = (hex: string) => [1, 3, 5].reduce((sum, i, n) => sum + parseInt(hex.slice(i, i + 2), 16) * [0.2126, 0.7152, 0.0722][n], 0);
+    expect(luminance(FLAVOR.earth)).toBeGreaterThan(luminance(FLAVOR.water) * 3);
+    const ids = style.layers.map((l) => l.id);
+    expect(ids.indexOf("coastline")).toBe(ids.indexOf("water") + 1);
+  });
+
+  it("draws towns larger than Protomaps does", () => {
+    const town = style.layers.find((l) => l.id === "places_locality") as { layout: Record<string, unknown> };
+    expect(JSON.stringify(town.layout["text-size"])).not.toBe(JSON.stringify((layers("protomaps", FLAVOR, { lang: "en" }).find((l) => l.id === "places_locality") as { layout: Record<string, unknown> }).layout["text-size"]));
+    expect(scaled(["interpolate", ["linear"], ["zoom"], 2, 10, 8, ["case", ["<", ["get", "r"], 3], 8, 12]], 2)).toEqual(["interpolate", ["linear"], ["zoom"], 2, 20, 8, ["case", ["<", ["get", "r"], 3], 16, 24]]);
   });
 
   it("names places in the page's language", () => {
