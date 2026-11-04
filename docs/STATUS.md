@@ -16,7 +16,7 @@ Updated 2026-11-04.
   wrong guesses, a check of the strongest against the lines heard in the sound alone
   (`lib/core/explain.ts`), verdict strong / possible / none.
 - Tests: unit (`pnpm test`), evals (`pnpm eval`, see `evals/README.md`), E2E in Chromium with a
-  fake microphone (`pnpm e2e`).
+  fake microphone (`pnpm e2e`). CI runs all three on GitHub's runners; job `e2e` is the whole E2E suite.
 - Open source: MIT `LICENSE`, `README.md` with the scoreboard and a "What it is not" section,
   `CONTRIBUTING.md` (four ways to help), `CODE_OF_CONDUCT.md` and `SECURITY.md` (reports to
   unheard@gwendall.com, or GitHub's private vulnerability reporting), `docs/OPEN-SOURCE.md`

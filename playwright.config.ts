@@ -10,16 +10,21 @@ import { defineConfig, devices } from "@playwright/test";
 const VIDEO = /check-video/;
 const videoIn = (name: string, use: object) => ({ name, testMatch: VIDEO, use: { viewport: { width: 1440, height: 900 }, ...use } });
 const FIREFOX_HOME = process.env.E2E_FIREFOX_HOME;
+// GitHub's runners (.github/workflows/ci.yml): one retry, and the report step names who needed it.
+const CI = !!process.env.CI;
 
 export default defineConfig({
   testDir: "e2e",
   globalSetup: "./e2e/global-setup.ts",
   timeout: 180_000,
   globalTimeout: 600_000,
-  retries: 0,
+  retries: CI ? 1 : 0,
+  forbidOnly: CI,
   workers: 1,
-  reporter: [["list"]],
+  reporter: CI ? [["list"], ["html", { open: "never" }], ["json", { outputFile: "test-results/results.json" }]] : [["list"]],
   outputDir: "test-results",
+  // The tests write long WAVs and videos here: on a runner only a failure's are worth keeping.
+  preserveOutput: CI ? "failures-only" : "always",
   use: {
     baseURL: process.env.BASE_URL ?? "http://localhost:3000",
     trace: "retain-on-failure",
