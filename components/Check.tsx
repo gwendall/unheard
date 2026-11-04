@@ -32,7 +32,7 @@ const OUTLINE = "w-full rounded-full border border-line px-7 py-3 text-lg font-m
 const PRIMARY = "w-full rounded-full bg-amber px-7 py-3 text-center text-lg font-medium text-night transition hover:bg-amber-soft sm:w-fit";
 const QUIET = "text-mute underline-offset-4 transition hover:text-ink hover:underline";
 
-export function Check({ file, elsewhere, note, find, fold, children }: { file: File; elsewhere?: Route; note?: string | null; find?: (ready: boolean) => ReactNode; fold?: boolean; children?: ReactNode }) {
+export function Check({ file, elsewhere, note, find, fold, onSettled, children }: { file: File; elsewhere?: Route; note?: string | null; find?: (ready: boolean) => ReactNode; fold?: boolean; onSettled?: () => void; children?: ReactNode }) {
   const { m, fill, plural } = useI18n();
   const t = m.check;
   const [state, setState] = useState<State>({ kind: "open", busy: { step: "open", done: 0, total: 1 } });
@@ -41,6 +41,11 @@ export function Check({ file, elsewhere, note, find, fold, children }: { file: F
   const url = state.kind === "cleaned" ? state.url : null;
 
   useEffect(() => () => void (url && URL.revokeObjectURL(url)), [url]);
+
+  const opening = state.kind === "open";
+  useEffect(() => {
+    if (!opening) onSettled?.();
+  }, [opening, onSettled]);
 
   const onEvent = (e: CheckEvent) => {
     if (e.type === "progress") setState((s) => (s.kind === "failed" ? s : { ...s, busy: { step: e.step, done: e.done, total: e.total } }));

@@ -89,7 +89,7 @@ test("a file in: what it says at once, its tones, then where and when, and the f
 
   await page.getByTestId("where-file").setInputFiles(wav);
   await expect(page.getByTestId("where-name")).toHaveText("flyovers.wav");
-  await expect(page.getByTestId("where-facts-none")).toContainText("says nothing about where or when");
+  await expect(page.getByTestId("where-facts-none")).toContainText("No date or place in the tags we read. GoPros, drones and some other cameras keep GPS elsewhere, where we do not look.");
   await expect(page.getByTestId("where-find")).toBeDisabled();
   await expect(page.getByTestId("check-progress")).toBeVisible();
   expect(await page.locator("h1").boundingBox()).toEqual(heading);
@@ -103,7 +103,8 @@ test("a file in: what it says at once, its tones, then where and when, and the f
   await shoot(page, "where-tones");
 
   await openForm(page);
-  await expect(page.getByTestId("where-place")).toBeFocused();
+  // No date in the file: the first gap is the day.
+  await expect(page.getByTestId("where-day")).toBeFocused();
   await expect(page.getByTestId("where-search")).toBeDisabled();
   await expect(page.getByTestId("where-hour-why")).toHaveText("An hour or so gives better answers than a whole day.");
   await fillIn(page);
@@ -319,11 +320,56 @@ test("reached by keyboard, with the focus visible, and still under reduced motio
   await expect(page.getByTestId("where-find")).toBeEnabled({ timeout: 90_000 });
   await page.getByTestId("where-find").focus();
   await page.keyboard.press("Enter");
-  await expect(page.getByTestId("where-place")).toBeFocused();
+  await expect(page.getByTestId("where-day")).toBeFocused();
+  await expect(page.getByTestId("where-day")).toHaveCSS("outline-style", "solid");
+  await page.getByTestId("where-place").focus();
   await expect(page.getByTestId("where-place")).toHaveCSS("outline-style", "solid");
   await page.keyboard.press("Tab");
   await expect(page.getByTestId("where-locate")).toBeFocused();
   await expect(page.getByTestId("where-locate")).toHaveCSS("outline-style", "solid");
+});
+
+test.describe("on a touch screen", () => {
+  test.use({ hasTouch: true, isMobile: true, viewport: { width: 390, height: 844 } });
+
+  test("no field takes the focus: the keyboard stays shut and the page stays put", async ({ page }, info) => {
+    const wav = info.outputPath("one-pass.wav");
+    writeFileSync(wav, await sceneWav(90));
+    await page.goto("/where");
+    expect(await page.evaluate(() => matchMedia("(pointer: coarse)").matches)).toBe(true);
+    await page.getByTestId("where-file").setInputFiles(wav);
+    await openForm(page);
+    await expect(page.getByTestId("where-day")).toBeEnabled();
+    await expect(page.getByTestId("where-day")).not.toBeFocused();
+    await expect(page.getByTestId("where-place")).not.toBeFocused();
+  });
+});
+
+test("nothing jumps from the home to the tones, and what we check comes back under them", async ({ page }, info) => {
+  const wav = info.outputPath("one-pass.wav");
+  writeFileSync(wav, await sceneWav(90));
+  await page.addInitScript(() => {
+    const seen: number[] = [];
+    (window as unknown as { shifts: number[] }).shifts = seen;
+    new PerformanceObserver((list) => {
+      for (const e of list.getEntries() as (PerformanceEntry & { value: number; hadRecentInput: boolean })[]) if (!e.hadRecentInput) seen.push(e.value);
+    }).observe({ type: "layout-shift", buffered: true });
+  });
+  await page.goto("/");
+  await expect(page.locator("h1")).toBeVisible();
+  // The second door's card holds no hole: words at the top, what to do at the foot, little between.
+  const words = (await page.getByTestId("second-door").locator("p").first().boundingBox())!;
+  const button = (await page.getByTestId("listen").boundingBox())!;
+  expect(button.y - (words.y + words.height)).toBeLessThan(64);
+  await page.evaluate(() => (window as unknown as { shifts: number[] }).shifts.splice(0));
+  await page.getByTestId("where-file").setInputFiles(wav);
+  await expect(page).toHaveURL(/\/where$/);
+  await expect(page.getByTestId("check-progress")).toBeVisible();
+  await expect(page.getByTestId("where-scope")).toHaveCount(0);
+  await expect(page.getByTestId("where-find")).toBeEnabled({ timeout: 90_000 });
+  await expect(page.getByTestId("where-scope")).toBeVisible();
+  const shifts = await page.evaluate(() => (window as unknown as { shifts: number[] }).shifts);
+  expect(shifts).toEqual([]);
 });
 
 test("the Hz labels have a dark backing", async ({ page }, info) => {
