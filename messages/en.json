@@ -193,7 +193,7 @@
     "checked": "Every plane we checked ({n})",
     "atClosest": "{distance} at closest",
     "jet": "jet",
-    "score": "The score says how far each plane's curve stands above chance in your recording. With no plane to find, no score has reached {strong} in our tests.",
+    "score": "The score says how far each plane's curve stands above chance in your recording. In our test recordings with no plane to find, no score has reached {strong}. It can still happen: if the plane you heard is missing from the flight data, another one can reach it.",
     "realSky": "Listen to the real sky",
     "again": "Listen again",
     "bundle": "Download recording bundle",
