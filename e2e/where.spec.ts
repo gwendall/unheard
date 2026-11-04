@@ -544,6 +544,118 @@ test("the tones a search finds show in the check's place while it waits, and the
   await expect(page.getByTestId("check-clean")).toBeEnabled();
 });
 
+/**
+ * The shape of a real hour: dozens of tones. The finder keeps a couple a chunk, so sixty real ones take an
+ * hour of sound and minutes of it: here the check's worker alone is stood in for, the page and the search are real.
+ * Sixty tones come as the check goes, and the end when the test calls `finishCheck`.
+ */
+async function sixtyTones(page: Page) {
+  await page.addInitScript(() => {
+    const Real = window.Worker;
+    const toneOf = (i: number) => {
+      const start = 30 + i * 58;
+      const times = Float64Array.from({ length: 160 }, (_, k) => start + k * 0.25);
+      const freq = Float32Array.from({ length: 160 }, (_, k) => (90 + (i % 9) * 30) * (1 + 0.1 * Math.tanh(-(k - 80) / 30)));
+      return { times, freq, confidence: 5 + (i * 7) % 40 };
+    };
+    const seen = Array.from({ length: 60 }, (_, i) => {
+      const tone = toneOf(i);
+      return { tone, view: { start: tone.times[0] - 10, end: tone.times[159] + 10, lo: tone.freq[159] * 0.8, hi: tone.freq[0] * 1.2 } };
+    });
+    class Check {
+      onmessage: ((e: { data: unknown }) => void) | null = null;
+      onerror: unknown = null;
+      postMessage(request: { type: string }) {
+        const blank = (s: (typeof seen)[number]) => ({ ...s, before: { ...s.view, width: 1, height: 1, cells: new Uint8Array(1) } });
+        if (request.type === "clean") {
+          const cleaned = seen.map((s) => ({ ...blank(s), after: blank(s).before }));
+          setTimeout(() => this.onmessage?.({ data: { type: "cleaned", cleaned, left: [], file: new Blob([new Uint8Array(44)]), extension: "wav" } }), 50);
+          return;
+        }
+        setTimeout(() => this.onmessage?.({ data: { type: "tones", duration: 3600, tones: seen } }), 50);
+        (window as unknown as { finishCheck: () => void }).finishCheck = () =>
+          this.onmessage?.({ data: { type: "found", duration: 3600, found: seen.map(blank) } });
+      }
+      terminate() {}
+    }
+    window.Worker = function (url: string | URL, options?: WorkerOptions) {
+      return String(url).includes("where") ? new Real(url, options) : new Check();
+    } as unknown as typeof Worker;
+  });
+}
+
+test("sixty tones: the strongest three, the others a tap away and not drawn, and the page stays short, before, during and after a search", async ({ page }, info) => {
+  const SCREEN = 844;
+  const height = () => page.evaluate(() => document.documentElement.scrollHeight);
+  const drawn = page.locator('[data-testid="check-tones"] canvas, [data-testid="check-others"] canvas');
+  const wav = info.outputPath("one-pass.wav");
+  writeFileSync(wav, await sceneWav(90));
+  await sixtyTones(page);
+  await page.setViewportSize({ width: 390, height: SCREEN });
+  await page.goto("/where");
+  await page.getByTestId("where-file").setInputFiles(wav);
+
+  // As they are found.
+  await expect(page.getByTestId("check-tones").locator("li")).toHaveCount(3, { timeout: 60_000 });
+  await expect(drawn).toHaveCount(3);
+  expect(await height()).toBeLessThan(3 * SCREEN);
+  // No count yet: pieces of one tone may still be joined.
+  await expect(page.getByTestId("check-all").locator("summary")).toHaveText("See the tones found so far");
+
+  // Found: the count stays in one line, and so does the rest.
+  await page.evaluate(() => (window as unknown as { finishCheck: () => void }).finishCheck());
+  await expect(page.getByTestId("check-verdict")).toHaveText("60 aircraft tones that could place this file.");
+  await expect(drawn).toHaveCount(3);
+  // The strongest, in the file's order.
+  const captions = await page.getByTestId("check-tones").locator("li p").allInnerTexts();
+  expect(captions).toEqual([...captions].sort());
+  await expect(page.getByTestId("where-scope")).toBeVisible();
+  expect(await height()).toBeLessThan(3 * SCREEN);
+  await shoot(page, "where-sixty");
+
+  // A tap away, all of them; closed, they go.
+  const all = page.getByTestId("check-all").locator("summary");
+  await expect(all).toHaveText("See all 60 tones");
+  await all.click();
+  await expect(drawn).toHaveCount(60);
+  await all.click();
+  await expect(drawn).toHaveCount(3);
+
+  await page.getByTestId("where-find").click();
+  await fillIn(page);
+  await page.getByTestId("where-search").click();
+  await expect(page.getByTestId("where-progress")).toBeVisible();
+  await expect(drawn).toHaveCount(3);
+  await shoot(page, "where-sixty-searching");
+  // The form is open too.
+  expect(await height()).toBeLessThan(4 * SCREEN);
+
+  // Under an answer they are all put away, with the same line as on a shorter file.
+  await expect(page.getByTestId("where-verdict")).toBeVisible({ timeout: 170_000 });
+  await expect(drawn).toHaveCount(0);
+  await expect(page.getByTestId("check-fold").locator("summary")).toHaveText("See the 60 tones in this file");
+  await shoot(page, "where-sixty-answer");
+});
+
+test("sixty tones taken out: before and after for the three, and the others from the same list", async ({ page }, info) => {
+  const wav = info.outputPath("one-pass.wav");
+  writeFileSync(wav, await sceneWav(90));
+  await sixtyTones(page);
+  await page.goto("/where");
+  await page.getByTestId("where-file").setInputFiles(wav);
+  await expect(page.getByTestId("check-tones").locator("li")).toHaveCount(3, { timeout: 60_000 });
+  await page.evaluate(() => (window as unknown as { finishCheck: () => void }).finishCheck());
+  await page.getByTestId("check-clean").click();
+  await expect(page.getByTestId("check-verdict")).toHaveText("The tones are gone.", { timeout: 90_000 });
+  await expect(page.getByTestId("check-download")).toBeVisible();
+  const items = page.getByTestId("check-tones").locator("li");
+  await expect(items).toHaveCount(3);
+  await expect(items.first().locator("canvas")).toHaveCount(2);
+  await page.getByTestId("check-all").locator("summary").click();
+  await expect(page.getByTestId("check-others").locator("li")).toHaveCount(57);
+  await expect(page.getByTestId("check-others").locator("li").first().locator("canvas")).toHaveCount(2);
+});
+
 test.describe("the end of a search on a phone", () => {
   test.use({ viewport: { width: 390, height: 844 } });
 

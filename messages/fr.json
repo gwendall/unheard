@@ -351,6 +351,8 @@
     "found": { "one": "Un son d'avion qui pourrait situer ce fichier.", "other": "{n} sons d'avion qui pourraient situer ce fichier." },
     "clean": { "one": "Le retirer", "other": "Les retirer" },
     "fold": { "one": "Voir le son de ce fichier", "other": "Voir les {n} sons de ce fichier" },
+    "all": "Voir les {n} sons",
+    "soFar": "Voir les sons trouvés jusqu'ici",
     "elsewhere": "Ou faire croire que vous êtes ailleurs",
     "none": "Aucun son d'avion trouvé.",
     "noneText": "Nous avons cherché le bourdonnement des avions et des hélicoptères, aucun ne ressort : il n'y a rien à chercher ni à retirer. Le fichier n'est pas sûr pour autant : voici ce que nous ne vérifions pas.",
