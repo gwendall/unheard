@@ -176,10 +176,10 @@ test("a copy without its tags: the same picture and sound, and nothing the file 
   await expect(page.getByTestId("check-tags-note")).toContainText("The sound is unchanged");
   await expect(page.getByTestId("check-tags-note")).toContainText("the picture can still give the place away");
   // Its own GPS answers, whatever it holds of planes: the copy is what there is to do, and no search stands in the way.
-  await expect(page.getByTestId("answer-title")).toHaveText(/^Filmed (near|at) /);
+  await expect(page.getByTestId("answer-title")).toHaveText(/^This file says it was filmed (near|at) /);
   await expect(page.getByTestId("check-tags-download")).toHaveClass(/bg-amber/);
   await expect(page.getByTestId("check-verdict")).toBeVisible({ timeout: 170_000 });
-  await expect(page.getByTestId("answer-title")).toHaveText(/^Filmed (near|at) /);
+  await expect(page.getByTestId("answer-title")).toHaveText(/^This file says it was filmed (near|at) /);
   await expect(page.getByTestId("where-verdict")).toHaveCount(0);
   await shoot(page, "check-tags-video");
   const out = info.outputPath("flyby-no-tags.mp4");

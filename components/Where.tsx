@@ -78,7 +78,9 @@ export function Where({ archive, elsewhere, scope }: { archive: string | null; e
   const device = picked?.meta.device;
   const near = picked?.near ?? null;
   const spoken = picked ? madeInWords(picked.meta.createdAt, location ? { lon: location.lon, zone: near?.zone } : undefined, locale) : null;
-  const when = [spoken && (spoken.time ? fill(a.when, { date: spoken.date, time: spoken.time }) : spoken.date), device].filter(Boolean).join(", ") || null;
+  // From the tags, which can be edited or copied: it says so, as the place does.
+  const stated = spoken && (spoken.time ? fill(a.when, { date: spoken.date, time: spoken.time }) : spoken.date);
+  const when = stated ? fill(a.fileWhen, { when: [stated, device].filter(Boolean).join(", ") }) : device ? fill(a.fileDevice, { device }) : null;
   const spot = useMemo(() => (location ? { lat: location.lat, lon: location.lon, start: 0, mirror: null, planes: [], paths: [] } : null), [location]);
   const another = (
     <label className={`${FIND_NEXT} cursor-pointer text-center has-[input:focus-visible]:outline-2 has-[input:focus-visible]:outline-offset-2 has-[input:focus-visible]:outline-amber`}>

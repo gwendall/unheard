@@ -368,8 +368,9 @@ test("a video with no sound track: its own tags said first and big, and the miss
   writeFileSync(video, phoneVideo());
   await page.goto("/where");
   await page.getByTestId("where-file").setInputFiles(video);
-  await expect(page.getByTestId("answer-title")).toHaveText("Filmed near Mesa, Arizona");
-  await expect(page.getByTestId("answer-when")).toHaveText(/^May 16, 2026, 11:44.AM/);
+  // Tags can be edited or copied: the place and the date are what the file says.
+  await expect(page.getByTestId("answer-title")).toHaveText("This file says it was filmed near Mesa, Arizona");
+  await expect(page.getByTestId("answer-when")).toHaveText(/^The file says May 16, 2026, 11:44.AM/);
   await expect(page.getByTestId("answer-map-note")).toContainText("never your file");
   await expect(page.getByTestId("place-map")).toBeVisible();
   await expect(page.getByTestId("check-trouble")).toContainText("no sound we can read", { timeout: 30_000 });

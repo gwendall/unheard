@@ -527,20 +527,22 @@
     }
   },
   "answer": {
-    "gps": "Filmed near {place}",
-    "gpsAt": "Filmed at {place}",
+    "gps": "This file says it was filmed near {place}",
+    "gpsAt": "This file says it was filmed at {place}",
     "named": "Probably filmed near {place}",
     "namedAt": "Probably filmed at {place}",
     "namedSea": "Probably filmed at sea",
     "cannot": "Can't tell where this was filmed",
     "listening": "Listening for planes in the sound",
     "when": "{date}, {time}",
+    "fileWhen": "The file says {when}",
+    "fileDevice": "The file says {device}",
     "around": "{date}, around {time}",
     "plane": "{type}, {distance} away, at {time}",
     "another": "Another file",
     "mapNote": "The map and the place name come from our own storage, and your file is never sent. Our host sees which area was asked for: a few dozen km across, down to about a kilometre if you zoom in.",
     "why": {
-      "gps": "It is written in the file, and anyone can read it if you share it as it is.",
+      "gps": "Tags like this can be edited, and anyone can read them if you share the file as it is.",
       "named": {
         "one": "{n} plane was passing there at that moment, and we can hear it in the sound.",
         "other": "{n} planes were passing there at that moment, and we can hear them in the sound."
