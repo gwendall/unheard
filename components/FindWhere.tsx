@@ -1,15 +1,17 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Bar } from "@/components/Bar";
 import { useI18n } from "@/components/I18n";
 import { Share } from "@/components/Share";
 import { PlaceMap } from "@/components/PlaceMap";
 import { TonePicture } from "@/components/TonePicture";
 import { decode, troubleOf } from "@/lib/client/decode";
+import { timeLeft } from "@/lib/client/format";
 import type { FileMetadata } from "@/lib/client/metadata";
 import { aircraftType } from "@/lib/client/types";
-import { clockOf, coordinates, metresApart, offsetAt, OLDEST_DAY, osmLink, parseCoordinates, secondsLeft, SQUARE, windowOf, type Place, type Prefill, type Zone } from "@/lib/client/where";
-import type { Guess, WhereEvent, WhereRequest, WhereResult, WhereStep } from "@/lib/client/where.worker";
+import { clockOf, coordinates, metresApart, offsetAt, OLDEST_DAY, osmLink, parseCoordinates, SQUARE, windowOf, type Place, type Prefill, type Zone } from "@/lib/client/where";
+import type { Guess, WhereEvent, WherePartial, WhereRequest, WhereResult, WhereStep } from "@/lib/client/where.worker";
 import { ANALYSIS_RATE } from "@/lib/core/rate";
 import { nearestPlace, placeLabel, searchPlaces, type NearPlace, type PlaceHit } from "@/lib/client/places";
 import { paintWhere } from "@/lib/client/where-card";
@@ -21,8 +23,10 @@ import { httpFetcher, readDays } from "@/lib/history";
 // height tiles, the place names of those squares and the first letters of a typed name are asked
 // for, all from our own files.
 
-/** `since`: when this step last started over, for the estimate. */
-type Busy = { step: WhereStep | "open"; done: number; total: number; since: number };
+/** `fraction` and `left`: the whole job's, from the worker. `since`: when the job started, for the time so far. */
+type Busy = { step: WhereStep | "open"; done: number; total: number; fraction: number; left: number | null; since: number };
+/** The best guess while the search still refines it. */
+type SoFar = { lat: number; lon: number; start: number; name: string | null };
 export type Picked = { file: File; meta: FileMetadata; prefill: Prefill };
 type Found = Extract<WhereResult, { kind: "found" }>;
 
@@ -66,6 +70,7 @@ export function FindWhere({ picked, archive }: { picked: Picked; archive: string
   const [matches, setMatches] = useState<PlaceHit[] | null>(null);
   const [active, setActive] = useState(0);
   const [names, setNames] = useState<Map<string, NearPlace>>(new Map());
+  const [soFar, setSoFar] = useState<SoFar | null>(null);
   const [locating, setLocating] = useState(false);
   const [busy, setBusy] = useState<Busy | null>(null);
   const [now, setNow] = useState(0);
@@ -103,6 +108,7 @@ export function FindWhere({ picked, archive }: { picked: Picked; archive: string
     worker.current?.terminate();
     worker.current = null;
     setBusy(null);
+    setSoFar(null);
     setResult(null);
     setShown(0);
     setError(null);
@@ -181,7 +187,8 @@ export function FindWhere({ picked, archive }: { picked: Picked; archive: string
     stop();
     const mine = run.current;
     setNow(Date.now());
-    setBusy({ step: "open", done: 0, total: 1, since: Date.now() });
+    const since = Date.now();
+    setBusy({ step: "open", done: 0, total: 1, fraction: 0, left: null, since });
     setSearchedDay(!time);
     // Coordinates come with no time zone. A local hour needs one: the town nearest them gives it,
     // asked only now, from the same square the search reads.
@@ -199,9 +206,17 @@ export function FindWhere({ picked, archive }: { picked: Picked; archive: string
     }
     if (mine !== run.current) return;
     const w = new Worker(new URL("../lib/client/where.worker.ts", import.meta.url), { type: "module" });
-    const onEvent = async (e: WhereEvent) => {
-      // A step that goes back starts over: its estimate with it.
-      if (e.type === "progress") return setBusy((b) => (b?.step === e.step && e.done >= b.done ? { ...b, done: e.done, total: e.total } : { step: e.step, done: e.done, total: e.total, since: Date.now() }));
+    const onEvent = async (e: WhereEvent | WherePartial) => {
+      if (e.type === "progress") return setBusy({ step: e.step, done: e.done, total: e.total, fraction: e.fraction, left: e.secondsLeft, since });
+      // The tones are on the page already, from the first look at the file.
+      if (e.type === "tones") return;
+      if (e.type === "best") {
+        const { lat, lon, start } = e.best;
+        setSoFar((was) => ({ lat, lon, start, name: was && metresApart(was, e.best) < 1000 ? was.name : null }));
+        const near = await nearestPlace(lat, lon, { locale });
+        if (mine === run.current && near) setSoFar((now) => (now?.lat === lat && now.lon === lon ? { ...now, name: placeLabel(near) } : now));
+        return;
+      }
       w.terminate();
       worker.current = null;
       if (e.type === "result") {
@@ -215,12 +230,13 @@ export function FindWhere({ picked, archive }: { picked: Picked; archive: string
       } else setError(fill(t.errors.failed, { message: e.message }));
       setBusy(null);
     };
-    w.onmessage = (e: MessageEvent<WhereEvent>) => void onEvent(e.data);
+    w.onmessage = (e: MessageEvent<WhereEvent | WherePartial>) => void onEvent(e.data);
     w.onerror = (e) => void onEvent({ type: "error", message: e.message || "worker" });
     worker.current = w;
     const request: WhereRequest = {
       ...audio,
       history: new URL(archive, window.location.href).href,
+      partial: true,
       window: searched,
       area: { lat: place.lat, lon: place.lon, side: SQUARE },
     };
@@ -229,20 +245,26 @@ export function FindWhere({ picked, archive }: { picked: Picked; archive: string
 
   const progress = (b: Busy) => {
     const n = Math.round((100 * b.done) / Math.max(1, b.total));
-    const elapsed = Math.max(0, now - b.since);
-    const left = secondsLeft(b.done, b.total, elapsed);
-    const estimate = left === null ? fill(t.elapsed, { time: f.clock(elapsed / 1000) }) : left < 60 ? fill(t.leftSeconds, { n: Math.max(5, Math.ceil(left / 5) * 5) }) : fill(t.leftMinutes, { n: Math.ceil(left / 60) });
+    const text = fill(t.steps[b.step], { n });
+    const estimate = b.left === null ? fill(t.elapsed, { time: f.clock(Math.max(0, now - b.since) / 1000) }) : timeLeft(b.left, t, fill);
     return (
-      <div className="flex min-h-13 flex-wrap items-center gap-x-6 gap-y-2">
-        <p className="flex items-center gap-3 font-mono text-sm text-mute tabular-nums" role="status" data-testid="where-progress">
-          <span aria-hidden className="size-2 shrink-0 animate-pulse rounded-full bg-amber" />
-          <span>
-            {fill(t.steps[b.step], { n })} <span data-testid="where-estimate">{estimate}</span>
-          </span>
+      <div className="flex flex-col gap-3">
+        <div className="flex min-h-13 flex-wrap items-center gap-x-6 gap-y-2">
+          <p className="flex items-center gap-3 font-mono text-sm text-mute tabular-nums" role="status" data-testid="where-progress">
+            <span aria-hidden className="size-2 shrink-0 animate-pulse rounded-full bg-amber" />
+            <span>
+              {text} <span data-testid="where-estimate">{estimate}</span>
+            </span>
+          </p>
+          <button type="button" onClick={stop} className={SECOND} data-testid="where-cancel">
+            {t.cancel}
+          </button>
+        </div>
+        <Bar fraction={b.fraction} label={text} testid="where-bar" />
+        {/* Its place is held from the start, so the first guess moves nothing. */}
+        <p className="min-h-24 text-pretty text-ink sm:min-h-12 lg:min-h-6" data-testid="where-sofar">
+          {soFar && fill(t.soFar, { place: soFar.name ?? coordinates(soFar, 2), time: clockOf(soFar.start).slice(0, 5) })}
         </p>
-        <button type="button" onClick={stop} className={SECOND} data-testid="where-cancel">
-          {t.cancel}
-        </button>
       </div>
     );
   };

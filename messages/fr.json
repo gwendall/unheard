@@ -388,6 +388,7 @@
     "locateFailed": "Nous n'avons pas pu obtenir votre position. Tapez plutôt une ville ou des coordonnées.",
     "cancel": "Annuler",
     "elapsed": "{time} écoulées",
+    "soFar": "Meilleure piste pour l'instant : {place}, début vers {time} UTC. La recherche peut encore l'écarter.",
     "leftSeconds": "encore {n} s environ",
     "leftMinutes": "encore {n} min environ",
     "choose": "Choisir un fichier",

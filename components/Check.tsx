@@ -3,27 +3,35 @@
 import Link from "next/link";
 import type { Route } from "next";
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { Bar } from "@/components/Bar";
 import { useI18n } from "@/components/I18n";
 import { TonePicture } from "@/components/TonePicture";
 import { decode, troubleOf } from "@/lib/client/decode";
-import { clock } from "@/lib/client/format";
-import type { CheckEvent, CheckRequest, Found, Step } from "@/lib/client/check.worker";
-import type { Picture } from "@/lib/core/leak";
+import { clock, timeLeft } from "@/lib/client/format";
+import type { CheckEvent, CheckPartial, CheckRequest, Found, Step } from "@/lib/client/check.worker";
+import type { Picture, View } from "@/lib/core/leak";
 
 // A file's aircraft tones, and taking them out: its sound is decoded here (Web Audio takes the
 // audio of most video containers) and handed to a worker that does the rest; nothing of it is ever
 // sent. The verdict, the actions and the tones keep their places as each arrives. `find` is the
 // other thing to do with the tones (components/Where.tsx), `children` what it opens.
 
-type Busy = { step: Step | "open"; done: number; total: number };
+/** `fraction` and `left`: the whole job's, from the worker, once it has started. */
+type Busy = { step: Step | "open"; done: number; total: number; fraction?: number; left?: number | null };
 type Cleaned = { cleaned: (Found & { after: Picture })[]; left: Found[]; url: string };
-type State = { kind: "failed"; error: string } | { kind: "open"; busy: Busy } | { kind: "found"; found: Found[]; busy?: Busy } | ({ kind: "cleaned"; busy?: Busy } & Cleaned);
+type State = { kind: "failed"; error: string } | { kind: "open"; busy: Busy; soFar?: Found[] } | { kind: "found"; found: Found[]; busy?: Busy } | ({ kind: "cleaned"; busy?: Busy } & Cleaned);
 
 /** Decoding happens at the rate of video sound; a file at another rate is resampled to it. */
 const RATE = 48_000;
 
 /** m:ss, or h:mm:ss past an hour. */
 const at = (s: number) => (s < 3600 ? clock(s) : `${Math.floor(s / 3600)}:${clock(s % 3600).padStart(5, "0")}`);
+
+/** A tone found while the search goes on: its curve, on a dark picture of the same size until the real one comes. */
+const blank = (view: View): Picture => ({ ...view, width: 1, height: 1, cells: new Uint8Array(1) });
+
+/** In the file's order, so a tone that arrives later never moves those above it. */
+const inOrder = <T extends Found>(list: T[]) => [...list].sort((a, b) => a.tone.times[0] - b.tone.times[0]);
 
 /** The verdict's place, at the height of its longest wording, so nothing under it moves. */
 const VERDICT = "flex min-h-16 items-center sm:min-h-13";
@@ -47,8 +55,9 @@ export function Check({ file, elsewhere, note, find, fold, onSettled, children }
     if (!opening) onSettled?.();
   }, [opening, onSettled]);
 
-  const onEvent = (e: CheckEvent) => {
-    if (e.type === "progress") setState((s) => (s.kind === "failed" ? s : { ...s, busy: { step: e.step, done: e.done, total: e.total } }));
+  const onEvent = (e: CheckEvent | CheckPartial) => {
+    if (e.type === "progress") setState((s) => (s.kind === "failed" ? s : { ...s, busy: { step: e.step, done: e.done, total: e.total, fraction: e.fraction, left: e.secondsLeft } }));
+    else if (e.type === "tones") setState((s) => (s.kind === "open" ? { ...s, soFar: e.tones.map(({ tone, view }) => ({ tone, view, before: blank(view) })) } : s));
     else if (e.type === "found") setState({ kind: "found", found: e.found });
     else if (e.type === "cleaned") setState({ kind: "cleaned", cleaned: e.cleaned, left: e.left, url: URL.createObjectURL(e.wav) });
     else setState({ kind: "failed", error: fill(t.errors.failed, { message: e.message }) });
@@ -67,11 +76,11 @@ export function Check({ file, elsewhere, note, find, fold, onSettled, children }
       }
       if (!live) return;
       const w = new Worker(new URL("../lib/client/check.worker.ts", import.meta.url), { type: "module" });
-      w.onmessage = (e: MessageEvent<CheckEvent>) => onEvent(e.data);
+      w.onmessage = (e: MessageEvent<CheckEvent | CheckPartial>) => onEvent(e.data);
       w.onerror = (e) => setState({ kind: "failed", error: fill(t.errors.failed, { message: e.message || "worker" }) });
       worker.current = w;
       setState({ kind: "open", busy: { step: "find", done: 0, total: 1 } });
-      const request: CheckRequest = { type: "find", ...audio };
+      const request: CheckRequest = { type: "find", ...audio, partial: true };
       w.postMessage(request, audio.channels.map((c) => c.buffer as ArrayBuffer));
     }, 30);
     return () => {
@@ -91,14 +100,20 @@ export function Check({ file, elsewhere, note, find, fold, onSettled, children }
     worker.current.postMessage(request);
   };
 
-  const progress = (busy: Busy) => {
-    const n = Math.round((100 * busy.done) / Math.max(1, busy.total));
+  /** `wide`: alone on its line, the verdict's place; otherwise at a button's width, in the actions. */
+  const progress = (busy: Busy, wide = false) => {
+    const n = Math.round(100 * (busy.fraction ?? busy.done / Math.max(1, busy.total)));
     const text = busy.step === "open" ? t.steps.open : busy.step === "write" ? t.steps.write : fill(t.steps[busy.step], { n });
+    const left = busy.left == null ? "" : ` ${timeLeft(busy.left, m.where, fill)}`;
     return (
-      <p className="flex min-h-13 items-center gap-3 font-mono text-sm text-mute tabular-nums" role="status" data-testid="check-progress">
-        <span aria-hidden className="size-2 shrink-0 animate-pulse rounded-full bg-amber" />
-        {text}
-      </p>
+      <div className={`flex min-h-13 flex-col justify-center gap-2 ${wide ? "w-full" : "w-full sm:w-fit sm:min-w-52"}`}>
+        <p className="flex items-center gap-3 font-mono text-sm text-mute tabular-nums" role="status" data-testid="check-progress">
+          <span aria-hidden className="size-2 shrink-0 animate-pulse rounded-full bg-amber" />
+          {text}
+          {left}
+        </p>
+        <Bar fraction={busy.fraction ?? 0} label={text} testid="check-bar" />
+      </div>
     );
   };
 
@@ -130,14 +145,14 @@ export function Check({ file, elsewhere, note, find, fold, onSettled, children }
 
   const heard = state.kind === "found" ? state.found : null;
   const none = heard?.length === 0;
-  const list = state.kind === "cleaned" ? [...state.left, ...state.cleaned] : (heard ?? []);
+  const list = state.kind === "cleaned" ? [...state.left, ...state.cleaned] : inOrder(heard ?? (state.kind === "open" ? (state.soFar ?? []) : []));
   const busy = state.kind === "failed" ? undefined : state.busy;
 
   return (
     <div className="flex flex-col gap-6" data-testid="check">
       <div className="flex flex-col gap-4">
         <div className={VERDICT} data-testid="check-slot">
-          {state.kind === "open" && progress(state.busy)}
+          {state.kind === "open" && progress(state.busy, true)}
           {state.kind === "failed" && (
             <p role="alert" className="text-xl font-medium text-pretty text-amber-soft" data-testid="check-trouble">
               {state.error}

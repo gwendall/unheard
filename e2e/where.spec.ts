@@ -115,6 +115,11 @@ test("a file in: what it says at once, its tones, then where and when, and the f
   await expect(page.getByTestId("where-progress")).toBeVisible();
   await expect(page.getByTestId("where-estimate")).toBeVisible();
   await expect(page.getByTestId("where-cancel")).toBeVisible();
+  await expect(page.getByTestId("where-bar")).toBeVisible();
+  // The best guess as soon as there is one, hedged, while the search refines it.
+  const sofar = await page.getByTestId("where-sofar").boundingBox();
+  await expect(page.getByTestId("where-sofar")).toContainText(/^Best so far: .+ UTC\. The search may still drop it\.$/, { timeout: 170_000 });
+  expect(await page.getByTestId("where-sofar").boundingBox()).toEqual(sofar);
   // The rest of the page stays usable meanwhile.
   await expect(page.getByTestId("check-clean")).toBeEnabled();
   await shoot(page, "where-searching");
@@ -446,6 +451,28 @@ test("nothing jumps from the home to the tones, and what we check comes back und
   await expect(page.getByTestId("where-scope")).toBeVisible();
   const shifts = await page.evaluate(() => (window as unknown as { shifts: number[] }).shifts);
   expect(shifts).toEqual([]);
+});
+
+test("the tones appear as they are found, before the verdict, and what is above them holds", async ({ page }, info) => {
+  const wav = info.outputPath("one-pass.wav");
+  writeFileSync(wav, await sceneWav(90));
+  await page.addInitScript(() => {
+    const seen = { both: false, bar: 0 };
+    (window as unknown as { seen: typeof seen }).seen = seen;
+    setInterval(() => {
+      if (document.querySelector('[data-testid="check-tones"] li') && document.querySelector('[data-testid="check-progress"]')) seen.both = true;
+      seen.bar = Math.max(seen.bar, Number(document.querySelector('[data-testid="check-bar"]')?.getAttribute("aria-valuenow") ?? 0));
+    }, 50);
+  });
+  await page.goto("/where");
+  await page.getByTestId("where-file").setInputFiles(wav);
+  await expect(page.getByTestId("check-progress")).toBeVisible();
+  const before = await rectsOf(page, STAY);
+  await expect(page.getByTestId("where-find")).toBeEnabled({ timeout: 90_000 });
+  expect(await rectsOf(page, STAY)).toEqual(before);
+  const seen = await page.evaluate(() => (window as unknown as { seen: { both: boolean; bar: number } }).seen);
+  expect(seen.both).toBe(true);
+  expect(seen.bar).toBeGreaterThan(0);
 });
 
 test("the Hz labels have a dark backing", async ({ page }, info) => {
