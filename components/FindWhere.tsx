@@ -1,7 +1,7 @@
 "use client";
 
 import { useContext, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
-import { Answer } from "@/components/Answer";
+import { Answer, type AnswerProps } from "@/components/Answer";
 import { Bar } from "@/components/Bar";
 import { CheckParts, type Heard } from "@/components/Check";
 import { useI18n } from "@/components/I18n";
@@ -58,7 +58,7 @@ const SECOND = "rounded-full border border-line px-5 py-3 text-ink transition ho
 const BUTTON = "w-full rounded-full bg-amber px-7 py-3 text-lg font-medium text-night transition hover:bg-amber-soft disabled:cursor-not-allowed disabled:opacity-40 sm:w-fit";
 const FIELD = "rounded-xl border border-line bg-deep px-4 py-3 text-base text-ink placeholder:text-faint focus:border-amber";
 
-export function FindWhere({ picked, archive, few, silent, when: fileWhen, another, onSearching, onHeard, onAnswered }: { picked: Picked; archive: string; few?: boolean; silent?: boolean; when?: string | null; another?: ReactNode; onSearching?: (running: boolean) => void; onHeard?: (heard: Heard) => void; onAnswered?: (answered: boolean) => void }) {
+export function FindWhere({ picked, archive, finding, few, silent, when: fileWhen, another, onSearching, onHeard, onAnswered }: { picked: Picked; archive: string; finding?: boolean; few?: boolean; silent?: boolean; when?: string | null; another?: ReactNode; onSearching?: (running: boolean) => void; onHeard?: (heard: Heard) => void; onAnswered?: (answered: boolean) => void }) {
   const { m, f, fill, plural, locale } = useI18n();
   const t = m.where;
   const a = m.answer;
@@ -86,8 +86,8 @@ export function FindWhere({ picked, archive, few, silent, when: fileWhen, anothe
   const [candidates, setCandidates] = useState(false);
   // Nothing heard at all, with no search asked for: the same answer, and nothing to look up.
   const result = reply ?? (few && !anyway ? FEW : silent ? NONE : null);
-  // An answer with no search behind it has nothing to read from the archive.
-  const asking = !!reply || !result;
+  // Nothing is read from the archive and no form is shown until the visitor asks for a search.
+  const asking = !!finding || anyway;
   const [searchedDay, setSearchedDay] = useState(false);
   const [shown, setShown] = useState(0);
   const worker = useRef<Worker | null>(null);
@@ -432,7 +432,7 @@ export function FindWhere({ picked, archive, few, silent, when: fileWhen, anothe
     </p>
   );
 
-  const form = !result && (
+  const form = asking && !result && (
     <div className="flex flex-col gap-5">
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
         <label className="flex min-w-0 flex-col gap-2">
@@ -587,7 +587,7 @@ export function FindWhere({ picked, archive, few, silent, when: fileWhen, anothe
   const known = days !== undefined;
   const complete = !!span && !!time;
   useEffect(() => {
-    if (!known || started.current || (result && !reply)) return;
+    if (!asking || !known || started.current || (result && !reply)) return;
     started.current = true;
     // A microtask: the effect only decides, the search sets its own state.
     if (complete) queueMicrotask(() => void search());
@@ -671,13 +671,20 @@ export function FindWhere({ picked, archive, few, silent, when: fileWhen, anothe
     </button>
   );
 
+  const onDetails = (open: boolean) => {
+    setDetailsOpen(open);
+    if (!open) setShown(0);
+  };
+  const answerNow: AnswerProps | null | undefined = result && said ? null : part?.answer;
+
   return (
     // No box of its own: what it holds goes from the form to the answer, and only that changes on the page.
+    // One Answer from the first moment to the last, so that what stays is the same element: a click on it is never lost.
     <div className="contents" data-testid="where-find-panel">
-      {form}
-
-      {result && said && (
-        <div ref={top} className="flex scroll-mt-4 flex-col gap-8" data-testid="where-result">
+      <div ref={top} className="flex scroll-mt-4 flex-col gap-8 empty:hidden" data-testid={result && said ? "where-result" : undefined}>
+        {answerNow ? (
+          <Answer {...answerNow} titleRef={verdict} onDetails={onDetails} />
+        ) : result && said ? (
           <Answer
             map={named && guess ? mapOf(guess, others, found!.confident) : undefined}
             title={named ? nameOf(named) : a.cannot}
@@ -707,7 +714,7 @@ export function FindWhere({ picked, archive, few, silent, when: fileWhen, anothe
               <>
                 {part?.quietCopy}
                 {part?.clean(!named)}
-                {result.kind === "few" && (
+                {result.kind === "few" && archive && (
                   <button
                     type="button"
                     onClick={() => {
@@ -740,10 +747,7 @@ export function FindWhere({ picked, archive, few, silent, when: fileWhen, anothe
             }
             foot={named && <p className="text-sm text-pretty text-faint">{t.result.credit}</p>}
             summary={named ? a.details.named : a.details.cannot}
-            onDetails={(open) => {
-              setDetailsOpen(open);
-              if (!open) setShown(0);
-            }}
+            onDetails={onDetails}
             details={
               <>
                 {named && lead(named, found!.confident)}
@@ -759,8 +763,9 @@ export function FindWhere({ picked, archive, few, silent, when: fileWhen, anothe
               </>
             }
           />
-        </div>
-      )}
+        ) : null}
+      </div>
+      {form}
     </div>
   );
 }

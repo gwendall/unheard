@@ -52,7 +52,8 @@ async function placesOf(page: Page) {
 const placeOf = (page: Page, id: string) =>
   page.getByTestId(id).evaluate((el) => {
     const r = el.getBoundingClientRect();
-    return { x: r.x, y: r.y + window.scrollY, width: r.width, height: r.height };
+    // To a hundredth: Firefox's rects and scroll offsets round differently.
+    return [r.x, r.y + window.scrollY, r.width, r.height].map((n) => Math.round(n * 100) / 100);
   });
 
 async function clean(page: Page, file: string) {

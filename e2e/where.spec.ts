@@ -248,14 +248,19 @@ test("without the flag, leads with the best guess and the next answer, and says 
   await expect(guesses.nth(1)).toContainText(/^Next answer: .+, [\d.,]+ k?m off$/);
   await shoot(page, "where-best-guess");
   const first = await page.getByTestId("where-spot").innerText();
-  const { x, y, width } = (await page.getByTestId("place-map").boundingBox())!;
+  // In the page: the button is below the fold, and clicking it scrolls.
+  const mapBox = () => page.getByTestId("place-map").evaluate((el) => {
+    const r = el.getBoundingClientRect();
+    return { x: r.x, y: r.y + window.scrollY, width: r.width };
+  });
+  const before = await mapBox();
   await guesses.nth(1).click();
   // The lead stays on the best guess; what is shown below it is the answer picked.
   await expect(page.getByTestId("where-spot")).toHaveText(first);
   await expect(page.getByTestId("where-shown-spot")).not.toHaveText(first);
   await expect(page.getByTestId("where-shown-start")).toContainText("Would have started");
   // What changes with the answer sits under the map: the map holds.
-  expect(await page.getByTestId("place-map").boundingBox()).toMatchObject({ x, y, width });
+  expect(await mapBox()).toEqual(before);
   await shoot(page, "where-guesses");
 });
 
@@ -358,6 +363,7 @@ test("says so when the file holds no tone, offers no search, and never says the 
   await expect(page.getByTestId("where-verdict")).toHaveText("Can't tell where this was filmed", { timeout: 60_000 });
   await expect(page.getByTestId("answer-reason")).toHaveText("We did not hear any plane in the sound, and the file does not say.");
   await expect(page.getByTestId("check-verdict")).toHaveText("No aircraft sound found.");
+  await details(page);
   await expect(page.getByTestId("check")).toContainText("That does not make the file safe");
   await expect(page.getByTestId("where-find")).toHaveCount(0);
   await shoot(page, "where-none");
@@ -371,7 +377,7 @@ test("a video with no sound track: its own tags said first and big, and the miss
   // Tags can be edited or copied: the place and the date are what the file says.
   await expect(page.getByTestId("answer-title")).toHaveText("This file says it was filmed near Mesa, Arizona");
   await expect(page.getByTestId("answer-when")).toHaveText(/^The file says May 16, 2026, 11:44.AM/);
-  await expect(page.getByTestId("answer-map-note")).toContainText("never your file");
+  await expect(page.getByTestId("answer-map-note")).toContainText("your file is never sent");
   await expect(page.getByTestId("place-map")).toBeVisible();
   await expect(page.getByTestId("check-trouble")).toContainText("no sound we can read", { timeout: 30_000 });
   await expect(page.getByTestId("where-find")).toHaveCount(0);
@@ -654,6 +660,7 @@ test("on a long file, Find where waits for nothing, a search runs ahead of the c
   await expect(page.getByTestId("check-progress")).toBeVisible();
   const search = await page.getByTestId("where-search").boundingBox();
   await expect(page.getByTestId("check-verdict")).toHaveText("No aircraft sound found.", { timeout: 170_000 });
+  await details(page);
   await expect(page.getByTestId("check")).toContainText("does not make the file safe");
   await expect(page.getByTestId("where-find")).toBeVisible();
   expect(await page.getByTestId("where-search").boundingBox()).toEqual(search);
@@ -780,7 +787,7 @@ test("sixty tones: the strongest three, the others a tap away and not drawn, and
 
   // A tap away, all of them; closed, they go.
   const all = page.getByTestId("check-all").locator("summary");
-  await expect(all).toHaveText("See all 60 tones");
+  await expect(all).toHaveText("See all 60 sounds");
   await all.click();
   await expect(drawn).toHaveCount(60);
   await all.click();
@@ -998,6 +1005,7 @@ test("without the archive it says so, offers no search, and still reads the file
   await expect(page.getByTestId("check-clean")).toBeEnabled();
   await details(page);
   await expect(page.getByTestId("where-offline")).toContainText("not connected yet");
+  await expect(page.getByTestId("where-anyway")).toHaveCount(0);
   await expect(page.getByTestId("where-find")).toHaveCount(0);
   await shoot(page, "where-offline");
 });

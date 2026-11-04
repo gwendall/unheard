@@ -3,7 +3,6 @@
 import Link from "next/link";
 import type { Route } from "next";
 import { createContext, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { Answer } from "@/components/Answer";
 import { Bar } from "@/components/Bar";
 import { useI18n } from "@/components/I18n";
 import { TonePicture } from "@/components/TonePicture";
@@ -12,6 +11,7 @@ import { isPhone } from "@/lib/client/device";
 import { forget, newFolder } from "@/lib/client/folder";
 import { clock, timeLeft } from "@/lib/client/format";
 import type { SoundGate } from "@/lib/client/where";
+import type { AnswerProps } from "@/components/Answer";
 import type { CheckEvent, CheckPartial, CheckRequest, Found, Kind, Removed, Step } from "@/lib/client/check.worker";
 import type { StripEvent, StripRequest } from "@/lib/client/strip.worker";
 import type { Picture, Tone, View } from "@/lib/core/leak";
@@ -94,6 +94,8 @@ export type CheckPart = {
   clean: (leads: boolean) => ReactNode;
   details: ReactNode;
   cleaned: boolean;
+  /** The answer until something else answers. One component draws it, then the next: what stays is the same element, under a finger or the focus. */
+  answer: AnswerProps;
 };
 /** For an answer given under the check, which it knows nothing of. */
 export const CheckParts = createContext<CheckPart | null>(null);
@@ -464,6 +466,9 @@ export function Check({ file, elsewhere, note, facts, tagged, find, fold, hold, 
       {t.steps.held}
     </p>
   );
+  // Never "safe": what we did not find is all this says.
+  const noTone = none && <p className="max-w-prose text-pretty text-mute">{t.noneText}</p>;
+
   /** One thing happening, in words a title or `captioned` gives. How far it has got is the bar's: no number, no step. */
   const working = (captioned: boolean) =>
     state.kind === "open" &&
@@ -515,11 +520,47 @@ export function Check({ file, elsewhere, note, facts, tagged, find, fold, hold, 
       <>
         {facts}
         {offline}
+        {noTone}
         {elsewhereLink}
         {tonesBlock}
       </>
     ),
     cleaned: state.kind === "cleaned" && !state.busy,
+    answer: {
+      title: verdict ?? (state.kind === "failed" ? a.cannot : a.listening),
+      titleProps: verdict ? { role: "status", "data-testid": "check-verdict" } : undefined,
+      when,
+      why: working(false) || trouble || offline || (state.kind === "found" && !none && find ? a.why.compare : null),
+      actions: (
+        <>
+          {/* One primary at a time: the download once there is one, a form's own button while the form is open. */}
+          {state.kind !== "failed" && find?.(state.kind !== "cleaned" && !fold)}
+          {/* Its place held with nothing to take out, seen by no one: nothing moves when there is. */}
+          {((state.kind === "open" && !known) || none) && (
+            <button type="button" disabled aria-hidden className={`${OUTLINE} invisible`}>
+              {t.clean.other}
+            </button>
+          )}
+          {cleaning(false, !fold)}
+          {state.kind === "failed" && another}
+        </>
+      ),
+      quiet: (
+        <>
+          {quietCopy}
+          {elsewhereLink}
+        </>
+      ),
+      after: about,
+      summary: a.details.working,
+      details: (
+        <>
+          {facts}
+          {noTone}
+          {tonesBlock}
+        </>
+      ),
+    },
   };
 
   if (lead)
@@ -545,43 +586,6 @@ export function Check({ file, elsewhere, note, facts, tagged, find, fold, hold, 
   return (
     <div className="flex flex-col gap-6" data-testid="check" data-workers={workers}>
       <CheckParts.Provider value={part}>
-        {/* Until something else answers, this one does; `children` keeps its place, and its state, when it does. */}
-        {!answered && (
-          <Answer
-            title={verdict ?? (state.kind === "failed" ? a.cannot : a.listening)}
-            titleProps={verdict ? { role: "status", "data-testid": "check-verdict" } : undefined}
-            when={when}
-            why={working(false) || trouble || offline || (state.kind === "found" && !none && find ? a.why.compare : null)}
-            actions={
-              <>
-                {/* One primary at a time: the download once there is one, a form's own button while the form is open. */}
-                {state.kind !== "failed" && find?.(state.kind !== "cleaned" && !fold)}
-                {/* Its place held with nothing to take out, seen by no one: nothing moves when there is. */}
-                {((state.kind === "open" && !known) || none) && (
-                  <button type="button" disabled aria-hidden className={`${OUTLINE} invisible`}>
-                    {t.clean.other}
-                  </button>
-                )}
-                {cleaning(false, !fold)}
-                {state.kind === "failed" && another}
-              </>
-            }
-            quiet={
-              <>
-                {quietCopy}
-                {elsewhereLink}
-              </>
-            }
-            after={about}
-            summary={a.details.working}
-            details={
-              <>
-                {facts}
-                {tonesBlock}
-              </>
-            }
-          />
-        )}
         {children}
         {!answered && none && fold && <p className="max-w-prose text-lg text-pretty text-mute">{t.noneSearch}</p>}
       </CheckParts.Provider>

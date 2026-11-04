@@ -222,7 +222,7 @@ export function Where({ archive, elsewhere, scope }: { archive: string | null; e
                   : undefined
               }
             >
-              {((finding && archive) || few || silent) && <FindWhere picked={picked} archive={archive ?? ""} few={few} silent={silent} when={when} another={another} onSearching={setSearching} onHeard={setHeard} onAnswered={setAnswered} />}
+              {(!location || (finding && archive)) && <FindWhere picked={picked} archive={archive ?? ""} finding={finding && !!archive} few={few} silent={silent} when={when} another={another} onSearching={setSearching} onHeard={setHeard} onAnswered={setAnswered} />}
             </Check>
           </>
         )}

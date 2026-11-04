@@ -31,22 +31,7 @@ function Details({ summary, onToggle, children }: { summary: string; onToggle?: 
   );
 }
 
-export function Answer({
-  map,
-  title,
-  titleProps,
-  titleRef,
-  when,
-  why,
-  rows,
-  actions,
-  quiet,
-  after,
-  foot,
-  summary,
-  details,
-  onDetails,
-}: {
+export type AnswerProps = {
   /** The map; with none, the place where one would be. */
   map?: ReactNode;
   title: string;
@@ -63,7 +48,24 @@ export function Answer({
   summary: string;
   details: ReactNode;
   onDetails?: (open: boolean) => void;
-}) {
+};
+
+export function Answer({
+  map,
+  title,
+  titleProps,
+  titleRef,
+  when,
+  why,
+  rows,
+  actions,
+  quiet,
+  after,
+  foot,
+  summary,
+  details,
+  onDetails,
+}: AnswerProps) {
   const [slot, setSlot] = useState<HTMLElement | null>(null);
   return (
     <div className="flex flex-col gap-6" data-testid="answer">
