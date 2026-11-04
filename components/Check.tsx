@@ -313,14 +313,15 @@ export function Check({ file, elsewhere, note, facts, tagged, find, fold, hold, 
           : plural(state.cleaned.length, t.gone)
         : null;
 
-  // Nothing else to do with this file: the copy takes the shape of a button, in the same place.
-  const alone = none || state.kind === "failed";
-  const stripLook = alone ? `${OUTLINE} text-center hover:border-mute` : `${QUIET} w-fit`;
-  const withoutTags = copy && (tagged || copy.holds) && (
-    <div className="flex flex-col gap-2" data-testid="check-tags">
-      {copy.can ? (
+  // With what the file says, the one part of the panel the check never changes: a verdict landing
+  // under it cannot move it out from under a click. Its place is held from the first paint when the
+  // tags are already known, so that the actions below do not move when the worker answers.
+  const stripLook = `${QUIET} w-fit`;
+  const withoutTags = (tagged || copy?.holds) && (
+    <div className={`flex flex-col gap-2 ${copy ? "" : "invisible"}`} data-testid="check-tags">
+      {copy?.can ?? true ? (
         <>
-          <div className={`flex items-center ${alone ? "min-h-13.5" : "min-h-6"}`}>
+          <div className="flex min-h-6 items-center">
             {stripping.kind === "busy" ? (
               <p className="font-mono text-sm text-mute tabular-nums" role="status" data-testid="check-tags-progress">
                 {fill(t.tags.copying, { n: Math.round(100 * stripping.fraction) })}
@@ -341,7 +342,7 @@ export function Check({ file, elsewhere, note, facts, tagged, find, fold, hold, 
             </p>
           )}
           <p className="max-w-prose text-sm text-pretty text-faint" data-testid="check-tags-note">
-            {copy.picture && copy.sound ? t.tags.video : copy.picture ? t.tags.picture : t.tags.sound}
+            {copy ? (copy.picture && copy.sound ? t.tags.video : copy.picture ? t.tags.picture : t.tags.sound) : file.type.startsWith("audio/") ? t.tags.sound : t.tags.video}
           </p>
         </>
       ) : (
@@ -354,7 +355,10 @@ export function Check({ file, elsewhere, note, facts, tagged, find, fold, hold, 
 
   const findings = (
     <div className="flex flex-col gap-6">
-      {facts}
+      <div className="flex flex-col gap-3">
+        {facts}
+        {withoutTags}
+      </div>
       <div className="flex flex-col gap-4">
         <div className={VERDICT} data-testid="check-slot">
           {state.kind === "open" &&
@@ -446,7 +450,6 @@ export function Check({ file, elsewhere, note, facts, tagged, find, fold, hold, 
             {note}
           </p>
         )}
-        {withoutTags}
         {state.kind === "cleaned" && (
           <div className="flex max-w-prose flex-col gap-2 text-sm text-pretty text-faint" data-testid="check-about">
             {state.left.length > 0 && <p>{t.leftText}</p>}

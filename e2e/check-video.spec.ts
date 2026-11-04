@@ -40,16 +40,20 @@ async function placesOf(page: Page) {
   const out: unknown[] = [];
   for (const width of [1440, 390]) {
     await page.setViewportSize({ width, height: 900 });
-    for (const id of ["where-find", "check-elsewhere"]) {
-      out.push(await page.getByTestId(id).evaluate((el) => {
-        const r = el.getBoundingClientRect();
-        return { x: r.x, y: r.y + window.scrollY, width: r.width, height: r.height };
-      }));
+    for (const id of ["where-find", "check-elsewhere", "check-tags-download"]) {
+      // A file with no tag has no copy to offer: gone on one side only would still show as a difference.
+      if (await page.getByTestId(id).count()) out.push(await placeOf(page, id));
     }
   }
   await page.setViewportSize({ width: 1440, height: 900 });
   return out;
 }
+
+const placeOf = (page: Page, id: string) =>
+  page.getByTestId(id).evaluate((el) => {
+    const r = el.getBoundingClientRect();
+    return { x: r.x, y: r.y + window.scrollY, width: r.width, height: r.height };
+  });
 
 async function clean(page: Page, file: string) {
   await page.goto("/where");
@@ -197,7 +201,11 @@ test("a file with no tone still gets its copy without tags", async ({ page }, in
   test.skip(!existsSync(file), "no ffmpeg to make the fixture");
   await page.goto("/where");
   await page.getByTestId("where-file").setInputFiles(file);
+  // The verdict lands while the button is there to be clicked: it must not move it from under the click.
+  await expect(page.getByTestId("check-tags-download")).toBeVisible({ timeout: 60_000 });
+  const place = await placeOf(page, "check-tags-download");
   await expect(page.getByTestId("check-verdict")).toHaveText("No aircraft tone found.", { timeout: 170_000 });
+  expect(await placeOf(page, "check-tags-download")).toEqual(place);
   await shoot(page, "check-tags-no-tone");
   await copyWithoutTags(page, file, info.outputPath("quiet-no-tags.mp4"), "quiet-no-tags.mp4", ["video", "audio"]);
 });

@@ -109,8 +109,8 @@ What a visitor goes through, and where it lives:
   at 1.7 GB finding its tones and 2.2 GB taking them out (5 GB and 4.5 GB when the file was decoded whole).
 
 - **A copy without its tags** (`lib/client/strip.worker.ts`, `planCopy` and `writeCopy` in
-  `lib/client/remux.ts`): offered under the actions from the moment the file is known to hold a tag
-  that says more than the software's name, or a track beyond the picture and the first sound, with or
+  `lib/client/remux.ts`): offered under what the file says, the part of the panel the check never changes, from the moment the
+  file is known to hold a tag that says more than the software's name, or a track beyond the picture and the first sound, with or
   without a tone or a sound. Its own worker reads packets and writes them, encoding nothing, in a new
   file of the same kind (MP4, MOV, WebM, Matroska, and for sound M4A, MP3, FLAC, Ogg, WAV, AAC). Only
   the writer's own stamp stays. A file we cannot write says so in one line. The note says what stays:
