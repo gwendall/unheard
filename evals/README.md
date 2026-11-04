@@ -44,9 +44,9 @@ request, CI posts this run's counts next to the base branch's (`scripts/eval-del
   truth, which must stay first or second): distance and start error, how often the truth is among the
   answers, how often the confidence flag is right, and the CPU time of a search. Each part writes
   `evals/reports/wherewhen-<part>-<km>-<windows>.md`, so the parts can run at once. Slow (minutes
-  per recording); never in CI. The where page quotes the hour row for pairs within 250 m
-  (`where.result.honest` and `proof.whereValue` in `messages/*.json`, "8 of 20"): update them with
-  this eval.
+  per recording); never in CI. The where page's numbers (`where.result.honest`, `fewText`, `wrongText`
+  and `proof.whereValue` in `messages/*.json`) come from "When a place is named" in `docs/STATUS.md`,
+  a wider set of files than this eval reads: update them with that measure.
 
 ## Check a video
 

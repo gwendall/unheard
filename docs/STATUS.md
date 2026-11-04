@@ -116,7 +116,7 @@ What a visitor goes through, and where it lives:
   is decoded at the analysis rate, then a worker finds the tones, fetches that day's tiles for the
   area, and runs `whereWhen`, with one bar and the time left for the whole job (`lib/core/progress.ts`),
   the best guess so far, hedged, as soon as there is one, and a way to cancel; the tones and
-  "Take them out" stay usable meanwhile. "Probably here" only under the confidence flag, else "Best guess" and
+  "Take them out" stay usable meanwhile. "Probably here" only when a place is named and the flag is up, else "Best guess" and
   up to two more answers; the map (`SpotPlot` only as its fallback), the start in UTC and local time, each plane with its registration
   (the history keeps no callsign), type, distance and passing time, its spectrum with the curve.
   A share card (`lib/client/where-card.ts`, the same `drawCard`) holds the map as it stands on the
@@ -136,14 +136,15 @@ What a visitor goes through, and where it lives:
     missing, not as a day without flights (2026-05-05: a release with no traces).
     A file's date that is not covered is said, with the days there are; before `OLDEST_DAY` it is
     told the archive will not reach it.
-  - **Sure or not**: "Probably here" only on `whereWhen`'s flag, which in practice never rises (0
-    of 42 searches at MARGIN 8), so the usual result is "Best guess". It leads with the spot, the
+  - **Sure or not**: "Probably here" only when the rule names a place ("When a place is named"
+    below) and `whereWhen`'s flag is up, so the usual named result is "Best guess", and most files
+    name none. Its sentence says no other answer comes close in the square and time searched: the
+    flag knows nothing of what lies outside them. It leads with the spot, the
     start, the flyovers it explains and which planes, then the next distinct answers and how far
     off they are (the lead stays on the best guess while they are looked through). Every word
     stays a guess ("Would have started", "Guess" on the plot), even when it is the right spot:
     colsto's hour window found the spot within 55 m with the flag down. The one honest line,
-    `where.result.honest`, quotes the eval (8 of 20 pairs with the hour, 6 of 20 with the day):
-    update it with the eval.
+    `where.result.honest`, quotes "When a place is named" below: update it with that measure.
   - **Terrain**: the open terrain tiles of zoom 10 in one file of our own bucket, read by ranges
     (`docs/terrain.md`), so the search uses real ground height and reaches no third party. It falls
     back to flat if a tile fails.
@@ -310,6 +311,85 @@ still counted by the sound alone, so this prior can never raise it.
   Queens from 34 km. Within 5 km of a town it stays "Near" (`townOf`), which also covers a low patch
   the boxes miss.
 
+When a place is named (2026-11-04):
+
+On 112 files at 100 km with the hour known, the page named a place on 107 and 76 of those were
+wrong, every one under "Best guess". Worth alone does not separate right from wrong: wrong answers
+reach rank 22.9, right ones start at 6. The number of planes heard very well at the top answer does
+most of it.
+
+- The rule (`namesAPlace` in `lib/client/where.ts`): a file names a place only with three passes or
+  more, and when the best answer itself holds three planes heard very well, those are a third of the
+  file's passes at the least, and its rank is at or above what the search's size makes by chance. The
+  third is there because a long file holds three chance fits as easily as the true ones: colsto's hour,
+  31 passes, holds three at the truth (rank 19.6) and three twenty hours away from it (rank 19.3).
+  `whereWhen`'s flag does not stand in for this, it is only said on top ("Probably here"): chance rises
+  with the file's traces and MARGIN does not, so the flag can rise where the truth is not (lines below).
+- Too few passes: the page says so before any flight is read, and offers to look anyway. An answer
+  that fails the rule shows no place as the answer: "This file holds too few flyovers to place it",
+  a longer recording would help, and the candidates behind a link that says they are probably wrong.
+
+| 100 km, hour known, right = 1 km and 30 s | files | right (flag) | wrong named | no place named | no tone |
+|---|---|---|---|---|---|
+| before | 112 | 31 (8) | 76, all "Best guess" | 0 | 5 |
+| the rule | 112 | 12 (7) | 0 | 95 | 5 |
+| before, day only (35 of the 41 files of three passes or more were run; under three passes a file is refused unread) | 35 | 15 (9) | 20, all "Best guess" | 0 | 0 |
+| the rule, day only | 35 | 9 (8) | 0 | 26 | 0 |
+
+| By file, hour known | files | before: right, wrong | the rule: right, wrong |
+|---|---|---|---|
+| one recording | 40 | 2, 36 | 0, 0 |
+| two recordings | 20 | 8, 12 | 0, 0 |
+| 3 recordings of one day | 12 | 6, 6 | 3, 0 |
+| 4 | 6 | 5, 1 | 1, 0 |
+| 6 | 4 | 4, 0 | 3, 0 |
+| 9 | 3 | 3, 0 | 3, 0 |
+| 11 or more | 2 | 2, 0 | 2, 0 |
+| colsto, 2 min cuts | 6 | 0, 4 | 0, 0 |
+| colsto, 4 min | 6 | 0, 5 | 0, 0 |
+| colsto, 8 min | 6 | 0, 6 | 0, 0 |
+| colsto, 16 min | 4 | 0, 4 | 0, 0 |
+| colsto, 30 min | 2 | 0, 2 | 0, 0 |
+| colsto, the hour | 1 | 1, 0 | 0, 0 |
+
+Among the 95 files that no longer name a place, the best answer was wrong 76 times and right 19 times: the rule loses 19 right answers to remove 76 wrong ones. By passes in the file, before: one pass 2 right of 46, two passes 7 of 23, three or more 22 of 41. Worth does not tell them apart: wrong answers reach rank 22.9, right ones start at 6.
+
+| Picked in this order | Seen when it was picked |
+|---|---|
+| 1. Three passes, three planes heard well on the best answer | The 112 files with the hour known, on an earlier main, 72 of them first. No search where the truth cannot be had run. |
+| 2. A third of the passes | Those files, and 55 wrong hours of colsto's hour and its 30 minute cuts, 5 of which the first condition let through. |
+| 3. The flag no longer a way through | Those, 74 wrong hours in all with one flag up (at refine 3, then the same at the page's settings), and 84 wide units with two flags up. |
+| 4. Rank at or above S | Those, and 50 of the last stage's 180 searches, one of which the rules above let through: rank 15.7 against 19.6. Frozen at that point. |
+| Nothing after that | The other 130 of those searches are the only test it has not seen. |
+
+The counts of passes and planes chosen on some files, the third and the rank kept, tried on files of other recordings, 72 files without the singles:
+
+- Chosen on Livermore, tried on colsto (25 files of a recording never seen): (2,0), 0 right, 1 wrong, 21 refused, 3 none. Livermore alone does not ask for three planes once the third and the rank are there; colsto does.
+- Leave one day out: 12 right, 1 wrong, 56 refused, 3 none. (0,3) chosen 6 times of 7, and (2,0) for colsto, which is that one wrong. The fixed rule on the same files: 12, 0, 57, 3.
+- Chosen on colsto, tried on Livermore: (0,3), 12 right, 0 wrong, 35 refused.
+- Half the days on the other half: 16 files to 31, (0,2): 9 right, 0 wrong, 22 refused. 31 files to 16, (0,0): 6 right, 1 wrong, 9 refused. A sample this small cannot set the counts alone.
+
+Searches where the truth cannot be (same squares, hours or days away from the recording), anything named there is wrong:
+
+| where the truth cannot be | searches | a place named before | "Probably here" before | three planes alone | the rule | the rule with "Probably here" | after the freeze: searches, the rule |
+|---|---|---|---|---|---|---|---|
+| 100 km, a wrong hour (page settings) | 76 | 76 | 1 | 2 | 1 (upper 7.1 %) | 0 | 31, 1 |
+| 100 km, a wrong hour (refine 3) | 78 | 78 | 1 | 7 | 0 (upper 4.7 %) | 0 | 0, 0 |
+| 100 km, a wrong day (page settings) | 10 | 10 | 2 | 4 | 1 (upper 40.4 %) | 1 | 3, 1 |
+
+Interim: 2026-11-04 08:41, 84 of the 180 searches of the last stage in, the rest still running; the final numbers go in a comment on #94. The rule was frozen at 08:30:39 with 50 of those 180 seen. After the freeze: 34 searches, 2 named a place. One is 41.3 km off on a wrong hour (four recordings, 3 planes of 4 passes, rank 17.6 against S 16.5), a "Best guess". One is a wrong "Probably here", 39.5 km off on a wrong day (six recordings, 3 planes of 6 passes, rank 28.2 against S 19.6), and only 3 fresh wrong days have run so far. The rule only removes answers: main names a place on every one of these searches, so the rest of the test cannot make it worse than what is live.
+
+These searches share recordings, so they are not independent draws and the upper bounds above are optimistic. The rank here leaves out the cost of the sea, so these counts are at most. No null bound is on the page: it quotes the true files' rate only.
+
+At the page's settings, the flag alone: six recordings, two hours after the real time, 37.1 km off, 2 planes of 6 passes, rank 25.03 against a threshold of 24.48; eleven recordings or more, a wrong day, 16.9 km off, 3 planes of 11 passes, rank 29.08 against 27.3. Both say "Probably here" on main and are refused here. Two wide searches at 333 km on a day away, same settings: nine recordings, 290.8 km off, 3 planes of 9, rank 35.17, passes this rule, one more reason it does not widen the search; eleven or more, 82.2 km off, 2 planes of 11, refused.
+
+Limits: one real long file (colsto), 0 wrong of 12 has a 95 % upper bound of 24 %, and GOOD and the 15 s inside `wellHeard` were set earlier on these same recordings. The files are 41 recordings on 7 days, 25 cuts of one hour.
+
+Measured with a throwaway harness on `main` at 36662df, not kept in the repo: groups of recordings of
+one site and day read as one file with gaps, colsto's hour in cuts of 2 to 30 minutes. Worth keeping as
+a part of `evals/wherewhen.eval.ts`, as its own lot. In the real page on the real bucket, colsto's hour
+took 44 s at a machine load above 500: the refusal, then its first candidate on the truth, 206 m off.
+
 Why it does not find more yet (measured):
 
 - Physics: over a day at 100 km the search is 19.7 nats (spots and starts at 500 m and 10 s), an
@@ -462,10 +542,9 @@ plane that clears the score and the lead now reads "possible": one comparison in
    answer scoring 12 or more was within 1 km every time. Medium-loud synthetic flybys (oracle 6
    to 10) still give a right trace 2 times in 10: a slower, longer-integrating search did not
    find more without false traces in noise.
-9. Where and when (core and command line, no UI yet): guesses come from the real tracks. Two
-   flyovers at one spot are found 6 times in 20 over a day at 100 km, 8 in 20 over an hour; colsto's
-   hour to 55 m with an hour given. Next: two tones per flyover, a flag that can be raised (section
-   "Where and when: the search").
+9. Where and when: guesses come from the real tracks. A place is named only on three passes and
+   three planes heard very well, a third of the passes at the least, at a rank chance does not make:
+   12 files of 112 with the hour known, no wrong place named on that set. Next: two tones per flyover, a flag that can be raised (section "Where and when: the search").
 
 10. "Strong must never be wrong", what is left after the level and the cap on distance:
    - At home with home's sky, 2 of 30 stay strong (synthetic-3 at 5.5 km, phoenix-9-25 at 2.9 km),

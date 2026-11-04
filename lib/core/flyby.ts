@@ -272,6 +272,18 @@ export function flybyOf(sh: Shape): Flyby {
   };
 }
 
+/** A tone as lib/core/leak.ts holds it, one value per base frame, read like the trace it came from. */
+export function flybyOfTone(tone: { times: Float64Array; freq: Float32Array }, air: Air = { groundTempC: 15 }): Flyby {
+  const t: number[] = [];
+  const y: number[] = [];
+  for (let k = 0; k < tone.times.length; k += 4) {
+    if (!Number.isFinite(tone.freq[k])) continue;
+    t.push(tone.times[k]);
+    y.push(Math.log(tone.freq[k]));
+  }
+  return flybyOf(shapeOf(Float64Array.from(t), Float64Array.from(y), pathSpeed(air, 300)));
+}
+
 /** Each trace read on its own as a straight steady flyby (no history needed). */
 export function flybys(segments: Segment[], air: Air = { groundTempC: 15 }): Flyby[] {
   const c = pathSpeed(air, 300);

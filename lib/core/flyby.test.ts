@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { pathSpeed } from "./doppler";
-import { findSegments, findSegmentsWith, flybyOf, shapeOf, stretchOf, type StretchRunner } from "./flyby";
+import { findSegments, findSegmentsWith, flybyOf, flybyOfTone, flybys, shapeOf, stretchOf, type StretchRunner } from "./flyby";
+import { toneOf } from "./leak";
 import { STANDARD_AIR } from "./doppler";
 import { flybyFixes, synthesize } from "./synth";
 import { buildTrack } from "./track";
@@ -61,6 +62,13 @@ describe("a long recording's stretches over workers", () => {
     };
   }
   const summary = (segments: Awaited<ReturnType<typeof findSegmentsWith>>["segments"]) => segments.map((g) => ({ offset: g.offset, traces: g.traces.map((t) => ({ from: t.from, to: t.to, score: t.score, confidence: t.confidence, freq: Array.from(t.freq) })) }));
+
+  it("reads a tone as it reads the trace it came from", () => {
+    const { segments } = findSegments(samples, RATE, 60, 40);
+    const tones = segments.flatMap((g) => g.traces.map((t) => toneOf(t, g.stack.base.times, g.offset)));
+    expect(tones.length).toBeGreaterThan(0);
+    expect(tones.map((tone) => flybyOfTone(tone))).toEqual(flybys(segments));
+  }, 120_000);
 
   it("finds the same segments, told in order", async () => {
     const whole = findSegments(samples, RATE, 60, 40);

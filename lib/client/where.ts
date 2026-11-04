@@ -73,6 +73,31 @@ export function daysOf(window: [number, number], duration: number): string[] {
   return days;
 }
 
+/**
+ * Fewer passes than this, and no place is named. At 100 km with the hour known, one pass gave the
+ * right spot 2 times in 46 and two passes 7 times in 23 ("When a place is named" in docs/STATUS.md).
+ */
+export const MIN_PASSES = 3;
+/**
+ * A place is named only when this many planes are heard very well at it. Worth alone does not tell
+ * right from wrong: on those files wrong answers reach rank 22.9 and right ones start at 6.
+ */
+export const MIN_WELL_HEARD = 3;
+
+/**
+ * Whether a file may name a place: enough passes, and the best answer itself holds enough planes
+ * heard very well, a third of the file's passes at the least, and beats what the search's size makes
+ * by chance (`searched` in nats, its rank at or above). The third: a long file holds three chance fits
+ * as easily as the true ones, like colsto's hour, 31 passes, three at the truth (rank 19.6) and three
+ * twenty hours away from it (rank 19.3). The rank: a file of six recordings, two days from its real
+ * date, holds three planes 17.7 km off at rank 15.7 against 19.6. The search's flag does not stand in
+ * for any of this: the same kind of file, two hours from its real time, raised it 37 km off on two
+ * planes. In what order these were picked, on what data: "When a place is named" in docs/STATUS.md.
+ */
+export function namesAPlace(passes: number, bestWellHeard: number, bestRank: number, searched: number): boolean {
+  return passes >= MIN_PASSES && bestWellHeard >= MIN_WELL_HEARD && bestWellHeard * 3 >= passes && bestRank >= searched;
+}
+
 /** How many separate passes some tones make: closest moments within 30 s of a pass's first are that pass. */
 export function passesOf(closest: number[]): number {
   let n = 0;

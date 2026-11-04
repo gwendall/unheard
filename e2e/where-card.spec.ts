@@ -13,7 +13,7 @@ test.use({ launchOptions: { args: process.platform === "darwin" ? ["--use-angle=
 
 test("the card holds the map as it stands on the screen, made on the click, and nothing is sent", async ({ page }, info) => {
   const wav = info.outputPath("one-pass.wav");
-  writeFileSync(wav, await sceneWav(90));
+  writeFileSync(wav, await sceneWav());
   const sent: string[] = [];
   page.on("request", (r) => {
     if (r.method() !== "GET" && r.method() !== "HEAD") sent.push(`${r.method()} ${r.url()}`);

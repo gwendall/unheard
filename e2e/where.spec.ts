@@ -12,6 +12,8 @@ import { cardFilled, fillIn, scene, sceneWav } from "./where-scene";
 const SHOTS = process.env.SHOTS;
 const BUCKET = "unheard-history.t3.tigrisbucket.io";
 const HOUR = new Date(scene.start * 1000).toISOString().slice(11, 16);
+/** The scene's first seconds, up to its first plane and short of its second. */
+const ONE_PASS = 50;
 
 async function shoot(page: Page, name: string) {
   if (!SHOTS) return;
@@ -62,6 +64,27 @@ const rectsOf = (page: Page, ids: string[]) =>
 const STAY = ["where-name", "where-facts", "check-slot", "where-find"];
 
 /** The search's form. */
+/**
+ * The scene's answer takes the flag, whatever its length: three planes heard well make it worth too
+ * much. To see the page without the flag, the real result is taken down a notch on its way back,
+ * with a second answer beside it.
+ */
+const withoutTheFlag = (page: Page) =>
+  page.addInitScript(() => {
+    const Real = window.Worker;
+    window.Worker = class extends Real {
+      set onmessage(listen: (e: MessageEvent) => void) {
+        super.onmessage = (e: MessageEvent) => {
+          const data = e.data as { type?: string; result?: { kind: string; guesses: { lat: number }[] } };
+          if (data?.type !== "result" || data.result?.kind !== "found") return listen(e);
+          const [first] = data.result.guesses;
+          const next = { ...first, lat: first.lat + 0.05 };
+          listen(new MessageEvent("message", { data: { ...data, result: { ...data.result, confident: false, guesses: [first, next] } } }));
+        };
+      }
+    };
+  });
+
 async function openForm(page: Page) {
   await page.getByTestId("where-find").click();
 }
@@ -138,7 +161,7 @@ test("a file in: what it says at once, its tones, then where and when, and the f
   await expect(planes.first()).toContainText(/ away, passed at \d\d:\d\d:\d\d UTC/);
   await expect(page.getByTestId("where-explains")).toContainText(/^Explains \d+ flyovers?: /);
   await expect(page.getByTestId("where-explains")).toContainText(scene.aircraft[1].registration);
-  await expect(page.getByTestId("where-result")).not.toContainText("8 of 20");
+  await expect(page.getByTestId("where-result")).not.toContainText("A place is named only");
   await expect(page.getByTestId("where-planes")).toContainText(scene.aircraft[1].registration);
   await expect(page.getByTestId("where-result")).toContainText("© adsb.lol contributors");
   await shoot(page, "where-found");
@@ -167,8 +190,8 @@ test("a file in: what it says at once, its tones, then where and when, and the f
 });
 
 test("a result's card is made only on the sharer's click, and nothing is sent", async ({ page }, info) => {
-  const wav = info.outputPath("one-pass.wav");
-  writeFileSync(wav, await sceneWav(90));
+  const wav = info.outputPath("scene.wav");
+  writeFileSync(wav, await sceneWav());
   const sent: string[] = [];
   page.on("request", (r) => {
     if (r.method() !== "GET" && r.method() !== "HEAD") sent.push(`${r.method()} ${r.url()}`);
@@ -191,8 +214,8 @@ test("a result's card is made only on the sharer's click, and nothing is sent", 
 });
 
 test("a search can be cancelled, and the form comes back as it was", async ({ page }, info) => {
-  const wav = info.outputPath("one-pass.wav");
-  writeFileSync(wav, await sceneWav(90));
+  const wav = info.outputPath("scene.wav");
+  writeFileSync(wav, await sceneWav());
   await page.goto("/where");
   await page.getByTestId("where-file").setInputFiles(wav);
   await openForm(page);
@@ -206,16 +229,17 @@ test("a search can be cancelled, and the form comes back as it was", async ({ pa
   await expect(page.getByTestId("where-result")).toHaveCount(0);
 });
 
-test("with too little to go on, leads with the best guess and the next answer, and says how often it is right", async ({ page }, info) => {
-  const wav = info.outputPath("one-pass.wav");
-  writeFileSync(wav, await sceneWav(90));
+test("without the flag, leads with the best guess and the next answer, and says how often it is right", async ({ page }, info) => {
+  const wav = info.outputPath("scene.wav");
+  writeFileSync(wav, await sceneWav());
+  await withoutTheFlag(page);
   await page.goto("/where");
   await page.getByTestId("where-file").setInputFiles(wav);
   await openForm(page);
   await fillIn(page);
   await page.getByTestId("where-search").click();
   await expect(page.getByTestId("where-verdict")).toHaveText("Best guess", { timeout: 170_000 });
-  await expect(page.getByTestId("where-said")).toContainText("about 8 of 20 of our test recordings when the hour is known");
+  await expect(page.getByTestId("where-said")).toContainText("A place is named only when at least three planes");
   // The form gave way under the visitor's eyes: they are taken to the answer's first line.
   await expect(page.getByTestId("where-verdict")).toBeFocused();
   await expect(page.getByTestId("where-start")).toContainText("Would have started");
@@ -233,6 +257,80 @@ test("with too little to go on, leads with the best guess and the next answer, a
   await expect(page.getByTestId("where-shown-spot")).not.toHaveText(first);
   await expect(page.getByTestId("where-shown-start")).toContainText("Would have started");
   await shoot(page, "where-guesses");
+});
+
+test("one pass of a plane: too few, no place is named, nothing is asked for, and no flight is read", async ({ page }, info) => {
+  const wav = info.outputPath("one-pass.wav");
+  writeFileSync(wav, await sceneWav(ONE_PASS));
+  const tiles: string[] = [];
+  page.on("request", (r) => {
+    if (r.url().endsWith(".bin.gz")) tiles.push(r.url());
+  });
+  await page.goto("/where");
+  await page.getByTestId("where-file").setInputFiles(wav);
+  await expect(page.getByTestId("check-verdict")).toBeVisible({ timeout: 90_000 });
+  await openForm(page);
+  await expect(page.getByTestId("where-verdict")).toHaveText("This file holds too few flyovers to place it.");
+  await expect(page.getByTestId("where-said")).toContainText("at least three planes");
+  await expect(page.getByTestId("where-said")).toContainText("A longer recording would help");
+  await expect(page.getByTestId("where-search")).toHaveCount(0);
+  await expect(page.getByTestId("where-day")).toHaveCount(0);
+  await expect(page.getByTestId("where-spot")).toHaveCount(0);
+  await expect(page.getByTestId("place-map")).toHaveCount(0);
+  await expect(page.getByTestId("where-share")).toHaveCount(0);
+  expect(tiles).toEqual([]);
+  await shoot(page, "where-one-pass");
+});
+
+test("too few passes, looked at anyway: no place leads, and the candidates wait behind a link that says they are probably wrong", async ({ page }, info) => {
+  const wav = info.outputPath("two-passes.wav");
+  writeFileSync(wav, await sceneWav(90));
+  await page.goto("/where");
+  await page.getByTestId("where-file").setInputFiles(wav);
+  await expect(page.getByTestId("check-verdict")).toBeVisible({ timeout: 90_000 });
+  await openForm(page);
+  await expect(page.getByTestId("where-anyway")).toContainText("probably be wrong");
+  await page.getByTestId("where-anyway").click();
+  await fillIn(page);
+  await page.getByTestId("where-search").click();
+  const candidates = page.getByTestId("where-candidates");
+  await expect(candidates).toContainText("probably wrong", { timeout: 170_000 });
+  await expect(page.getByTestId("where-verdict")).toHaveText("This file holds too few clear flyovers to place it.");
+  await expect(page.getByTestId("where-said")).toContainText("A longer recording would help");
+  await expect(page.getByTestId("where-spot")).toHaveCount(0);
+  await expect(page.getByTestId("place-map")).toHaveCount(0);
+  await expect(page.getByTestId("where-share")).toHaveCount(0);
+  await shoot(page, "where-refused");
+  await candidates.click();
+  await expect(page.getByTestId("where-probably-wrong")).toContainText("Probably wrong");
+  await expect(page.getByTestId("where-guesses").getByRole("button").first()).toContainText("Candidate 1:");
+  await expect(page.getByTestId("place-map")).toBeVisible();
+  await expect(page.getByTestId("where-share")).toHaveCount(0);
+  await shoot(page, "where-candidates");
+});
+
+test("too few passes, a search started before the check has counted: it stops before any flight is read", async ({ page }, info) => {
+  const wav = info.outputPath("one-pass.wav");
+  writeFileSync(wav, await sceneWav(ONE_PASS));
+  // The check's worker stays silent, so the search goes first and counts for itself.
+  await page.addInitScript(() => {
+    const Real = window.Worker;
+    window.Worker = function (url: string | URL, options?: WorkerOptions) {
+      return String(url).includes("where") ? new Real(url, options) : { postMessage() {}, terminate() {} };
+    } as unknown as typeof Worker;
+  });
+  const tiles: string[] = [];
+  page.on("request", (r) => {
+    if (r.url().endsWith(".bin.gz")) tiles.push(r.url());
+  });
+  await page.goto("/where");
+  await page.getByTestId("where-file").setInputFiles(wav);
+  await openForm(page);
+  await fillIn(page);
+  await page.getByTestId("where-search").click();
+  await expect(page.getByTestId("where-verdict")).toHaveText("This file holds too few flyovers to place it.", { timeout: 170_000 });
+  await expect(page.getByTestId("where-spot")).toHaveCount(0);
+  expect(tiles).toEqual([]);
 });
 
 test("says so when the file holds no tone, offers no search, and never says the file is safe", async ({ page }, info) => {
@@ -273,7 +371,7 @@ test("a file too big for a browser is said at once, after what its tags say", as
 
 test("fills in the day and hour from the file, and says where they came from", async ({ page }, info) => {
   const wav = info.outputPath("tagged.wav");
-  writeFileSync(wav, dated(await sceneWav(90), `${scene.day}T${HOUR}:00`));
+  writeFileSync(wav, dated(await sceneWav(), `${scene.day}T${HOUR}:00`));
   await page.goto("/where");
   await page.getByTestId("where-file").setInputFiles(wav);
   await expect(page.getByTestId("where-made")).toContainText(`${scene.day} ${HOUR}`);
@@ -288,7 +386,7 @@ test("fills in the day and hour from the file, and says where they came from", a
 
 test("offers only the days the archive holds, and says so when the file's date is not one", async ({ page }, info) => {
   const wav = info.outputPath("elsewhen.wav");
-  writeFileSync(wav, dated(await sceneWav(90), "2026-09-08"));
+  writeFileSync(wav, dated(await sceneWav(), "2026-09-08"));
   await page.goto("/where");
   await page.getByTestId("where-file").setInputFiles(wav);
   await openForm(page);
@@ -305,8 +403,8 @@ test("offers only the days the archive holds, and says so when the file's date i
 });
 
 test("offers towns as you type, from our own files alone, without moving the page", async ({ page }, info) => {
-  const wav = info.outputPath("one-pass.wav");
-  writeFileSync(wav, await sceneWav(90));
+  const wav = info.outputPath("scene.wav");
+  writeFileSync(wav, await sceneWav());
   const asked: string[] = [];
   page.on("request", (r) => asked.push(r.url()));
   await page.goto("/where");
@@ -358,7 +456,7 @@ test("offers towns as you type, from our own files alone, without moving the pag
 
 test("does not promise a file older than the archive will reach", async ({ page }, info) => {
   const wav = info.outputPath("old.wav");
-  writeFileSync(wav, dated(await sceneWav(90), "2023-06-01"));
+  writeFileSync(wav, dated(await sceneWav(), "2023-06-01"));
   await page.goto("/where");
   await page.getByTestId("where-file").setInputFiles(wav);
   await openForm(page);
@@ -367,8 +465,8 @@ test("does not promise a file older than the archive will reach", async ({ page 
 });
 
 test("takes the visitor's own location for the place, and says so when it cannot", async ({ page, context }, info) => {
-  const wav = info.outputPath("one-pass.wav");
-  writeFileSync(wav, await sceneWav(90));
+  const wav = info.outputPath("scene.wav");
+  writeFileSync(wav, await sceneWav());
   await context.grantPermissions(["geolocation"]);
   await context.setGeolocation({ latitude: 33.5, longitude: -111.8 });
   await page.goto("/where");
@@ -403,8 +501,8 @@ test("the whole page takes a drop, and shows it without moving anything", async 
 });
 
 test("reached by keyboard, with the focus visible, and still under reduced motion", async ({ page }, info) => {
-  const wav = info.outputPath("one-pass.wav");
-  writeFileSync(wav, await sceneWav(90));
+  const wav = info.outputPath("scene.wav");
+  writeFileSync(wav, await sceneWav());
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto("/where");
   for (let i = 0; i < 8; i++) {
@@ -433,7 +531,7 @@ test.describe("on a touch screen", () => {
 
   test("no field takes the focus: the keyboard stays shut and the page stays put", async ({ page }, info) => {
     const wav = info.outputPath("one-pass.wav");
-    writeFileSync(wav, await sceneWav(90));
+    writeFileSync(wav, await sceneWav());
     await page.goto("/where");
     expect(await page.evaluate(() => matchMedia("(pointer: coarse)").matches)).toBe(true);
     await page.getByTestId("where-file").setInputFiles(wav);
@@ -445,7 +543,7 @@ test.describe("on a touch screen", () => {
 });
 
 test("nothing jumps from the home to the tones, and what we check comes back under them", async ({ page }, info) => {
-  const wav = info.outputPath("one-pass.wav");
+  const wav = info.outputPath("two-passes.wav");
   writeFileSync(wav, await sceneWav(90));
   await page.addInitScript(() => {
     const seen: number[] = [];
@@ -548,7 +646,7 @@ test("the tones a search finds show in the check's place while it waits, and the
   await expect(page.getByTestId("check-tones").locator("li").first()).toBeVisible({ timeout: 90_000 });
   await expect(page.getByTestId("where-verdict")).toBeVisible({ timeout: 170_000 });
   await expect(page.getByTestId("check-held")).toHaveCount(0);
-  await expect(page.getByTestId("check-verdict")).toHaveText(/that could place this file\.$/, { timeout: 90_000 });
+  await expect(page.getByTestId("check-verdict")).toHaveText(/in this file\.$/, { timeout: 90_000 });
   await expect(page.getByTestId("check-clean")).toBeEnabled();
 });
 
@@ -596,8 +694,8 @@ test("sixty tones: the strongest three, the others a tap away and not drawn, and
   const SCREEN = 844;
   const height = () => page.evaluate(() => document.documentElement.scrollHeight);
   const drawn = page.locator('[data-testid="check-tones"] canvas, [data-testid="check-others"] canvas');
-  const wav = info.outputPath("one-pass.wav");
-  writeFileSync(wav, await sceneWav(90));
+  const wav = info.outputPath("scene.wav");
+  writeFileSync(wav, await sceneWav());
   await sixtyTones(page);
   await page.setViewportSize({ width: 390, height: SCREEN });
   await page.goto("/where");
@@ -646,8 +744,8 @@ test("sixty tones: the strongest three, the others a tap away and not drawn, and
 });
 
 test("sixty tones taken out: before and after for the three, and the others from the same list", async ({ page }, info) => {
-  const wav = info.outputPath("one-pass.wav");
-  writeFileSync(wav, await sceneWav(90));
+  const wav = info.outputPath("scene.wav");
+  writeFileSync(wav, await sceneWav());
   await sixtyTones(page);
   await page.goto("/where");
   await page.getByTestId("where-file").setInputFiles(wav);
@@ -668,7 +766,7 @@ test.describe("the end of a search on a phone", () => {
   test.use({ viewport: { width: 390, height: 844 } });
 
   async function search(page: Page, wav: string) {
-    writeFileSync(wav, await sceneWav(90));
+    writeFileSync(wav, await sceneWav());
     await page.goto("/where");
     await page.getByTestId("where-file").setInputFiles(wav);
     await page.getByTestId("where-find").click();
@@ -708,7 +806,7 @@ test.describe("the end of a search on a phone", () => {
 });
 
 test("the Hz labels have a dark backing", async ({ page }, info) => {
-  const wav = info.outputPath("one-pass.wav");
+  const wav = info.outputPath("two-passes.wav");
   writeFileSync(wav, await sceneWav(90));
   await page.goto("/where");
   await page.getByTestId("where-file").setInputFiles(wav);
@@ -718,7 +816,7 @@ test("the Hz labels have a dark backing", async ({ page }, info) => {
 });
 
 test("nothing moves at phone width as the tones arrive", async ({ page }, info) => {
-  const wav = info.outputPath("one-pass.wav");
+  const wav = info.outputPath("two-passes.wav");
   writeFileSync(wav, await sceneWav(90));
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/where");
@@ -732,7 +830,7 @@ test("nothing moves at phone width as the tones arrive", async ({ page }, info) 
 });
 
 test("the home is the file's door: a drop goes straight into the flow, and the heading does not move", async ({ page }, info) => {
-  const wav = info.outputPath("one-pass.wav");
+  const wav = info.outputPath("two-passes.wav");
   writeFileSync(wav, await sceneWav(90));
   await page.goto("/");
   await expect(page.locator("h1")).toHaveText("Where was this filmed?");
@@ -749,7 +847,7 @@ test("the home is the file's door: a drop goes straight into the flow, and the h
   // That click scrolled the home: the file still opens from the top, the heading where it was.
   await page.getByTestId("where-file").setInputFiles(wav);
   await expect(page).toHaveURL(/\/where$/);
-  await expect(page.getByTestId("where-name")).toHaveText("one-pass.wav");
+  await expect(page.getByTestId("where-name")).toHaveText("two-passes.wav");
   await expect.poll(() => page.locator("h1").boundingBox()).toEqual(heading);
   const card = await page.getByTestId("where").boundingBox();
   // In line with the door, and higher up: the lead has given way.
@@ -801,7 +899,7 @@ test("/check is now this page, in every language", async ({ page }) => {
 
 test("without the archive it says so, offers no search, and still reads the file", async ({ page }, info) => {
   test.skip(!process.env.NO_ARCHIVE, "needs a server started with NEXT_PUBLIC_HISTORY_URL empty");
-  const wav = info.outputPath("one-pass.wav");
+  const wav = info.outputPath("two-passes.wav");
   writeFileSync(wav, await sceneWav(90));
   await page.goto("/where");
   await page.getByTestId("where-file").setInputFiles(wav);
@@ -833,15 +931,16 @@ test("the French page, for the screenshots", async ({ page }, info) => {
 
 test("the French best guess, for the screenshots", async ({ page }, info) => {
   test.skip(!SHOTS || !!process.env.NO_ARCHIVE, "screenshots only");
-  const wav = info.outputPath("one-pass.wav");
-  writeFileSync(wav, await sceneWav(90));
+  const wav = info.outputPath("scene.wav");
+  writeFileSync(wav, await sceneWav());
+  await withoutTheFlag(page);
   await page.goto("/fr/where");
   await page.getByTestId("where-file").setInputFiles(wav);
   await page.getByTestId("where-find").click();
   await fillIn(page);
   await page.getByTestId("where-search").click();
   await expect(page.getByTestId("where-verdict")).toHaveText("Meilleure hypothèse", { timeout: 170_000 });
-  await expect(page.getByTestId("where-said")).toContainText("environ 8 de nos 20");
+  await expect(page.getByTestId("where-said")).toContainText("Un lieu n'est nommé que si au moins trois avions");
   await expect(page.getByTestId("where-place-name")).toContainText(/^Vers .+, Arizona, États-Unis$/);
   await shoot(page, "where-fr-best-guess");
 });

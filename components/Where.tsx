@@ -9,7 +9,7 @@ import { FindWhere, type Picked } from "@/components/FindWhere";
 import { useI18n } from "@/components/I18n";
 import { hasHeld, takeFile } from "@/lib/client/held";
 import { readMetadata, type FileMetadata } from "@/lib/client/metadata";
-import { coordinates, osmLink, prefillOf } from "@/lib/client/where";
+import { coordinates, MIN_PASSES, osmLink, prefillOf } from "@/lib/client/where";
 
 // One flow for a file, in the place of the drop zone, each thing as soon as it is known: what the
 // file says about itself, at once; its aircraft tones, as they are found; find where it was recorded,
@@ -31,6 +31,8 @@ export function Where({ archive, elsewhere, scope }: { archive: string | null; e
   // One long job at a time: while a search runs the check gives way, and shows the tones the search finds.
   const [searching, setSearching] = useState(false);
   const [heard, setHeard] = useState<Heard | null>(null);
+  // The check's own count, once it has one: too few passes, and the search has nothing to ask for.
+  const [passes, setPasses] = useState<number | null>(null);
   const settle = useCallback(() => setSettled(true), []);
   const count = useRef(0);
 
@@ -40,6 +42,7 @@ export function Where({ archive, elsewhere, scope }: { archive: string | null; e
     setFinding(false);
     setSettled(false);
     setHeard(null);
+    setPasses(null);
     setAnswered(false);
     setPicked({ id: ++count.current, file, meta, prefill: prefillOf(meta) });
   }, []);
@@ -51,6 +54,7 @@ export function Where({ archive, elsewhere, scope }: { archive: string | null; e
     if (held) queueMicrotask(() => void open(held));
   }, [open]);
 
+  const few = finding && passes !== null && passes > 0 && passes < MIN_PASSES;
   const location = picked?.meta.location;
   const made = picked && [picked.prefill.day, picked.prefill.time, picked.prefill.zone === "utc" && picked.prefill.time ? "UTC" : ""].filter(Boolean).join(" ");
   const device = picked?.meta.device;
@@ -131,16 +135,17 @@ export function Where({ archive, elsewhere, scope }: { archive: string | null; e
               fold={finding}
               hold={searching}
               heard={heard}
-              answered={answered}
+              answered={answered || few}
+              onPasses={setPasses}
               find={
-                archive && !answered ? (
+                archive && !answered && !few ? (
                   <button type="button" onClick={() => setFinding(true)} aria-expanded={finding} className={FIND} data-testid="where-find">
                     {t.find}
                   </button>
                 ) : undefined
               }
             >
-              {finding && archive && <FindWhere picked={picked} archive={archive} onSearching={setSearching} onHeard={setHeard} onAnswered={setAnswered} />}
+              {finding && archive && <FindWhere picked={picked} archive={archive} few={few} onSearching={setSearching} onHeard={setHeard} onAnswered={setAnswered} />}
             </Check>
           </>
         )}

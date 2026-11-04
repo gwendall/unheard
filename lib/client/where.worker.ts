@@ -7,13 +7,13 @@ import { toLocal, norm, type Listener } from "../core/geo";
 import { ANALYSIS_RATE } from "../core/pipeline";
 import { estimator, stagesOf, type Estimate } from "../core/progress";
 import { findSegmentsWith, here } from "../core/flyby";
-import { flybys, whereWhen, type Answer, type BestSoFar } from "../core/wherewhen";
+import { flybys, rankOf, whereWhen, type Answer, type BestSoFar } from "../core/wherewhen";
 import { loadFlights, type Flight } from "../history";
 import { groundOf } from "../terrain";
 import { cachedFetcher, cachedTiles } from "./cached";
 import { stretchesOf, wherePiecesOf, withPool, type Pool } from "./pool";
 import type { PieceInput, PieceOutput } from "./piece.worker";
-import { daysOf, distinctAnswers, partsOf, passesOf, type WherePart } from "./where";
+import { daysOf, distinctAnswers, MIN_PASSES, MIN_WELL_HEARD, namesAPlace, partsOf, passesOf, type WherePart } from "./where";
 
 export type WhereRequest = {
   channels: Float32Array[];
@@ -22,6 +22,8 @@ export type WhereRequest = {
   history: string;
   window: [number, number];
   area: { lat: number; lon: number; side: number };
+  /** Look even with too few passes: what comes back is offered as probably wrong. */
+  anyway?: boolean;
   /** Also send what appears before the end: each tone as it is found, the best guess so far. */
   partial?: boolean;
   /** Told by the page: the workers go by a phone's budget. */
@@ -40,9 +42,11 @@ export type Guess = { lat: number; lon: number; start: number; mirror: { lat: nu
 
 export type WhereResult =
   | { kind: "none" }
+  /** Tones, but too few passes of a plane: too little to name a place, whatever the flights say. */
+  | { kind: "few" }
   | { kind: "missing"; day: string }
-  /** `passes`: how many separate passes the tones make. An empty `guesses`: no flight fits. */
-  | { kind: "found"; passes: number; tones: number; confident: boolean; guesses: Guess[]; views: Record<number, ToneView> };
+  /** `named`: the answer may lead as a place. If not, `guesses` are candidates, probably wrong. An empty `guesses`: no flight fits. */
+  | { kind: "found"; named: boolean; tones: number; confident: boolean; guesses: Guess[]; views: Record<number, ToneView> };
 
 /** What comes before the end when the request asks (`partial`). */
 export type WherePartial =
@@ -123,7 +127,7 @@ function viewsOf(guesses: Guess[], tones: Tone[], read: Reader, length: number, 
   return views;
 }
 
-async function search({ channels, sampleRate, history, window, area, partial }: WhereRequest, pool: Pool<PieceInput, PieceOutput> | null): Promise<WhereResult> {
+async function search({ channels, sampleRate, history, window, area, partial, anyway }: WhereRequest, pool: Pool<PieceInput, PieceOutput> | null): Promise<WhereResult> {
   const { read, length } = readerOf({ channels, sampleRate });
   const duration = length / ANALYSIS_RATE;
   const fractionOf = stagesOf(partsOf(duration, pool?.size ?? 1));
@@ -153,6 +157,8 @@ async function search({ channels, sampleRate, history, window, area, partial }: 
   const heard = flybys(segments);
   const low = heard.filter((h) => h.f0 <= REPORTED_HZ);
   const passes = passesOf((low.length ? low : heard).map((h) => h.closest));
+  // Too few passes to name a place: no flight is read, unless the visitor asks to look anyway.
+  if (passes < MIN_PASSES && !anyway) return low.length ? { kind: "few" } : { kind: "none" };
 
   report("flights", "flights", 0);
   const days = daysOf(window, duration);
@@ -175,8 +181,13 @@ async function search({ channels, sampleRate, history, window, area, partial }: 
   // Only lines above the propellers' range, and nothing that convinces: no tone to speak of.
   if (!low.length && !found.confident) return { kind: "none" };
   const byHex = new Map(flights.map((f) => [f.hex, f]));
-  const guesses = distinctAnswers(found.answers, found.confident ? 1 : GUESSES).map((a) => guessOf(a, byHex, tones, ground));
-  return { kind: "found", passes, tones: tones.length, confident: found.confident, guesses, views: viewsOf(guesses, tones, read, length, duration) };
+  // Otherwise the answers stay on offer, as candidates that are probably wrong.
+  const best = found.answers[0];
+  const named = !!best && namesAPlace(passes, best.wellHeard, rankOf(best), found.searched);
+  const confident = named && found.confident;
+  const offered = named ? found.answers.filter((a, i) => i === 0 || a.wellHeard >= MIN_WELL_HEARD) : found.answers;
+  const guesses = distinctAnswers(offered, confident ? 1 : GUESSES).map((a) => guessOf(a, byHex, tones, ground));
+  return { kind: "found", named, tones: tones.length, confident, guesses, views: viewsOf(guesses, tones, read, length, duration) };
 }
 
 scope.onmessage = (e: MessageEvent<WhereRequest>) => {
