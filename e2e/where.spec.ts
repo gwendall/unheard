@@ -472,8 +472,9 @@ test("nothing jumps from the home to the tones, and what we check comes back und
 });
 
 test("the tones appear as they are found, before the verdict, and what is above them holds", async ({ page }, info) => {
-  const wav = info.outputPath("one-pass.wav");
-  writeFileSync(wav, await sceneWav(90));
+  // Longer than one chunk: a shorter file reports its tones only at its end, right before the verdict.
+  const wav = info.outputPath("flyovers.wav");
+  writeFileSync(wav, await sceneWav());
   await page.addInitScript(() => {
     const seen = { both: false, bar: 0 };
     (window as unknown as { seen: typeof seen }).seen = seen;
@@ -575,7 +576,7 @@ async function sixtyTones(page: Page) {
       postMessage(request: { type: string }) {
         const blank = (s: (typeof seen)[number]) => ({ ...s, before: { ...s.view, width: 1, height: 1, cells: new Uint8Array(1) } });
         if (request.type === "clean") {
-          const cleaned = seen.map((s) => ({ ...blank(s), after: blank(s).before }));
+          const cleaned = seen.map((s) => ({ ...s, gone: true }));
           setTimeout(() => this.onmessage?.({ data: { type: "cleaned", cleaned, left: [], file: new Blob([new Uint8Array(44)]), extension: "wav" } }), 50);
           return;
         }
