@@ -109,7 +109,7 @@ export function PlaceMap({
       <div className={`relative w-full overflow-hidden rounded-2xl border border-line bg-deep ${className}`}>
         {state === "failed" ? (
           <div className="mx-auto aspect-square h-full max-w-full [&_figure>div]:rounded-none [&_figure>div]:border-0">
-            <SpotPlot guess={guess} sure={sure} />
+            <SpotPlot guess={guess} />
           </div>
         ) : (
           gl && (

@@ -4,15 +4,17 @@ import type { Route } from "next";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Check, type Heard } from "@/components/Check";
 import { DoorHeader } from "@/components/DoorHeader";
-import { ACCEPT, CARD, DropZone, PageDrop } from "@/components/Drop";
+import { ACCEPT, CARD, DropZone, PageDrop, SeeExample } from "@/components/Drop";
 import { FindWhere, type Picked } from "@/components/FindWhere";
 import { useI18n } from "@/components/I18n";
 import { hasHeld, takeFile } from "@/lib/client/held";
+import { whereExample } from "@/lib/client/where-example-fill";
 import { readMetadata, type FileMetadata } from "@/lib/client/metadata";
 import { coordinates, madeInWords, osmLink, prefillOf, type SoundGate } from "@/lib/client/where";
 import { nearestPlace, placeLabel, type NearPlace } from "@/lib/client/places";
-import { Answer } from "@/components/Answer";
+import { Answer, MapToCome } from "@/components/Answer";
 import { PlaceMap } from "@/components/PlaceMap";
+import { Bar } from "@/components/Bar";
 
 // One flow for a file, in the place of the drop zone, each thing as soon as it is known: what the
 // file says about itself, at once; its aircraft tones, as they are found; find where it was recorded,
@@ -31,13 +33,16 @@ const NAMING_MS = 1500;
  */
 const REGION_ZOOM = 11;
 
-export function Where({ archive, elsewhere, scope }: { archive: string | null; elsewhere: Route; scope: ReactNode }) {
+export function Where({ archive, elsewhere, example, scope }: { archive: string | null; elsewhere: Route; example?: boolean; scope: ReactNode }) {
   const { m, fill, locale } = useI18n();
   const a = m.answer;
   const t = m.where;
   const [picked, setPicked] = useState<(Picked & { id: number; near: NearPlace | null }) | null>(null);
   // From the moment a file comes in, the one from the home included.
-  const [filed, setFiled] = useState(hasHeld);
+  const [filed, setFiled] = useState(() => !!example || hasHeld());
+  // Making the example's file; a visitor who drops their own meanwhile goes on with theirs.
+  const [making, setMaking] = useState(!!example && !!archive);
+  const [unmade, setUnmade] = useState(!!example && !archive);
   const [answered, setAnswered] = useState(false);
   const [finding, setFinding] = useState(false);
   const [settled, setSettled] = useState(false);
@@ -49,17 +54,19 @@ export function Where({ archive, elsewhere, scope }: { archive: string | null; e
   const settle = useCallback(() => setSettled(true), []);
   const count = useRef(0);
 
-  const open = useCallback(async (file: File) => {
+  const open = useCallback(async (file: File, simulated = false) => {
     setFiled(true);
     const meta = await readMetadata(file).catch((): FileMetadata => ({ format: "unknown" }));
     const { location: spot } = meta;
     const near = spot ? await Promise.race([nearestPlace(spot.lat, spot.lon, { locale }), new Promise<null>((done) => setTimeout(done, NAMING_MS, null))]) : null;
-    setFinding(false);
+    // The example asks for the search at once: there is nothing else to come for.
+    setFinding(simulated);
     setSettled(false);
     setHeard(null);
     setRefused(null);
     setAnswered(false);
-    setPicked({ id: ++count.current, file, meta, prefill: prefillOf(meta), near });
+    setPicked({ id: ++count.current, file, meta, near, ...(simulated ? { prefill: whereExample.prefill, roughly: whereExample.roughly, example: true } : { prefill: prefillOf(meta) }) });
+    setMaking(false);
   }, [locale]);
 
   // A file dropped on the home comes in with the visitor.
@@ -68,6 +75,23 @@ export function Where({ archive, elsewhere, scope }: { archive: string | null; e
     // A microtask: the effect only hands the file over, opening it sets its own state.
     if (held) queueMicrotask(() => void open(held));
   }, [open]);
+
+  // The example's file, made in the browser and then a file like any other.
+  const fileName = m.example.file;
+  useEffect(() => {
+    if (!example || !archive) return;
+    const worker = new Worker(new URL("../lib/client/where-example.worker.ts", import.meta.url), { type: "module" });
+    worker.onmessage = (e: MessageEvent<Uint8Array<ArrayBuffer>>) => {
+      worker.terminate();
+      if (count.current === 0) void open(new File([e.data], fileName, { type: "audio/wav" }), true);
+    };
+    worker.onerror = () => {
+      setMaking(false);
+      setUnmade(true);
+    };
+    worker.postMessage(null);
+    return () => worker.terminate();
+  }, [example, archive, fileName, open]);
 
   const location = picked?.meta.location;
   // A file that says where it was made answers that, whatever it holds of planes; for the others,
@@ -82,8 +106,9 @@ export function Where({ archive, elsewhere, scope }: { archive: string | null; e
   const stated = spoken && (spoken.time ? fill(a.when, { date: spoken.date, time: spoken.time }) : spoken.date);
   const when = stated ? fill(a.fileWhen, { when: [stated, device].filter(Boolean).join(", ") }) : device ? fill(a.fileDevice, { device }) : null;
   const spot = useMemo(() => (location ? { lat: location.lat, lon: location.lon, start: 0, mirror: null, planes: [], paths: [] } : null), [location]);
+  const simulated = !!picked?.example;
   const another = (
-    <label className={`${FIND_NEXT} cursor-pointer text-center has-[input:focus-visible]:outline-2 has-[input:focus-visible]:outline-offset-2 has-[input:focus-visible]:outline-amber`}>
+    <label className={`${simulated ? FIND : FIND_NEXT} cursor-pointer text-center has-[input:focus-visible]:outline-2 has-[input:focus-visible]:outline-offset-2 has-[input:focus-visible]:outline-amber`}>
       <input
         type="file"
         accept={ACCEPT}
@@ -94,8 +119,41 @@ export function Where({ archive, elsewhere, scope }: { archive: string | null; e
         }}
         data-testid="answer-another"
       />
-      {a.another}
+      {simulated ? m.example.own : a.another}
     </label>
+  );
+  const chip = (
+    <span className="shrink-0 rounded-full border border-amber/40 bg-amber/10 px-2.5 py-1 text-xs font-medium text-amber-soft" data-testid="example-chip">
+      {m.example.chip}
+    </span>
+  );
+  // The same row from the moment the example is being made: at 390 px its link takes a second line, and what is under it stays.
+  const nameRow = (name: string, isExample: boolean) => (
+    <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-1">
+      <p className="flex min-w-0 items-center gap-3 font-medium text-ink" data-testid="where-name">
+        {isExample && chip}
+        <span className="truncate">{name}</span>
+      </p>
+      <label className={`${QUIET} cursor-pointer has-[input:focus-visible]:outline-2 has-[input:focus-visible]:outline-offset-2 has-[input:focus-visible]:outline-amber`}>
+      <input
+        type="file"
+        accept={ACCEPT}
+        className="sr-only"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) void open(file);
+        }}
+        data-testid="where-another"
+      />
+      {t.another}
+    </label>
+    </div>
+  );
+  // Next to the result and from the first moment: this file was mixed to get a named place, and no real test recording got one.
+  const exampleNote = (
+    <p className="text-base text-pretty text-amber-soft" data-testid="example-note">
+      {m.example.note}
+    </p>
   );
 
   const facts = (
@@ -142,27 +200,42 @@ export function Where({ archive, elsewhere, scope }: { archive: string | null; e
       <DoorHeader title={t.title} lead={filed ? undefined : t.lead} note={filed ? t.privateShort : t.private} />
       <section className={CARD} data-testid="where">
         <PageDrop onFile={(file) => void open(file)} />
-        {!picked && <DropZone onFile={(file) => void open(file)} />}
+        {!picked && !making && !unmade && (
+          <>
+            <DropZone onFile={(file) => void open(file)} />
+            {!example && <SeeExample />}
+          </>
+        )}
+        {/* The same place as the file's name and the answer that follows: nothing moves when the file comes. */}
+        {!picked && making && (
+          <>
+            {nameRow(fileName, true)}
+            <Answer
+              map={<MapToCome />}
+              title={a.listening}
+              when={"\u00a0"}
+              note={exampleNote}
+              why={
+                <div className="flex min-h-13.5 w-full flex-col justify-center gap-2" role="status" data-testid="example-progress">
+                  <Bar fraction={0} label={a.listening} />
+                </div>
+              }
+              summary={a.details.working}
+              details={null}
+            />
+          </>
+        )}
+        {!picked && unmade && (
+          <>
+            <p role="alert" className="text-pretty text-amber-soft" data-testid="example-failed">
+              {m.example.failed}
+            </p>
+            <DropZone onFile={(file) => void open(file)} />
+          </>
+        )}
         {picked && (
           <>
-            <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
-              <p className="min-w-0 truncate font-medium text-ink" data-testid="where-name">
-                {picked.file.name}
-              </p>
-              <label className={`${QUIET} cursor-pointer has-[input:focus-visible]:outline-2 has-[input:focus-visible]:outline-offset-2 has-[input:focus-visible]:outline-amber`}>
-                <input
-                  type="file"
-                  accept={ACCEPT}
-                  className="sr-only"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file) void open(file);
-                  }}
-                  data-testid="where-another"
-                />
-                {t.another}
-              </label>
-            </div>
+            {nameRow(picked.file.name, simulated)}
 
             <Check
               key={picked.id}
@@ -172,7 +245,7 @@ export function Where({ archive, elsewhere, scope }: { archive: string | null; e
               note={archive ? null : t.offline}
               facts={facts}
               fold={finding}
-              hold={searching}
+              hold={searching || (simulated && !heard)}
               heard={heard}
               answered={answered || few || silent}
               when={when}
@@ -213,7 +286,7 @@ export function Where({ archive, elsewhere, scope }: { archive: string | null; e
               onRefused={setRefused}
               tagged={!!(location || made || device)}
               find={
-                archive && !answered && !few && !silent
+                archive && !simulated && !answered && !few && !silent
                   ? (leads) => (
                       <button type="button" onClick={() => setFinding(true)} aria-expanded={finding} className={leads ? FIND : FIND_NEXT} data-testid="where-find">
                         {t.find}
@@ -222,13 +295,20 @@ export function Where({ archive, elsewhere, scope }: { archive: string | null; e
                   : undefined
               }
             >
-              {(!location || (finding && archive)) && <FindWhere picked={picked} archive={archive ?? ""} finding={finding && !!archive} few={few} silent={silent} when={when} another={another} onSearching={setSearching} onHeard={setHeard} onAnswered={setAnswered} />}
+              {(!location || (finding && archive)) && <FindWhere picked={picked} archive={archive ?? ""} finding={finding && !!archive} few={few} silent={silent} when={when} another={another} note={simulated ? exampleNote : undefined} onSearching={setSearching} onHeard={setHeard} onAnswered={setAnswered} />}
             </Check>
           </>
         )}
       </section>
       {/* What sits under the card waits for the tones: below a card about to grow, it would jump away. */}
-      {(!picked || settled) && scope}
+      {!picked && !making && scope}
+      {/* Once there is an answer, it is about that answer: the rest folds, in its own words. */}
+      {picked && settled && (
+        <details data-testid="where-how">
+          <summary className={`${QUIET} w-fit cursor-pointer`}>{m.how.title}</summary>
+          <div className="mt-4">{scope}</div>
+        </details>
+      )}
     </>
   );
 }

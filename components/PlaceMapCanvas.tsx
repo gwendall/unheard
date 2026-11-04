@@ -92,7 +92,7 @@ export default function PlaceMapCanvas({ archive, guess, others, sure, zoom = SP
       onReady,
       onFail,
       labels: {
-        guess: sure ? m.where.result.here : m.where.result.hereGuess,
+        guess: m.where.result.here,
         mirror: m.where.result.mirrorLabel,
         other: (n) => fill(t.other, { n }),
         plane: (hex) => guess.planes.find((p) => p.hex === hex)?.registration || undefined,
@@ -217,7 +217,7 @@ export default function PlaceMapCanvas({ archive, guess, others, sure, zoom = SP
   };
 
   // Another answer picked: the same map, new marks, and it moves there.
-  const answer = `${guess.lat},${guess.lon},${guess.start},${sure},${others.map((o) => `${o.lat},${o.lon}`).join(";")}`;
+  const answer = `${guess.lat},${guess.lon},${guess.start},${guess.mirror?.lat},${sure},${others.map((o) => `${o.lat},${o.lon}`).join(";")}`;
   const shown = useRef(answer);
   useEffect(() => {
     const instance = map.current;

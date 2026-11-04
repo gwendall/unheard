@@ -6,7 +6,7 @@ import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import { holdFile } from "@/lib/client/held";
 import { pathFor } from "@/lib/locales";
 import { DoorHeader } from "./DoorHeader";
-import { CARD, DropZone, PageDrop } from "./Drop";
+import { CARD, DropZone, PageDrop, SeeExample } from "./Drop";
 import { useI18n } from "./I18n";
 import { Logbook } from "./Logbook";
 
@@ -56,6 +56,7 @@ export function Hero({ onListen, onExample, error, qr }: { onListen: () => void;
         ) : (
           <DropZone onFile={onFile} />
         )}
+        <SeeExample />
       </section>
 
       {/* The second door takes the narrower column: its words fill it, no hole above the link. */}

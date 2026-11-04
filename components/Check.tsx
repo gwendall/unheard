@@ -317,6 +317,8 @@ export function Check({ file, elsewhere, note, facts, tagged, find, fold, hold, 
   const strongest = [...list].sort((a, b) => b.tone.confidence - a.tone.confidence).slice(0, SHOWN);
   const others = list.filter((f) => !strongest.includes(f));
   const busy = state.kind === "failed" ? undefined : state.busy;
+  /** The verdict is only how many sounds there are, with more to say about them than that. */
+  const counted = fromSearch || (state.kind === "found" && !none);
   const verdict = fromSearch
     ? plural(list.length, t.foundSearch)
     : state.kind === "found"
@@ -504,11 +506,12 @@ export function Check({ file, elsewhere, note, facts, tagged, find, fold, hold, 
     copyNote,
     quietCopy,
     clean: (leads) => (
-      <div className="flex w-full flex-col items-start gap-3" data-testid="check-slot">
+      <div className="flex min-h-13.5 w-full flex-col items-start gap-3" data-testid="check-slot">
         {working(true)}
         {trouble}
+        {/* Said for a screen reader as it comes. On the screen a count of sounds under "3 planes" reads as a contradiction: it goes under Details. */}
         {verdict && (
-          <p className="text-pretty text-ink" role="status" data-testid="check-verdict">
+          <p className={counted ? "sr-only" : "text-pretty text-ink"} role="status" data-testid="check-verdict">
             {verdict}
           </p>
         )}
@@ -521,6 +524,7 @@ export function Check({ file, elsewhere, note, facts, tagged, find, fold, hold, 
         {facts}
         {offline}
         {noTone}
+        {counted && <p className="text-pretty text-ink" data-testid="check-count">{verdict}</p>}
         {elsewhereLink}
         {tonesBlock}
       </>

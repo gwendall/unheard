@@ -1,7 +1,9 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useI18n } from "@/components/I18n";
+import { pathFor } from "@/lib/locales";
 
 // How a file comes in: a zone to click, and the whole page taking a drop. The file stays in the
 // browser.
@@ -32,6 +34,22 @@ export function DropZone({ onFile }: { onFile: (file: File) => void }) {
       <span className="text-mute">{t.drop}</span>
       <span className="text-sm text-faint">{t.formats}</span>
     </label>
+  );
+}
+
+/** Under the zone, for whoever has no file to hand: the whole answer, on a simulated file. */
+export function SeeExample() {
+  const { m, locale } = useI18n();
+  return (
+    <p className="flex flex-col items-center gap-x-4 gap-y-2 text-center text-mute sm:flex-row sm:justify-center">
+      {m.where.noFile}
+      <Link href={pathFor(locale, "/example")} className="group w-full rounded-full border border-line px-7 py-3 text-lg font-medium text-ink transition hover:border-mute sm:w-fit" data-testid="see-example">
+        {m.where.seeExample}{" "}
+        <span aria-hidden className="inline-block text-amber-soft transition group-hover:translate-x-1">
+          →
+        </span>
+      </Link>
+    </p>
   );
 }
 

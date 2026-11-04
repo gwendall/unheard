@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
-import { Where } from "@/components/Where";
-import { ARCHIVE_URL } from "@/lib/archive";
-import { alternates, LANGUAGES, messages, pathFor, type Locale } from "@/lib/i18n";
+import { WhereMain } from "@/components/WhereMain";
+import { alternates, LANGUAGES, messages, type Locale } from "@/lib/i18n";
 
 // One door for a file: what it says about itself, its aircraft tones, then where and when it was
 // recorded (the planes in its sound, matched to a flight archive) and taking the tones out, all in
@@ -22,24 +21,5 @@ export async function generateMetadata({ params }: PageProps<"/[lang]/where">): 
 }
 
 export default async function WherePage({ params }: PageProps<"/[lang]/where">) {
-  const lang = (await params).lang as Locale;
-  const all = await messages(lang);
-  const scope = all.check.scope;
-  return (
-    <main className="mx-auto flex min-h-dvh w-full max-w-6xl flex-col gap-8 px-5 pt-10 pb-16 sm:px-8 sm:pt-16">
-      <Where
-        archive={ARCHIVE_URL || null}
-        elsewhere={pathFor(lang, "/somewhere-else")}
-        scope={
-          <section className="flex flex-col gap-3" aria-labelledby="scope" data-testid="where-scope">
-            <h2 id="scope" className="text-sm font-medium tracking-wide text-mute uppercase">
-              {scope.title}
-            </h2>
-            <p className="max-w-prose text-pretty text-mute">{scope.yes}</p>
-            <p className="max-w-prose text-pretty text-mute">{scope.no}</p>
-          </section>
-        }
-      />
-    </main>
-  );
+  return <WhereMain lang={(await params).lang as Locale} />;
 }
