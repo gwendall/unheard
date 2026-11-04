@@ -6,6 +6,7 @@
 // bytes in, flights out, and a fetcher supplied by the caller.
 
 import type { Fix } from "./core/track";
+import { inParallel, MAX_FETCHES } from "./core/parallel";
 
 /** What makes the sound: the propeller and rotor tones are what the trace follower finds. */
 export const KIND = { unknown: 0, piston: 1, turboprop: 2, rotor: 3, jet: 4, other: 5 } as const;
@@ -141,24 +142,29 @@ export async function readDays(fetcher: Fetcher): Promise<string[] | null> {
   }
 }
 
-/** The flights of some days around a square, merged per aircraft across tiles; and the bytes fetched. */
-export async function loadFlights(fetcher: Fetcher, days: string[], area: { lat: number; lon: number; side: number }, margin = 15_000): Promise<{ flights: Flight[]; bytes: number; tiles: number; missing: string[] }> {
-  const tiles: Tile[] = [];
-  const missing: string[] = [];
+/**
+ * The flights of some days around a square, merged per aircraft across tiles; and the bytes
+ * fetched. Only the tiles the square touches, several at a time: the flights come out the same
+ * whatever order they arrive in.
+ */
+export async function loadFlights(fetcher: Fetcher, days: string[], area: { lat: number; lon: number; side: number }, margin = 15_000, onProgress?: (done: number, total: number) => void): Promise<{ flights: Flight[]; bytes: number; tiles: number; missing: string[] }> {
+  const manifests = await inParallel(days, MAX_FETCHES, (day) => readManifest(fetcher, day));
+  const missing = days.filter((_, i) => !manifests[i]);
+  const paths = days.flatMap((day, i) => {
+    const manifest = manifests[i];
+    return manifest ? tilesAround(manifest, area.lat, area.lon, area.side, margin).map((name) => `${day}/${name}.bin.gz`) : [];
+  });
   let bytes = 0;
-  for (const day of days) {
-    const manifest = await readManifest(fetcher, day);
-    if (!manifest) {
-      missing.push(day);
-      continue;
-    }
-    for (const name of tilesAround(manifest, area.lat, area.lon, area.side, margin)) {
-      const gz = await fetcher(`${day}/${name}.bin.gz`);
-      if (!gz) continue;
-      bytes += gz.length;
-      tiles.push(decodeTile(await gunzip(gz)));
-    }
-  }
+  let done = 0;
+  onProgress?.(0, paths.length);
+  const read = await inParallel(paths, MAX_FETCHES, async (path) => {
+    const gz = await fetcher(path);
+    const tile = gz ? decodeTile(await gunzip(gz)) : null;
+    if (gz) bytes += gz.length;
+    onProgress?.(++done, paths.length);
+    return tile;
+  });
+  const tiles = read.filter((t): t is Tile => t !== null);
   return { flights: mergeFlights(tiles), bytes, tiles: tiles.length, missing };
 }
 

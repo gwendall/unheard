@@ -7,8 +7,9 @@ import { toLocal, norm, type Listener } from "../core/geo";
 import { ANALYSIS_RATE } from "../core/pipeline";
 import { estimator, stagesOf, type Estimate } from "../core/progress";
 import { findSegments, flybys, whereWhen, type Answer, type BestSoFar } from "../core/wherewhen";
-import { httpFetcher, loadFlights, type Flight } from "../history";
-import { groundOf, httpTiles } from "../terrain";
+import { loadFlights, type Flight } from "../history";
+import { groundOf } from "../terrain";
+import { cachedFetcher, cachedTiles } from "./cached";
 import { daysOf, distinctAnswers, partsOf, passesOf, type WherePart } from "./where";
 
 export type WhereRequest = {
@@ -150,10 +151,10 @@ async function search({ channels, sampleRate, history, window, area, partial }: 
 
   report("flights", "flights", 0);
   const days = daysOf(window, duration);
-  const { flights, missing } = await loadFlights(httpFetcher(history), days, area);
+  const { flights, missing } = await loadFlights(cachedFetcher(history), days, area, undefined, (done, total) => report("flights", "flights", done / Math.max(1, total)));
   if (missing.length === days.length) return { kind: "missing", day: missing[0] };
   // The ground's height from the open terrain tiles (they allow browsers); flat if they fail.
-  const ground = await groundOf((z, x, y) => httpTiles(z, x, y).catch(() => null), area.lat, area.lon, area.side);
+  const ground = await groundOf((z, x, y) => cachedTiles(z, x, y).catch(() => null), area.lat, area.lon, area.side);
 
   report("search", "shape", 0);
   const found = await whereWhen(segments, flights, {
