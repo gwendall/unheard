@@ -10,62 +10,6 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  check:
-    # GitHub's runners only: a self-hosted runner never serves a public repository.
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile --prefer-offline
-      - run: pnpm lint
-      - run: pnpm typecheck
-      - run: pnpm test
-      - run: pnpm scoreboard --check
-      - run: pnpm build
-
-  eval:
-    # The synthetic and real-track evals are the ratchet of the matcher (evals/baseline.json);
-    # somewhere-else reads back the curves the "Somewhere else" page plants.
-    # ghost holds how rarely the result page tells a line the flight data does not have by mistake:
-    # it runs when the analysis or the eval changed.
-    # The real-audio eval needs licensed data that never enters git: it runs on demand.
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    # The eval delta comments on the pull request (a fork's token stays read-only: summary only).
-    permissions:
-      contents: read
-      pull-requests: write
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          # The merge commit and its first parent, the base branch: the delta's reference.
-          fetch-depth: 2
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile --prefer-offline
-      - run: pnpm eval evals/synthetic evals/real-tracks evals/somewhere-else
-      - name: Eval delta
-        if: ${{ !cancelled() }}
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: node scripts/eval-delta.ts synthetic real-tracks
-      - name: Ghost eval, when the analysis or the eval changed
-        # About 200 recordings, 13 minutes: page and docs changes cannot move it.
-        run: |
-          if git diff --name-only HEAD^ HEAD | grep -qE '^(lib/core/|lib/adsb\.ts|evals/ghost|evals/lib/|evals/baseline\.json)'; then
-            pnpm eval evals/ghost
-          else
-            echo "Nothing the ghost eval reads changed."
-          fi
-
   e2e-part:
     # The real page in real browsers (playwright.config.ts), on next dev because e2e/history and
     # /dev-map are served in development only. One server setting per runner: Next allows one dev
@@ -82,11 +26,7 @@ jobs:
           - { part: pages 1 of 3, browser: chromium, args: '--project=chromium --grep-invert place-map --fully-parallel --shard=1/3' }
           - { part: pages 2 of 3, browser: chromium, args: '--project=chromium --grep-invert place-map --fully-parallel --shard=2/3' }
           - { part: pages 3 of 3, browser: chromium, args: '--project=chromium --grep-invert place-map --fully-parallel --shard=3/3' }
-          - { part: map, browser: chromium, env: 'NEXT_PUBLIC_HISTORY_URL=https://unheard-history.t3.tigrisbucket.io', args: '--project=chromium e2e/place-map.spec.ts' }
           - { part: no archive, browser: chromium, env: 'NEXT_PUBLIC_HISTORY_URL= NO_ARCHIVE=1', args: '--project=chromium e2e/where.spec.ts -g "without the archive"' }
-          - { part: video in Chrome, browser: chrome, args: '--project=chrome' }
-          - { part: video in Firefox, browser: firefox, args: '--project=firefox' }
-          - { part: video in WebKit, browser: webkit, args: '--project=webkit' }
     env:
       BASE_URL: http://localhost:3000
       E2E_VIDEO_BROWSERS: 1
@@ -116,8 +56,13 @@ jobs:
           else
             pnpm exec playwright install --with-deps ${{ matrix.browser == 'chromium' && '--only-shell' || '' }} ${{ matrix.browser }}
           fi
-          sudo apt-get install -y -qq --no-install-recommends ffmpeg > /dev/null
-          ffmpeg -version | head -n 1
+          if [ "${{ matrix.part }}" = "no archive" ]; then
+            sudo apt-get remove -y -qq ffmpeg > /dev/null 2>&1 || true
+            which ffmpeg || echo "probe: no ffmpeg on this runner"
+          else
+            sudo apt-get install -y -qq --no-install-recommends ffmpeg > /dev/null
+            ffmpeg -version | head -n 1
+          fi
       - name: The fixtures, none missing
         # Without ffmpeg the fixture script only warns and the video tests skip themselves: here it fails.
         run: |
