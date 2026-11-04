@@ -10,7 +10,7 @@ import { analyze, ANALYSIS_RATE, type Analysis, type Recording } from "@/lib/cor
 import { fit, loudness, parseCoords, PLACES, planScene, type PlaceId, type Scene } from "@/lib/client/elsewhere";
 import { identityOf, spoken } from "@/lib/client/names";
 import { revealed, speedFor } from "@/lib/client/reveal";
-import { coarse } from "@/lib/client/sky";
+import { pollAround } from "@/lib/client/sky";
 import type { Messages } from "@/lib/i18n";
 import { useI18n } from "./I18n";
 import { Spectrum } from "./Spectrum";
@@ -45,12 +45,6 @@ type Phase =
 
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const nextFrame = () => new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
-
-async function pollOf(lat: number, lon: number): Promise<Poll> {
-  const res = await fetch(`/api/aircraft?lat=${coarse(lat)}&lon=${coarse(lon)}`, { cache: "no-store" });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return (await res.json()) as Poll;
-}
 
 async function weatherOf(lat: number, lon: number): Promise<{ elevation: number | null; temperatureC: number | null }> {
   try {
@@ -177,7 +171,7 @@ export function Elsewhere() {
       const air = { groundTempC: w.temperatureC ?? 15 };
       const polls: Poll[] = [];
       try {
-        polls.push(await pollOf(place.lat, place.lon));
+        polls.push(await pollAround(place.lat, place.lon));
       } catch {
         return setPhase({ kind: "error", code: "flights" });
       }
@@ -186,7 +180,7 @@ export function Elsewhere() {
         setPhase({ kind: "working", step: { kind: "polls", place: place.name, i: k } });
         await wait(POLL_EVERY);
         try {
-          polls.push(await pollOf(place.lat, place.lon));
+          polls.push(await pollAround(place.lat, place.lon));
         } catch {
           // Two polls, or one, still make a scene: the flights just go straight.
         }

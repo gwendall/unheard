@@ -15,7 +15,7 @@ Made by Gwendall.
 ## How it works
 
 1. **Listen.** The page records raw audio (no echo cancellation, no noise suppression) and polls
-   the aircraft around a coarse version of your location every 2 s (`/api/aircraft`, adsb.lol).
+   the aircraft around a coarse version of your location every 3 s (`/api/aircraft`, adsb.lol).
 2. **Model.** For every aircraft, `lib/core` rebuilds its track (Kalman/RTS smoothing of the
    ADS-B fixes), then computes the exact pitch curve you should have heard: emission time solved
    for each moment (the sound left the aircraft seconds earlier), radial speed at that moment,

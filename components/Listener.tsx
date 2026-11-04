@@ -8,7 +8,7 @@ import { ANALYSIS_RATE } from "@/lib/core/rate";
 import type { Air } from "@/lib/core/doppler";
 import type { Listener as Spot } from "@/lib/core/geo";
 import { makeBundle, type Bundle } from "@/lib/bundle";
-import { Sky } from "@/lib/client/sky";
+import { RECORD_EVERY, Sky } from "@/lib/client/sky";
 import { nearbyFrom, type Nearby } from "@/lib/client/nearby";
 import { outlook, type Outlook } from "@/lib/client/chance";
 import type { Messages } from "@/lib/i18n";
@@ -143,7 +143,7 @@ export function Listener({ qr }: { qr: string }) {
     setWhere({ lat, lon });
     const listener: Spot = { lat, lon, elevation: 0 };
     spot.current = { listener, air: { groundTempC: 15 } };
-    sky.current = new Sky(lat, lon, (poll) => onPoll(nearbyFrom(poll, listener, Infinity)), WATCH_EVERY);
+    sky.current = new Sky(lat, lon, (poll) => onPoll(nearbyFrom(poll, listener, Infinity, Date.now())), WATCH_EVERY);
     sky.current.start();
     skyFrom.current = Date.now();
     release.current = await keepAwake();
@@ -182,7 +182,7 @@ export function Listener({ qr }: { qr: string }) {
     if (wait > 0) await new Promise((r) => setTimeout(r, wait));
     if (!capture.current) return;
     capture.current.begin();
-    sky.current?.pace(2000);
+    sky.current?.pace(RECORD_EVERY);
     const o = outlook(aroundRef.current.list);
     targetRef.current = o.kind === "quiet" ? null : o.best.meta.hex;
     setTarget(targetRef.current);
