@@ -141,7 +141,13 @@ function probeTags(path: string) {
 /** Clicks the copy without its tags, saves it, and says what it holds: the file's picture and first sound as they were, and nothing it said. */
 async function copyWithoutTags(page: Page, file: string, out: string, name: string, kept: string[]) {
   const before = await tracksOf(file);
-  const [download] = await Promise.all([page.waitForEvent("download"), page.getByTestId("check-tags-download").click()]);
+  // A copy that never comes fails here, saying what the panel shows, rather than using up the whole run.
+  const [download] = await Promise.all([
+    page.waitForEvent("download", { timeout: 60_000 }).catch(async () => {
+      throw new Error(`${name}: no download after 60 s, the panel reads: ${await page.getByTestId("check-tags").innerText()}`);
+    }),
+    page.getByTestId("check-tags-download").click({ timeout: 60_000 }),
+  ]);
   expect(download.suggestedFilename()).toBe(name);
   await download.saveAs(out);
   const first = kept.map((type) => before.find((t) => t.type === type));
