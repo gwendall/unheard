@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { heardAt, naiveHeardAt, STANDARD_AIR } from "./doppler";
 import type { Listener } from "./geo";
-import { curveScore, matchAll, POSSIBLE, type Candidate } from "./match";
+import { curveScore, matchAll, POSSIBLE, STRONG, verdictOf, type Candidate, type Match } from "./match";
 import { buildStack } from "./spectrogram";
 import { flybyFixes, synthesize, type Flyby } from "./synth";
 import { buildTrack, type Track } from "./track";
@@ -89,5 +89,14 @@ describe("matchAll", () => {
     const { stack } = record([{ id: "target", f0: 96, level: 0.14 }], 21);
     const verdict = await matchAll(stack, START, candidates(ALL.filter((id) => id !== "target")), STANDARD_AIR);
     expect(verdict.kind, `best ${verdict.best?.id} ${verdict.best?.score.toFixed(2)}`).not.toBe("strong");
+  });
+});
+
+describe("verdictOf", () => {
+  const named = (score: number, range: number) => ({ id: "x", score, closest: { range, heardAt: 0, delay: 0 } }) as Match<object>;
+
+  it("says strong up to the range cap, and possible past it whatever the score", () => {
+    expect(verdictOf([named(15, STRONG.range)]).kind).toBe("strong");
+    expect(verdictOf([named(15, STRONG.range + 1)]).kind).toBe("possible");
   });
 });

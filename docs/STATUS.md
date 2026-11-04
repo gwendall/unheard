@@ -188,8 +188,8 @@ Thresholds: strong at score 9 and lead 2.5, possible at 6.5 and 1.5 (`lib/core/m
   strongly in 0.90 of scenes, and never a plane it did not plant. With the true tracks of that
   minute instead of the page's dead reckoning: 0.83 (0.70 before the line check), and never a
   plane it did not plant. From 3 km away: 0. The planes sit 47 dB under the voice (median). At
-  home, with home's own sky, one of home's planes is named strongly in 0.10 of scenes (0.37
-  before the line check): see Next #2.
+  home, with home's own sky, one of home's planes is named strongly in 0.07 of scenes (0.37
+  before the line check, 0.10 before the cap on distance): see Next #2.
 
 ## Where and when: the flight history (2026-11-03)
 
@@ -314,6 +314,47 @@ along the whole recording's curve, not `analyze()` run again on that cut.
 - Two lines of one recording, against their planes' ranges: one recording of 49 has two to read
   (Bell 412 and EC135, correlation 0.00). Nothing to calibrate on, and the wrong strongs have one.
 
+## A cap on distance (2026-11-04)
+
+Is "strong" safe to cap by the plane's closest range in the recording? Past `STRONG.range`, 10 km, a
+plane that clears the score and the lead now reads "possible": one comparison in `verdictOf`
+(`lib/core/match.ts`), which `analyze()` calls. Each eval's report has its calibration line.
+
+| planes named strongly | n | closest m, p50 / p90 / max | height m at closest, p50 / p90 / max |
+|---|---|---|---|
+| real audio, right (Livermore, AeroSonicDB) | 38 | 1658 / 3934 / 5680 | 1347 / 2859 / 5831 |
+| real tracks, right | 16 | 1202 / 2314 / 2468 | 762 / 1143 / 1372 |
+| colsto's hour, no truth | 9 | 8181 / 13401 / 13407 | 632 / 937 / 1059 |
+| wrong: the E2E's jet, 3 of 50 cuts | 3 | 14424 | 9449 |
+| wrong: home's phoenix-6-22 | 1 | 11071 | 11102 |
+| wrong: home's synthetic-3 | 1 | 5549 | 5578 |
+| wrong: home's phoenix-9-25 | 1 | 2923 | 1280 |
+
+| cap | right lost: real audio (38), real tracks (16), synthetic and somewhere else (66) | colsto held back, of 9, no truth | the jet's strongs left, of 3 | home's strongs left, of 3 |
+|---|---|---|---|---|
+| 6 km | 0, 0, 0 | 5 | 0 | 2 |
+| 8 km | 0, 0, 0 | 5 | 0 | 2 |
+| **10 km** | 0, 0, 0 | 3 | 0 | 2 |
+| 12 km | 0, 0, 0 | 3 | 0 | 3 |
+
+- The zeros say little past 6 km: no labelled plane is farther than 5680 m, strong or not (51
+  recordings with the plane in the data), since these corpora are flybys picked close by. They do
+  not measure how often a far plane named strongly is right.
+- Only colsto speaks past that, with no truth. Its Cessna 208 and PA-30, 8.2 to 8.4 km away, are
+  flyovers the where-and-when search also reads, so the cap sits above them: 6 or 8 km would hold
+  them back and take nothing more from home or the jet. 12 km keeps phoenix-6-22. At 10 km, if the
+  three jets held back (F900, E170, CRJ9, 12.3 to 13.4 km) were all right, the cost is 3 of the 47
+  strongs on real audio (6 %) reading "Probably". Their pitch moves 23 to 62 %, as much as a right
+  plane's, so nothing says they are wrong either.
+- A jet cruising at 33,000 ft is over 10 km away even straight overhead: it can no longer read "It
+  was", whatever its score.
+- Height separates less: right planes reach 5831 m, the jet flies at 9449 m and phoenix-6-22 at
+  11102 m, a gap of 1.6 times against 1.9 for range. A cap on height between them would take those
+  two out too and hold nobody back on colsto, whose far jets are 600 to 900 m up, so it would leave
+  those three strong. A wrong name costs more than a missed "for sure": range it is.
+- From 3 km aside (somewhere else), the planes other than the primary named strongly sit at 1.9, 8.1
+  and 13.6 km; the last now reads "possible". Not judged here: the ratchet counts the primary only.
+
 ## Next
 
 1. Founder: record real flybys with `?capture=1` on a phone (a light-aircraft field, a heliport,
@@ -329,8 +370,9 @@ along the whole recording's curve, not `analyze()` run again on that cut.
    real-track and real-audio evals. Left, the three home strongs: home's plane runs along the
    planted line within 2 % for all of it (synthetic-3, phoenix-9-25, tracks known throughout),
    or for 32 s of a 58 s line, wherever its track is known (phoenix-6-22). The curves cannot
-   tell these apart, and the level does not either (section "The level of a tone"). STRONG stays
-   at 9. `analyze()` returns `unexplained`, the lines no aircraft
+   tell these apart, and the level does not either (section "The level of a tone"). phoenix-6-22,
+   11 km away, went with the cap on distance of 2026-11-04 (section of that name): 2 of 30 now.
+   STRONG stays at 9. `analyze()` returns `unexplained`, the lines no aircraft
    of the data explains, and `ghosts`, those a visitor can be told (`GHOST` in
    `lib/core/explain.ts`, measured by `evals/ghost.eval.ts`): the flyby follows 80 % of it,
    confidence 20, no aircraft of the data follows half of it at any tone, read as a straight pass
@@ -340,10 +382,9 @@ along the whole recording's curve, not `analyze()` run again on that cut.
    (0 of 191); 23 of 38 real planes left out of the data, always the right line, read within a
    factor of 2 in speed 28 times in 28 and in distance 25 in 28. Left: a line the data's other
    planes could follow at some tone is not told, so a busy sky hides it; and in the E2E's made-up
-   sky, the heard plane left out, a jet at 31,000 ft can still go strong (9.2 to 9.5 on 3 of 50 cuts, 9.9 on one noted before)
-   (`none` or `possible` on other cuts of the same recording), with no line found and 6.8 to 9 s of
-   its curve known, since its sound takes 45 s to arrive: the matcher's limit, not changed. See
-   item 10.
+   sky, the heard plane left out, a jet at 31,000 ft reached a strong score (9.2 to 9.5 on 3 of 50
+   cuts, 9.9 on one noted before), with no line found and 6.8 to 9 s of its curve known, since its
+   sound takes 45 s to arrive. 14.4 km away, it now reads "possible" under the cap on distance.
 3. Wind: Open-Meteo wind at 10 m and aloft into `Air.wind` (the synthetic eval shows wind costs
    about one score point at 8 m/s).
 4. Two aircraft heard at once (two helicopters at Adelaide, a jet and a Cessna in Livermore
@@ -373,19 +414,18 @@ along the whole recording's curve, not `analyze()` run again on that cut.
    hour to 55 m with an hour given. Next: two tones per flyover, a flag that can be raised (section
    "Where and when: the search").
 
-10. "Strong must never be wrong", what is left after the level:
-   - The jet of the E2E's recording: strong on 6.8 to 9 s of known curve (3 of 50 cuts, polls only from
-     the first sample; 0 of 50 with 10 s of polls before). The shortest curve of a strong and right plane is
-     23.5 s, on 119 of them across real audio, synthetic, real tracks and somewhere else (colsto's
-     strongs: 100 s). A floor of 15 s of known curve would take those three out with nothing lost:
-     a small lot of its own, not the level.
-   - At home with home's sky, 3 of 30 stay strong (synthetic-3, phoenix-9-25, phoenix-6-22). Nothing
-     found in the sound tells them apart.
-   - colsto's hour read in cuts of 2.5 minutes (`evals/level.eval.ts`): 9 strong in 30. Three are
-     flyovers the where-and-when search also reads (Cessna 208, PA-30, Beech 350), two an R44 4 km off.
-     Three are jets 12 to 13 km away at 71 to 144 Hz (F900, E170, CRJ9), and one an A220 at 49 Hz: no
-     truth for them. A far plane's nearly flat curve may fit a slowly drifting sound. Worth a look
-     before saying strong is never wrong on real audio: no eval has a truth here yet.
+10. "Strong must never be wrong", what is left after the level and the cap on distance:
+   - At home with home's sky, 2 of 30 stay strong (synthetic-3 at 5.5 km, phoenix-9-25 at 2.9 km),
+     inside any cap that keeps the right planes. Nothing found in the sound tells them apart.
+   - colsto's hour read in cuts of 2.5 minutes (`evals/level.eval.ts`): 6 strong in 30 now. Three are
+     flyovers the where-and-when search also reads (Cessna 208, PA-30, Beech 350), two an R44 4 km off,
+     and one an A220 at 49 Hz, 3 km off: no truth for it. No eval has a truth here yet.
+   - `STRONG.range` has no labelled plane past 5.7 km behind it. A far flyby recorded with its truth
+     (item 1) is what would check 10 km.
+   - The page says "With no plane to find, no score has reached {strong} in our tests"
+     (`result.score` in `messages/`). Home's two scored 11.9 and 10.6: that line is not true.
+   - A floor of 15 s of known curve stays open: it would have taken out the jet too, with nothing lost
+     on 119 strong and right planes (shortest 23.5 s), mostly with polls from well before the recording.
 
 ## Needs the founder
 
