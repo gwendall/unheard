@@ -422,7 +422,7 @@
   "where": {
     "title": "Où a-t-on filmé ça ?",
     "lead": "Les avions au fond d'une vidéo ou d'un fichier son laissent un son dont la hauteur baisse quand ils passent. Rapprochés d'une archive de vols, ces sons peuvent parfois dire où et quand il a été enregistré.",
-    "leadShort": "Les avions qu'on entend dans une vidéo peuvent parfois dire où et quand elle a été filmée.",
+    "leadShort": "Les avions en fond d'une vidéo peuvent parfois dire où et quand elle a été filmée.",
     "private": "Votre fichier reste dans ce navigateur : il est ouvert, analysé et nettoyé ici, rien n'en est envoyé, et rien n'est gardé une fois que vous passez à autre chose.",
     "privateShort": "Votre fichier reste dans ce navigateur.",
     "offline": "L'archive de vols n'est pas encore connectée : la recherche n'est pas proposée.",

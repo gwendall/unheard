@@ -59,7 +59,7 @@ test("a computer keeps the drop zone and the whole lead", async ({ page }) => {
   await expect(page.getByText("or drop it here")).toBeVisible();
   await expect(page.getByText("Most videos and sound files")).toBeVisible();
   await expect(page.getByTestId("where-lead")).toContainText("Matched to an archive of flights");
-  await expect(page.getByText("The planes you can hear in a video")).toBeHidden();
+  await expect(page.getByText("The planes in the background of a video can")).toBeHidden();
 });
 
 test("each plane plays the file's own sound around its pass, one at a time", async ({ page }) => {
