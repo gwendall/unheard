@@ -147,7 +147,6 @@ test("a file in: what it says at once, its tones, then where and when, and the f
   await expect(page.getByTestId("answer-reason")).toHaveText(/^\d+ planes were passing there at that moment, and we can hear them in the sound\.$/);
   await expect(page.getByTestId("answer-plane").first()).toContainText(/ away, at \d+:\d\d.[AP]M$/);
   await expect(page.getByTestId("answer-planes")).toContainText(scene.aircraft[1].registration);
-  await expect(page.getByTestId("where-spot")).toHaveCount(0);
   await shoot(page, "where-found");
 
   // The rest is a tap away.
@@ -660,10 +659,10 @@ test("on a long file, Find where waits for nothing, a search runs ahead of the c
   await expect(page.getByTestId("check-progress")).toBeVisible();
   const search = await page.getByTestId("where-search").boundingBox();
   await expect(page.getByTestId("check-verdict")).toHaveText("No aircraft sound found.", { timeout: 170_000 });
-  await details(page);
-  await expect(page.getByTestId("check")).toContainText("does not make the file safe");
   await expect(page.getByTestId("where-find")).toBeVisible();
   expect(await page.getByTestId("where-search").boundingBox()).toEqual(search);
+  await details(page);
+  await expect(page.getByTestId("check")).toContainText("does not make the file safe");
   await expect(page.getByTestId("check-clean")).toHaveCount(0);
 });
 
@@ -841,6 +840,8 @@ test("on a wide screen the map takes the whole width, and under the answer each 
   await fillIn(page);
   await page.getByTestId("where-search").click();
   await expect(page.getByTestId("where-verdict")).toBeVisible({ timeout: 170_000 });
+  // Coordinates and the rest wait under Details.
+  await expect(page.getByTestId("where-spot")).toHaveCount(0);
   const result = (await page.getByTestId("where-result").boundingBox())!;
   const map = (await page.getByTestId("place-map").boundingBox())!;
   expect(map.width).toBe(result.width);

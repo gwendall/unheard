@@ -93,7 +93,8 @@ export function Answer({
       <div className="flex min-h-30 flex-col gap-3 sm:min-h-13.5 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-4" data-testid="answer-actions">
         {actions}
       </div>
-      {quiet && <div className="flex flex-col items-start gap-4">{quiet}</div>}
+      {/* With no map yet, room for what comes under the actions: "Details" stays where it is when it does. */}
+      {quiet && <div className={`flex flex-col items-start gap-4 ${map ? "" : "min-h-31 sm:min-h-25"}`}>{quiet}</div>}
       {after}
       <Details summary={summary} onToggle={onDetails}>
         {details}
