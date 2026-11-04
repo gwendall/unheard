@@ -197,7 +197,7 @@ export function Where({ archive, elsewhere, example, scope }: { archive: string 
 
   return (
     <>
-      <DoorHeader title={t.title} lead={filed ? undefined : t.lead} note={filed ? t.privateShort : t.private} />
+      <DoorHeader title={t.title} lead={filed ? undefined : t.lead} leadShort={t.leadShort} note={filed ? t.privateShort : t.private} />
       <section className={CARD} data-testid="where">
         <PageDrop onFile={(file) => void open(file)} />
         {!picked && !making && !unmade && (
@@ -215,6 +215,7 @@ export function Where({ archive, elsewhere, example, scope }: { archive: string 
               title={a.listening}
               when={"\u00a0"}
               note={exampleNote}
+              oneAction
               why={
                 <div className="flex min-h-13.5 w-full flex-col justify-center gap-2" role="status" data-testid="example-progress">
                   <Bar fraction={0} label={a.listening} />

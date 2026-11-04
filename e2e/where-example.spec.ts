@@ -35,8 +35,32 @@ for (const [width, height] of [[1440, 900], [390, 844]]) {
     await expect(page.getByTestId("example-note")).toHaveText(NOTE);
     await expect(page.getByTestId("where-share")).toHaveCount(0);
     await expect(page.getByTestId("check-clean")).toHaveCount(0);
+    // One button, and no room kept for a second.
+    expect((await page.getByTestId("answer-actions").boundingBox())?.height).toBe(54);
   });
 }
+
+// A phone's browser shows about 660 px of a page under its bars, and most who come have no file to hand.
+for (const home of ["/", "/fr"]) {
+  test(`a phone's first screen holds the way to the example, at ${home}`, async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 660 });
+    await page.goto(home);
+    await page.evaluate(() => document.fonts.ready);
+    const way = await page.getByTestId("see-example").boundingBox();
+    expect(way!.y + way!.height).toBeLessThanOrEqual(660);
+    await expect(page.getByTestId("where-private")).toBeVisible();
+    await expect(page.getByTestId("where-lead")).toBeVisible();
+  });
+}
+
+test("a computer keeps the drop zone and the whole lead", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/");
+  await expect(page.getByText("or drop it here")).toBeVisible();
+  await expect(page.getByText("Most videos and sound files")).toBeVisible();
+  await expect(page.getByTestId("where-lead")).toContainText("Matched to an archive of flights");
+  await expect(page.getByText("The planes you can hear in a video")).toBeHidden();
+});
 
 test("each plane plays the file's own sound around its pass, one at a time", async ({ page }) => {
   test.setTimeout(240_000);

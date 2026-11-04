@@ -721,9 +721,10 @@ export function FindWhere({ picked, archive, finding, few, silent, when: fileWhe
     <div className="contents" data-testid="where-find-panel">
       <div ref={top} className="flex scroll-mt-4 flex-col gap-8 empty:hidden" data-testid={result && said ? "where-result" : undefined}>
         {answerNow ? (
-          <Answer {...answerNow} titleRef={verdict} onDetails={onDetails} />
+          <Answer {...answerNow} oneAction={picked.example} titleRef={verdict} onDetails={onDetails} />
         ) : result && said ? (
           <Answer
+            oneAction={picked.example}
             map={named && guess ? mapOf(onMap ?? guess, others, found!.confident) : undefined}
             title={named ? nameOf(named) : a.cannot}
             titleRef={verdict}

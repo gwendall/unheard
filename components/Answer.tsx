@@ -52,6 +52,8 @@ export type AnswerProps = {
   why?: ReactNode;
   rows?: ReactNode;
   actions?: ReactNode;
+  /** Only one button ever comes, as on the example: no room kept for a second at 390 px. */
+  oneAction?: boolean;
   quiet?: ReactNode;
   after?: ReactNode;
   /** Credits, under everything. */
@@ -71,6 +73,7 @@ export function Answer({
   why,
   rows,
   actions,
+  oneAction,
   quiet,
   after,
   foot,
@@ -103,7 +106,7 @@ export function Answer({
         </div>
       </div>
       {rows}
-      <div className="flex min-h-30 flex-col gap-3 sm:min-h-13.5 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-4" data-testid="answer-actions">
+      <div className={`flex min-h-13.5 flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-4 ${oneAction ? "" : "max-sm:min-h-30"}`} data-testid="answer-actions">
         {actions}
       </div>
       {/* With no map yet, room for what comes under the actions: "Details" stays where it is when it does. */}
