@@ -5,8 +5,9 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import { Protocol } from "pmtiles";
 import { useEffect, useRef, useState } from "react";
 import { useI18n } from "@/components/I18n";
+import { edgesOf, placeWords, wordsData, type Measure, type Rect } from "@/lib/client/map-labels";
 import { boundsOf, overlayOf, type OverlayLabels, type Spot } from "@/lib/client/map-overlay";
-import { styleOf } from "@/lib/client/map-style";
+import { ringsFilter, styleOf } from "@/lib/client/map-style";
 import type { Guess } from "@/lib/client/where.worker";
 
 // The map itself, in its own chunk (components/PlaceMap.tsx loads it). Its worker comes from our
@@ -26,6 +27,15 @@ const FIRST_PICTURE_MS = 25_000;
 
 const reducedMotion = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
+/** A word's width, a little over: the map draws it in its own copy of the font. */
+let pen: CanvasRenderingContext2D | null = null;
+const measure: Measure = (label, size) => {
+  pen ??= document.createElement("canvas").getContext("2d");
+  if (!pen) return label.length * size * 0.62;
+  pen.font = `500 ${size}px "Noto Sans", "Helvetica Neue", Arial, sans-serif`;
+  return pen.measureText(label).width * 1.06 + 2;
+};
+
 /** Room around the answer: for the guess's label, and on the right for the buttons. */
 const paddingOf = (container: HTMLElement) => (container.clientWidth >= 480 ? { top: 56, bottom: 56, left: 72, right: 72 } : { top: 40, bottom: 40, left: 28, right: 68 });
 
@@ -38,6 +48,7 @@ export default function PlaceMapCanvas({ archive, guess, others, sure, onReady, 
   const { m, locale, fill } = useI18n();
   const t = m.placeMap;
   const box = useRef<HTMLDivElement>(null);
+  const buttons = useRef<HTMLDivElement>(null);
   const map = useRef<MapLibre | null>(null);
   /** What the map's own events read: the answer of the last render, not of the first. */
   const latest = useRef({ guess, others, onReady, onFail, labels: NO_LABELS });
@@ -57,6 +68,21 @@ export default function PlaceMapCanvas({ archive, guess, others, sure, onReady, 
       },
     };
   });
+
+  /** The answer on the map, and its words where they fit as the map now stands. */
+  const placeAnswerWords = (instance: MapLibre) => {
+    const { guess, others, labels } = latest.current;
+    const container = instance.getContainer();
+    const frame = container.getBoundingClientRect();
+    const held = buttons.current?.getBoundingClientRect();
+    const keepOut: Rect[] = held ? [{ left: held.left - frame.left, top: held.top - frame.top, right: held.right - frame.left, bottom: held.bottom - frame.top }] : [];
+    const scene = { width: frame.width, height: frame.height, keepOut };
+    const { words, rings } = placeWords(overlayOf(guess, others, labels), (at) => instance.project(at), scene, measure);
+    const edges = edgesOf(scene, (x, y) => instance.unproject([x, y]).toArray());
+    (instance.getSource("answer-words") as GeoJSONSource | undefined)?.setData(wordsData(words, edges));
+    instance.setFilter("answer-rings", ringsFilter(rings));
+    container.closest("figure")?.setAttribute("data-words", JSON.stringify(words.map((w) => ({ kind: w.kind, label: w.label, ...w.box }))));
+  };
 
   // One map for the life of this box: only the answer changes on it.
   useEffect(() => {
@@ -79,7 +105,7 @@ export default function PlaceMapCanvas({ archive, guess, others, sure, onReady, 
       instance = new MapLibre({
         container,
         style: styleOf(base, locale),
-        bounds: boundsOf(latest.current.guess),
+        bounds: boundsOf(latest.current.guess, latest.current.others),
         fitBoundsOptions: { padding: paddingOf(container), maxZoom: SPOT_ZOOM },
         maxZoom: MAX_ZOOM,
         attributionControl: false,
@@ -123,10 +149,16 @@ export default function PlaceMapCanvas({ archive, guess, others, sure, onReady, 
       const { lng, lat } = instance.getCenter();
       figure?.setAttribute("data-center", `${lat.toFixed(5)},${lng.toFixed(5)}`);
     };
-    instance.on("moveend", report);
+    let loaded = false;
+    instance.on("moveend", () => {
+      report();
+      if (loaded) placeAnswerWords(instance);
+    });
     instance.once("load", () => {
+      loaded = true;
       const { guess, others, labels } = latest.current;
       (instance.getSource("answer") as GeoJSONSource | undefined)?.setData(overlayOf(guess, others, labels));
+      placeAnswerWords(instance);
       report();
     });
     instance.once("idle", () => {
@@ -148,7 +180,7 @@ export default function PlaceMapCanvas({ archive, guess, others, sure, onReady, 
   }, []);
 
   const fit = (instance: MapLibre) => {
-    instance.fitBounds(boundsOf(latest.current.guess), { padding: paddingOf(instance.getContainer()), maxZoom: SPOT_ZOOM, animate: !reducedMotion(), duration: 500 });
+    instance.fitBounds(boundsOf(latest.current.guess, latest.current.others), { padding: paddingOf(instance.getContainer()), maxZoom: SPOT_ZOOM, animate: !reducedMotion(), duration: 500 });
   };
 
   // Another answer picked: the same map, new marks, and it moves there.
@@ -160,6 +192,7 @@ export default function PlaceMapCanvas({ archive, guess, others, sure, onReady, 
     shown.current = answer;
     const { guess, others, labels } = latest.current;
     (instance.getSource("answer") as GeoJSONSource | undefined)?.setData(overlayOf(guess, others, labels));
+    placeAnswerWords(instance);
     setClose(false);
     fit(instance);
   }, [answer]);
@@ -178,7 +211,7 @@ export default function PlaceMapCanvas({ archive, guess, others, sure, onReady, 
       <div className="absolute inset-0">
         <div ref={box} className="h-full w-full [&_canvas:focus-visible]:outline-2 [&_canvas:focus-visible]:outline-offset-[-2px] [&_canvas:focus-visible]:outline-amber" data-testid="place-map-canvas" />
       </div>
-      <div className="absolute top-3 right-3 flex flex-col divide-y divide-line overflow-hidden rounded-xl border border-line shadow-lg">
+      <div ref={buttons} className="absolute top-3 right-3 flex flex-col divide-y divide-line overflow-hidden rounded-xl border border-line shadow-lg">
         <button type="button" className={BUTTON} aria-label={t.zoomIn} title={t.zoomIn} onClick={() => map.current?.zoomIn({ duration: reducedMotion() ? 0 : 250 })} data-testid="place-map-in">
           <svg aria-hidden viewBox="0 0 16 16" className="size-4" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round">
             <path d="M8 3v10M3 8h10" />

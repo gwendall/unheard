@@ -13,18 +13,24 @@ height (360 px on a phone, 540 px from `sm`), which holds from the first frame t
 fallback included. `archive` replaces the bucket's base, which is `NEXT_PUBLIC_HISTORY_URL`; with none,
 the diagram shows.
 
-To look at it without running a search, `/en/dev-map` (or `/fr/dev-map`) has one real answer, with
-`?scene=city` for a guess in a dense city and `?archive=<url>` for a bucket on a build that has none. The
+To look at it without running a search, `/en/dev-map` (or `/fr/dev-map`) has one real answer on a coast, with
+`?scene=city` for a dense city, `?scene=desert` for an empty desert and `?archive=<url>` for a bucket on a build that has none. The
 route exists in development, and is a 404 in production.
 
 ## What it holds
 
-The guess in white with its label, a soft ring around it, the mirror as a hollow dot, the other
-answers as small hollow dots, the tracks in amber with a dot at each closest point and the plane's
-registration, and the dashed distance rings of `SpotPlot`, under the names of places. Only the answer
-has a colour: the map's places of interest show as muted names, without their icons, and nothing else
-may print over the guess's label. It frames the
-guess, the mirror and the whole tracks, north up. Buttons: zoom in, zoom out, and one that goes between
+The guess in white with its word, a soft ring around it, the mirror as a hollow dot, the other answers
+as small hollow dots, the tracks in amber with a dot at each closest point and the plane's registration,
+and the dashed distance rings of `SpotPlot`, under the names of places. Land is clearly lighter than
+water with a drawn edge between them, so an island reads as one, and only the answer has a colour.
+
+`lib/client/map-labels.ts` places the answer's words, on each stop of the map: inside the frame, off the
+buttons, off the dots and each other, the guess first and the mirror next, on a side no track crosses. A
+word with no clean spot is left out, except the guess and the mirror, which take the spot with the fewest
+lines. Rings show only from 40 px across their radius up to the size of the picture. The map's own names
+keep off all of it, and off the frame's edge so that none is cut, through invisible letters in the last
+layers of the style. It frames the
+guess, the mirror, the whole tracks and the other answers close enough to belong, north up. Buttons: zoom in, zoom out, and one that goes between
 the spot (zoom 15) and the whole flights. By keyboard: focus the map, arrows pan, `+` and `-` zoom. By
 touch: one finger scrolls the page, two move the map. With reduced motion, nothing animates.
 
