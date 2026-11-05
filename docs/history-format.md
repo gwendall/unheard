@@ -127,8 +127,9 @@ follows the layout above and never changes once written (`Cache-Control: public,
 immutable`; `days.json`: 5 minutes). The bucket cannot be listed: read `days.json`, then each day's
 manifest. The licence is the one above: ODbL 1.0, "© adsb.lol contributors".
 
-`scripts/history-job.ts` fills it, from a scheduled Fly Machine of the app `unheard-history`
-(`--schedule daily`, shared-cpu-4x, 4 GB, stops when done): yesterday's day if adsb.lol has published
+`scripts/history-job.ts` fills it, from a Fly Machine of the app `unheard-history` (shared-cpu-4x,
+4 GB, stops when done), started every day at 06:17 UTC by `.github/workflows/history-daily.yml`
+(Fly's own `--schedule daily` on that Machine never fired in its first 31 hours): yesterday's day if adsb.lol has published
 it, then older missing days going backwards to 2026-01-01, within a time budget (20 minutes by
 default, 40 on this Machine) and at most 3 days a run (`HISTORY_JOB_MAX_DAYS`: every day uploaded
 costs about 0.02 USD, mostly PUTs). Tiles go first and the manifest last, so a day with a manifest
