@@ -328,7 +328,7 @@ export function findChunk(samples: Float32Array, start: number, rate: number, op
   const stack = buildStack(samples, rate, { levels: true, ...options.stack, onProgress: (s) => onShare?.(inStack * s) });
   const here = findTraces(stack, trace, (s) => onShare?.(inStack + inTrace * s)).traces;
   const found = here.map((t) => toneOf(t, stack.base.times, start / rate)).map((t) => (t.confidence < TONE_CONFIDENCE ? { ...t, alone: true } : t));
-  const wide = along && here.length ? findTraces(stack, along, (s) => onShare?.(inStack + inTrace + inAlong * s)).traces.map((t) => ({ ...toneOf(t, stack.base.times, start / rate), alone: true })) : [];
+  const wide: Tone[] = along && here.length ? findTraces(stack, along, (s) => onShare?.(inStack + inTrace + inAlong * s)).traces.map((t) => ({ ...toneOf(t, stack.base.times, start / rate), alone: true })) : [];
   if (along && here.length) wide.push(...familyOf(stack, here, found, start / rate, along.fMin ?? 40));
   onShare?.(1);
   return { found, wide };
