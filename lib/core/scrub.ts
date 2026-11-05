@@ -15,6 +15,8 @@ export type Curve = {
   freq: ArrayLike<number>;
   /** This curve's own `width` (ScrubOptions): a loud tone's skirts reach further. */
   width?: number;
+  /** This curve's own `harmonics` (ScrubOptions). */
+  harmonics?: number;
 };
 
 export type ScrubOptions = {
@@ -207,7 +209,7 @@ export function scrub(samples: Float32Array, sampleRate: number, curves: Curve[]
     if (first === last) continue;
     const width = curve.width ?? o.width;
     rotation(f, sampleRate, first, last);
-    for (let h = 1; h <= o.harmonics; h++) {
+    for (let h = 1; h <= (curve.harmonics ?? o.harmonics); h++) {
       if (h > 1) nextHarmonic(cos, sin, cos1, sin1, first, last);
       const len = lengthOf(sampleRate, width, h);
       // The samples this harmonic reads, worked out once for all its passes.
@@ -351,11 +353,11 @@ function planeOf(n: number, rate: number, curves: Curve[], o: Required<ScrubOpti
       coarse[g] = f[Math.min(n - 1, Math.round(g * step))];
       if (coarse[g] > highest) highest = coarse[g];
     }
-    return [{ coarse, first, last, highest, width: curve.width ?? o.width }];
+    return [{ coarse, first, last, highest, width: curve.width ?? o.width, harmonics: curve.harmonics ?? o.harmonics }];
   });
   if (!known.length) return null;
   const notches = known.flatMap((c) =>
-    Array.from({ length: o.harmonics }, (_, i) => {
+    Array.from({ length: c.harmonics }, (_, i) => {
       const h = i + 1;
       // One smoothing's length (`smooth`): a reach of x means x / perHz hertz.
       const perHz = (2 * Math.max(1, Math.floor(lengthOf(rate, c.width, h) / 2)) + 1) / rate;

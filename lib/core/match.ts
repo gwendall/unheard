@@ -215,6 +215,17 @@ export function curveScore(stack: Stack, factor: ArrayLike<number>, f0: number, 
   return out[0];
 }
 
+/** Evidence along f * factor, one line only, for each of `lines` at once: what curveScore reads, many times over. */
+export function scanCurve(stack: Stack, factor: Float32Array, lines: Float64Array): Float64Array {
+  const frames: number[] = [];
+  for (let k = 0; k < stack.base.frames; k++) if (Number.isFinite(factor[k])) frames.push(k);
+  const n = stack.base.frames;
+  const m: Model = { factor, range: new Float32Array(n), weight: new Float32Array(n).fill(1), slope: slopes(stack.base, factor), frames: Int32Array.from(frames), emitted: new Float64Array(n) };
+  const out = new Float64Array(lines.length);
+  score(stack, m, m.frames, tonesOf(lines, lines.length, [1]), [1], out);
+  return out;
+}
+
 type Peak = { score: number; f0: number; clock: number };
 
 const coarseStep = (f0: number) => Math.max(0.5, f0 * 0.003);
