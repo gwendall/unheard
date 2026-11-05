@@ -1,0 +1,30 @@
+# Starts the daily history job (scripts/history-job.ts) on its Fly Machine. The Machine has Fly's
+# own `--schedule daily`, which never fired in its first 31 hours (03/11 to 05/11), so this starts
+# it at a set hour instead. The job is idempotent: it uploads yesterday's day once adsb.lol has
+# published it, then older missing days, and stops.
+name: history-daily
+
+on:
+  schedule:
+    - cron: "17 6 * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: history-daily
+  cancel-in-progress: false
+
+jobs:
+  start:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: superfly/flyctl-actions/setup-flyctl@ed8efb33836e8b2096c7fd3ba1c8afe303ebbff1 # v1.6
+      - name: Start the job, or find it already running
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_HISTORY_TOKEN }}
+        run: |
+          if flyctl machine start 8dd71efe06e218 -a unheard-history; then exit 0; fi
+          flyctl machine status 8dd71efe06e218 -a unheard-history | grep -m1 'State' | grep -q started && echo "already running" && exit 0
+          exit 1
