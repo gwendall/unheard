@@ -15,7 +15,7 @@ cache; the page never does.
 Every tile of zoom 10 of the source, byte for byte: 1,048,576 tiles, oceans included, 1,044,698 distinct
 contents, **78.4 GB**. That is **1.57 USD a month** at Tigris's 0.02 USD per GB per month, reads at 0.0005
 USD per thousand and no fee on the bytes that leave. A search touches about 30 tiles, about 1 MB for a
-100 km square. Leaving out the oceans was not needed to stay under 3 USD.
+100 km square.
 
 `scripts/pmtiles-write.ts` plans the file from the source's listing, which gives each tile's size and MD5,
 so the header and the directories come first and the file is written straight through with no disk. The

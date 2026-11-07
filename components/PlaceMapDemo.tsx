@@ -20,21 +20,21 @@ function pass(hex: string, from: [number, number], to: [number, number]) {
 const plane = (hex: string, registration: string, metres: number, at: number) => ({ hex, registration, type: "Cessna 172", metres, at, tone: 90 });
 
 const SCENES: Record<string, { guess: Guess; others: { lat: number; lon: number }[] }> = {
-  // The real recording's spot, 185 m from the truth, with passes in the shape of what it heard.
-  oyster: {
+  // A suburb at the desert's edge (the example's spot, a golf course in Mesa), with passes in the shape of a real recording's.
+  mesa: {
     guess: {
-      lat: 40.8748,
-      lon: -73.5249,
+      lat: 33.4699,
+      lon: -111.7085,
       start: 1_778_900_000,
-      mirror: { lat: 40.8886, lon: -73.5041 },
+      mirror: { lat: 33.4837, lon: -111.6877 },
       planes: [plane("a1b2c3", "N172OB", 1400, 1_778_900_060), plane("c0ffee", "N4521K", 3100, 1_778_900_190)],
       paths: [pass("a1b2c3", [-9000, -5200], [8000, 6300]), pass("c0ffee", [7000, -8200], [-2500, 9100])],
     },
     others: [
-      { lat: 40.8309, lon: -73.5801 },
-      { lat: 40.9102, lon: -73.4603 },
-      // Far along the coast: it may or may not fit, and its name must never be cut by the edge.
-      { lat: 40.8601, lon: -73.3302 },
+      { lat: 33.4261, lon: -111.7637 },
+      { lat: 33.5053, lon: -111.6439 },
+      // Far to the east: it may or may not fit, and its name must never be cut by the edge.
+      { lat: 33.4552, lon: -111.5138 },
     ],
   },
   // A dense city, where the marks must hold their own among the names.
@@ -65,7 +65,7 @@ const SCENES: Record<string, { guess: Guess; others: { lat: number; lon: number 
 
 export function PlaceMapDemo({ scene, archive }: { scene?: string; archive?: string }) {
   const { locale } = useI18n();
-  const { guess, others } = SCENES[scene ?? "oyster"] ?? SCENES.oyster;
+  const { guess, others } = SCENES[scene ?? "mesa"] ?? SCENES.mesa;
   const [name, setName] = useState("");
   useEffect(() => {
     void nearestPlace(guess.lat, guess.lon, { locale }).then((place) => setName(place ? placeLabel(place) : ""));

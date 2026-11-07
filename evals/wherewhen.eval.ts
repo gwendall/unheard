@@ -260,11 +260,11 @@ it("where and when: two recordings at one spot", async () => {
 }, HOURS);
 
 /**
- * colsto's own recording (the "full recording" linked under his video, one hour, Oyster Bay, NY,
+ * colsto's own recording (the "full recording" linked under his video, one hour,
  * 2026-09-08): `yt-dlp -x` of https://youtu.be/4CxVxuMVkMc into evals/.cache/colsto/, resampled
  * to 8 kHz mono as audio-8k.wav, with truth.json (the public reference coordinate and start
  * dopplerprint transcribed from the video). Never committed. Searched blind: traces found chunk
- * by chunk over the whole hour, the UTC day, a square of Long Island centred off the truth. Then 16
+ * by chunk over the whole hour, the UTC day, a square centred off the truth. Then 16
  * minutes of it (the test on production that gave an answer at sea), and the hour with the water
  * brought to the truth: a recording from a boat stays first or second.
  */
@@ -283,7 +283,7 @@ it("where and when: colsto's recording", async () => {
   log(`colsto: ${found.length} traces in ${traceMs} ms: ${found.join(", ")}`);
   const day = "2026-09-08";
   const LONG_ISLAND = { lat: 40.8, lon: -73.7 };
-  const lines = ["", "## colsto's recording (Oyster Bay, NY, 2026-09-08, one hour)", "", `${found.length} traces found over the hour in ${traceMs} ms: ${found.join("; ")}.`, "", "| square | cut | window | flights | fits | error m | time error s | at sea | truth's rank | worth of searched | flyovers heard well | confident | planes | CPU s |", "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|"];
+  const lines = ["", "## colsto's recording (2026-09-08, one hour)", "", `${found.length} traces found over the hour in ${traceMs} ms: ${found.join("; ")}.`, "", "| square | cut | window | flights | fits | error m | time error s | at sea | truth's rank | worth of searched | flyovers heard well | confident | planes | CPU s |", "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|"];
   for (const side of SIDES) {
     const ground = await groundAround(LONG_ISLAND.lat, LONG_ISLAND.lon, side);
     const { flights } = await historyAround([day], LONG_ISLAND.lat, LONG_ISLAND.lon, side);

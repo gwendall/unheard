@@ -4,7 +4,7 @@ import { phoneVideo } from "./where-scene";
 
 // The map in a real Chromium, from the real bucket: serve the app with the archive set, and point
 // BASE_URL at it.
-//   NEXT_PUBLIC_HISTORY_URL=https://unheard-history.t3.tigrisbucket.io machine serve -- pnpm exec next dev -p {port}
+//   NEXT_PUBLIC_HISTORY_URL=https://unheard-history.t3.tigrisbucket.io pnpm exec next dev
 // The page's promise is that nothing is sent: any request to another host fails these tests.
 
 const BUCKET = "unheard-history.t3.tigrisbucket.io";
@@ -35,7 +35,7 @@ test("the answer on a real map, and no host but ours", async ({ page }) => {
   const seen = watch(page);
   await page.goto("/en/dev-map");
   await ready(page);
-  await expect(page.getByTestId("place-name")).toHaveText("Oyster Bay, New York");
+  await expect(page.getByTestId("place-name")).toHaveText("Mesa, Arizona");
 
   expect(seen.others(host(page))).toEqual([]);
   expect(seen.urls.some((u) => u.includes(".pmtiles"))).toBe(true);
@@ -55,7 +55,7 @@ test("the answer on a real map, and no host but ours", async ({ page }) => {
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/map-spot-desktop.png`, fullPage: true });
 });
 
-for (const scene of ["oyster", "city", "desert"]) {
+for (const scene of ["mesa", "city", "desert"]) {
   for (const [width, height] of [[1440, 900], [390, 844]]) {
     test(`keeps our words inside the frame, clear of each other and of the buttons: ${scene} at ${width} px`, async ({ page }) => {
       await page.setViewportSize({ width, height });

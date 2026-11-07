@@ -23,7 +23,7 @@ export function exampleActors(start: number, elevation: number): Actor[] {
 }
 
 export function buildExample(now = Date.now() / 1000): Recording {
-  const listener: Listener = { lat: 48.7731, lon: 2.1186, elevation: 160 };
+  const listener: Listener = { lat: 48.8556, lon: 2.2986, elevation: 160 };
   const start = Math.floor(now) - 100;
   const duration = 90;
   const actors = exampleActors(start, listener.elevation);

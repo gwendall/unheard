@@ -39,7 +39,7 @@ request, CI posts this run's counts next to the base branch's (`scripts/eval-del
   clue but the UTC day or hour (`WINDOWS=day,hour`) and a square to search (100 km, then 300 km,
   `SIDES=`), against that day of the flight history (`pnpm history:build <day>`). The Livermore
   recordings one by one, pairs of them made at the same site under 30 minutes apart (two
-  flyovers, `ONLY=pairs`), and colsto's hour at Oyster Bay (`ONLY=colsto`, audio fetched by hand
+  flyovers, `ONLY=pairs`), and colsto's hour (`ONLY=colsto`, audio fetched by hand
   into `evals/.cache/colsto/`; with 16 minutes of it, and the hour with the sea brought around the
   truth, which must stay first or second): distance and start error, how often the truth is among the
   answers, how often the confidence flag is right, and the CPU time of a search. Each part writes

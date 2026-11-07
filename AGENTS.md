@@ -3,7 +3,7 @@
 One source for every agent: Codex reads this file, Claude Code reads it through `CLAUDE.md`,
 which only holds `@AGENTS.md`. Project rules go here, never in `CLAUDE.md`.
 
-Read `docs/STATUS.md` first: where the app is, what is in flight, what needs the founder.
+Read `docs/STATUS.md` first: where the app is, what is in flight, what needs the maintainer.
 Next.js rules: the generated block at the end of this file.
 
 - `lib/core/` is the physics and the matcher: no DOM, no React (eslint enforces it). It runs in
@@ -18,7 +18,7 @@ Next.js rules: the generated block at the end of this file.
   adsb.lol (ODbL) fixtures may.
 - adsb.lol rate-limits at about one request every 2 s per address: never run two recorders, and
   the API route must stay cached.
-- Dev servers through `machine serve` only; Playwright closes its browser (see the global rules).
+- Playwright closes its browser in a `finally` block, and no run waits on `networkidle`.
 - The place rule (`namesAPlace` in `lib/client/where.ts`, #94) is frozen: it changes only with a
   new held-out test, reported as it comes. Every condition picked after seeing results spends it.
 - A private recording's exact place (Livermore's fitted microphone position) never enters the

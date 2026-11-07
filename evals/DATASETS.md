@@ -72,7 +72,7 @@ All three serve the same readsb "trace" JSON (https://github.com/wiedehopf/reads
 - Coverage caveat, tested: on 2023-04-06 and 2023-05-09 adsb.lol had **no Adelaide receiver** (a Qantas 737 is traced at Perth, Melbourne and Sydney only; the AeroSonicDB R44 and DA42 are absent). So adsb.lol cannot back the 2023 AeroSonicDB clips. Check coverage near any new site before relying on it.
 - **Fit: yes** as the default history source for our own recordings (open license, any day since 2023-03-11), not for AeroSonicDB.
 - **Attribution**: "© adsb.lol contributors", ODbL 1.0. Anything built from it (our history tiles included) is a derived database under the same licence.
-- Which 2026 days exist (checked 2026-11-03): every `prod-0` release asked for, `v2026.05.09`, `.12`, `.13`, `.14`, `.16`, `.17` (the Livermore days), `v2026.09.08` (colsto's Oyster Bay day) and `v2026.11.01`, each with a `staging-0` twin (no `prod-1`). 3.2 to 3.9 GB a day.
+- Which 2026 days exist (checked 2026-11-03): every `prod-0` release asked for, `v2026.05.09`, `.12`, `.13`, `.14`, `.16`, `.17` (the Livermore days), `v2026.09.08` (colsto's day) and `v2026.11.01`, each with a `staging-0` twin (no `prod-1`). 3.2 to 3.9 GB a day.
 
 #### Unheard's history index (`pnpm history:build <day>`, format in `docs/history-format.md`)
 
@@ -141,4 +141,4 @@ Steps for one sample (King Air, about 3 MB in total):
 
 Next steps, in order: turn the 9 pairs into an eval fixture (audio stays out of git: NC license; traces stay out of git: ADS-B Exchange terms); request AeroSonicDB 3K access (more props and helicopters, 16 kHz) and ask its author whether the 3K filenames still give the trigger time; record our own clips with the repo's `record-sky` poller running alongside, adsb.lol history as the backstop.
 
-Open question for the founder: is unheard a commercial product? AeroSonicDB (NC), ADS-B Exchange samples and OpenSky all restrict commercial use; only adsb.lol (ODbL) is clear for it.
+Open question for the maintainer: is unheard a commercial product? AeroSonicDB (NC), ADS-B Exchange samples and OpenSky all restrict commercial use; only adsb.lol (ODbL) is clear for it.

@@ -24,7 +24,7 @@ import { rng } from "../evals/lib/sim";
 const T0 = 1_800_000_000;
 const DURATION = 85;
 const RATE = 48_000;
-const listener = { lat: 48.7731, lon: 2.1186, elevation: 160 };
+const listener = { lat: 48.8556, lon: 2.2986, elevation: 160 };
 
 const actors = exampleActors(T0, listener.elevation);
 const target = actors.find((a) => a.meta.hex === EXAMPLE_TARGET)!;
@@ -61,14 +61,14 @@ const picture = (seconds: number) => ["-f", "lavfi", "-i", `testsrc2=size=320x18
 const sound = ["-i", path("flyby.wav"), "-map", "0:v", "-map", "1:a"];
 const h264 = ["-c:v", "libx264", "-preset", "ultrafast", "-bf", "2", "-threads", "2", "-pix_fmt", "yuv420p"];
 const aac = ["-c:a", "aac", "-b:a", "128k"];
-const phone = ["-metadata", "creation_time=2026-05-16T14:03:00Z", "-metadata", "com.apple.quicktime.creationdate=2026-05-16T14:03:00+0200", "-metadata", "com.apple.quicktime.location.ISO6709=+48.7731+002.1186+160.000/", "-metadata", "com.apple.quicktime.make=Apple", "-metadata", "com.apple.quicktime.model=iPhone 15 Pro", "-movflags", "+use_metadata_tags"];
+const phone = ["-metadata", "creation_time=2026-05-16T14:03:00Z", "-metadata", "com.apple.quicktime.creationdate=2026-05-16T14:03:00+0200", "-metadata", "com.apple.quicktime.location.ISO6709=+48.8556+002.2986+160.000/", "-metadata", "com.apple.quicktime.make=Apple", "-metadata", "com.apple.quicktime.model=iPhone 15 Pro", "-movflags", "+use_metadata_tags"];
 const noise = ["-f", "lavfi", "-i", "anoisesrc=d=5:c=pink:r=16000:a=0.05"];
 const tagged = ["-metadata", "title=Marked title", "-metadata", "artist=Marked artist", "-metadata", "date=2026-05-16"];
 const videos: [string, string[]][] = [
   // A second sound track, as a phone's spatial audio has: it holds the tones too and must not survive.
   ["flyby.mp4", [...picture(DURATION), "-i", path("flyby.wav"), "-i", path("flyby.wav"), "-map", "0:v", "-map", "1:a", "-map", "2:a", ...h264, ...aac, ...phone]],
   ["flyby.mov", [...picture(DURATION), ...sound, ...h264, ...aac, ...phone]],
-  ["flyby.webm", [...picture(DURATION), ...sound, "-c:v", "libvpx-vp9", "-deadline", "realtime", "-cpu-used", "8", "-threads", "2", "-b:v", "300k", "-c:a", "libopus", "-b:a", "96k", "-metadata", "creation_time=2026-05-16T14:03:00Z", "-metadata", "location=+48.7731+002.1186/"]],
+  ["flyby.webm", [...picture(DURATION), ...sound, "-c:v", "libvpx-vp9", "-deadline", "realtime", "-cpu-used", "8", "-threads", "2", "-b:v", "300k", "-c:a", "libopus", "-b:a", "96k", "-metadata", "creation_time=2026-05-16T14:03:00Z", "-metadata", "location=+48.8556+002.2986/"]],
   ["flyby.ts", [...picture(DURATION), ...sound, ...h264, ...aac, "-f", "mpegts"]],
   ["silent.mp4", [...picture(5), ...h264, "-metadata", "creation_time=2026-05-16T14:03:00Z"]],
   // For the copy without its tags: no tone under a phone's tags, a picture we cannot write, and sound files with a date and a name.

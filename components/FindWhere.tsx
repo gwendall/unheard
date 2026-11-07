@@ -349,7 +349,7 @@ export function FindWhere({ picked, archive, finding, few, silent, when: fileWhe
     return local ? line : `${line} ${t.result.about}`;
   };
 
-  /** "Near Oyster Bay, New York, United States", "At sea", or nothing with the names out of reach. */
+  /** "Near Mesa, Arizona, United States", "At sea", or nothing with the names out of reach. */
   const nearText = (g: Guess) => {
     const near = townOf(g, names.get(spotKey(g)));
     return near ? fill(t.result.near, { place: placeLabel(near, true) }) : g.atSea ? t.result.atSea : null;

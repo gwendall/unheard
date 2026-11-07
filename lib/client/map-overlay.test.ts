@@ -6,10 +6,10 @@ import { FLAVOR, MAP_FILE, scaled, styleOf } from "./map-style";
 import type { Guess } from "./where.worker";
 
 const guess: Guess = {
-  lat: 40.8748,
-  lon: -73.5249,
+  lat: 33.4699,
+  lon: -111.7085,
   start: 0,
-  mirror: { lat: 40.8886, lon: -73.5041 },
+  mirror: { lat: 33.4837, lon: -111.6877 },
   planes: [{ hex: "a1b2c3", registration: "N172OB", type: "C172", metres: 1400, at: 0, tone: 90 }],
   paths: [
     { hex: "a1b2c3", points: [[-9000, -5200], [0, 1400], [8000, 6300]], closest: [0, 1400] },
@@ -17,7 +17,7 @@ const guess: Guess = {
   ],
 };
 const labels: OverlayLabels = { guess: "Guess", mirror: "Mirror", other: (n) => `Answer ${n}`, plane: (hex) => (hex === "a1b2c3" ? "N172OB" : undefined) };
-const others = [{ lat: 40.83, lon: -73.58 }];
+const others = [{ lat: 33.43, lon: -111.76 }];
 const features = overlayOf(guess, others, labels).features;
 const ofKind = (kind: OverlayFeature["properties"]["kind"]) => features.filter((f) => f.properties.kind === kind);
 const point = (f: OverlayFeature) => {
@@ -28,7 +28,7 @@ const point = (f: OverlayFeature) => {
 
 describe("the answer on the map", () => {
   it("draws what the diagram draws: the guess, its mirror, the tracks and their closest points", () => {
-    expect(point(ofKind("guess")[0])).toEqual({ lat: 40.8748, lon: -73.5249 });
+    expect(point(ofKind("guess")[0])).toEqual({ lat: 33.4699, lon: -111.7085 });
     expect(ofKind("guess")[0].properties.label).toBe("Guess");
     expect(point(ofKind("mirror")[0])).toEqual(guess.mirror);
     expect(ofKind("track")).toHaveLength(2);

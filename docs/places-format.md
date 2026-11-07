@@ -8,7 +8,7 @@ that naming a spot or typing a town sends nothing to anyone but our own bucket. 
 - `nearestPlace(lat, lon, { locale })`: `{ name, region, country, countryCode, lat, lon, zone, distance }`, or null.
 - `searchPlaces(query, { locale, limit })`: the same without `distance`, plus `matched` when another
   name than the usual one was typed; 5 by default. Exact names first, then the largest.
-- `placeLabel(place, withCountry)`: "Oyster Bay, New York", "Москва, Moscow".
+- `placeLabel(place, withCountry)`: "Mesa, Arizona", "Москва, Moscow".
 
 ## The files
 

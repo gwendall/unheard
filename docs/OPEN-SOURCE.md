@@ -19,7 +19,7 @@ repository goes public, and the design of the listening station.
 
 - A protected preview deployment, so the page can be opened on a phone (the microphone needs
   HTTPS).
-- 20 to 30 real phone recordings of flybys by the founder: a light-aircraft field, a heliport, an
+- 20 to 30 real phone recordings of flybys by the maintainer: a light-aircraft field, a heliport, an
   approach path. The first phone data, and the answer to whether a phone is enough.
 - The donate flow: consent, anonymisation on the phone, upload.
 - Benchmark v1 frozen: the recordings and tracks it holds, its metrics, its version number.
@@ -49,12 +49,10 @@ repository that goes the same way.
 
 Do these in order. The first one is a security issue, not a formality.
 
-1. **Uninstall the local-ci runners first.** While the repository is private its CI runs on this
-   Mac. On a public repository a pull request from a fork can edit `runs-on` back to
-   `self-hosted` and run its code on the Mac. Before changing the visibility, from kit's
-   `scripts/ci/`: `local-runner.sh uninstall gwendall/unheard` (stops, deregisters, removes the
-   LaunchAgents), check that `gh api repos/gwendall/unheard/actions/runners` lists none, and
-   remove the unheard line from `CARTE.md` in `~/code/machine`.
+1. **No self-hosted runner first.** While the repository is private its CI may run on a
+   maintainer's own runner. On a public repository a pull request from a fork can edit `runs-on`
+   back to `self-hosted` and run its code there. Before changing the visibility, deregister every
+   self-hosted runner and check that `gh api repos/gwendall/unheard/actions/runners` lists none.
 2. **Actions settings:** "Require approval for all outside collaborators" for workflows from
    forks. No repository secrets the CI does not need.
 3. **The workflow lands on GitHub's runners:** `.github/workflows/ci.yml` picks `ubuntu-latest`
@@ -66,14 +64,13 @@ Do these in order. The first one is a security issue, not a formality.
    they carry; check that `evals/.cache/` content (AeroSonicDB, ADS-B Exchange) has never been
    committed (`git log --all -- evals/.cache` is empty).
 7. **Docs scrub:** read `README.md`, `CONTRIBUTING.md`, `docs/` and `evals/` as a stranger.
-   Machine-specific notes for agents (`CLAUDE.md`, `AGENTS.md`) may stay. The "Needs the founder"
+   Machine-specific notes for agents (`CLAUDE.md`, `AGENTS.md`) may stay. The "Needs the maintainer"
    list in `docs/STATUS.md` is fine to keep.
 8. **Abuse limits on donations:** today the site's Vercel Authentication is what keeps
    strangers away from `/api/donate`. Before the site opens to the public (a separate decision
    from the repository's visibility), add a Vercel Firewall rate limit on that route (a few
-   tokens per address per ten minutes) and an alert on the Blob store's size. On Vercel Hobby,
-   one rate-limit rule only (spent on `/api/donate`: 10 per address per 10 minutes), and the
-   Hobby plan has no overage billing for the Blob store.
+   tokens per address per ten minutes) and an alert on the Blob store's size. Done: one
+   rate-limit rule on `/api/donate`, 10 per address per 10 minutes.
 9. **Change the visibility**, then open the starter issues.
 
 ## The listening station

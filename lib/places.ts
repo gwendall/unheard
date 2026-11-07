@@ -87,7 +87,7 @@ export function nameKey(text: string): string {
     .trim();
 }
 
-/** "Oyster Bay, New York", with the country on request, and no part said twice. */
+/** "Mesa, Arizona", with the country on request, and no part said twice. */
 export function placeLabel(place: Pick<Place, "name" | "region" | "country"> & { matched?: string }, withCountry = false): string {
   const parts = [place.matched ?? place.name, place.region, withCountry ? place.country : ""];
   return parts.filter((part, i) => part && parts.indexOf(part) === i).join(", ");
