@@ -1,7 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
 
 // End-to-end tests of the real page in a real Chromium: fake microphone playing a fixture, flight
-// data replayed in step with it. Point BASE_URL at a server (machine serve for a dev one, or a
+// data replayed in step with it. Point BASE_URL at a server (a dev one, or a
 // deploy): BASE_URL=http://localhost:4103 pnpm e2e
 //
 // The cleaned video needs browsers with real codecs (Playwright's own Chromium has no AAC or H.264):

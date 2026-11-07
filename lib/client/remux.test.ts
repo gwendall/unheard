@@ -84,7 +84,7 @@ describe("the copy without its tags", () => {
 describe("the cleaned video", () => {
   it("names no place, date or device, where the file it came from names them all", async () => {
     const before = await readMetadata(new Blob([bytesOf("tiny.mp4") as BlobPart]));
-    expect(before.location?.lat).toBeCloseTo(48.7731);
+    expect(before.location?.lat).toBeCloseTo(48.8556);
     expect(before.createdAt?.source).toBe("com.apple.quicktime.creationdate");
     expect(before.device).toBe("Apple iPhone 15 Pro");
     const { bytes } = await clean("tiny.mp4");
@@ -105,7 +105,7 @@ describe("the cleaned video", () => {
     expect(all.map((b) => b.type)).not.toContain("udta");
     expect(all.map((b) => b.type)).not.toContain("meta");
     const text = Buffer.from(bytes).toString("latin1");
-    for (const word of ["iPhone", "Apple", "48.7731", "ISO6709", "2026"]) expect(text).not.toContain(word);
+    for (const word of ["iPhone", "Apple", "48.8556", "ISO6709", "2026"]) expect(text).not.toContain(word);
   });
 
   it("holds the picture's packets byte for byte, in order, at their times", async () => {

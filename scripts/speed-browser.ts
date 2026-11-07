@@ -1,7 +1,7 @@
 // What a visitor waits for, in a real Chromium: time to the verdict on /check, the listening page's
 // analysis (the example, which runs the same analyze() on the page's thread), and the first load
 // of each route. Desktop and at a CPU throttled 4 times, as a phone stand-in. Point it at a
-// production build (`next start` through machine serve) or a deploy:
+// production build (`next start`) or a deploy:
 //
 //   BASE_URL=http://localhost:4100 pnpm speed:browser [--runs 3] [--throttle 1,4] [--only load,listen,check] [--out file.json]
 //
@@ -60,7 +60,7 @@ function makeLong() {
   mkdirSync(FIXTURES, { recursive: true });
   const T0 = 1_800_000_000;
   const RATE = 48_000;
-  const listener = { lat: 48.7731, lon: 2.1186, elevation: 160 };
+  const listener = { lat: 48.8556, lon: 2.2986, elevation: 160 };
   const pass = (closestAt: number, offset: number, heading: number, speed: number, f0: number, level: number) => ({
     track: buildTrack(flybyFixes(listener, { closestAt: T0 + closestAt, offset, heading, speed, altitude: listener.elevation + 550, turnRate: 0.25 }, T0 + closestAt - 100, T0 + closestAt + 100, 0.5), listener)!,
     f0,

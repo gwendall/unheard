@@ -16,8 +16,8 @@ function open(): Gazetteer | null {
 }
 
 /**
- * The town a point lies in or next to: "Oyster Bay", "New York", "United States", 1179 m from its
- * centre. A section of a town is never the answer, and a large place wins over a much smaller one
+ * The town a point lies in or next to: "Mesa", "Arizona", "United States", and how far it is from
+ * its centre. A section of a town is never the answer, and a large place wins over a much smaller one
  * about as close. Null out at sea, or when the files cannot be read. Reads a 1° square around the
  * point, what the flight search reads.
  */

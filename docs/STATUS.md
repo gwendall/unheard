@@ -1,6 +1,6 @@
 # Status
 
-Updated 2026-11-07. A new agent: read "Handoff" just below, then "Next" and "Needs the founder" at the end.
+Updated 2026-11-07. A new agent: read "Handoff" just below, then "Next" and "Needs the maintainer" at the end.
 
 ## Where it is
 
@@ -30,8 +30,7 @@ For whoever picks this up: what is live, how it was proved, what is left. Nothin
 no open pull request, no branch waiting, `main` at b21a0e2 is what runs.
 
 **Last lots, all merged and deployed.**
-- The result for everyone (founder, 2026-11-04: "il faut vraiment viser un produit pour les
-  normies, pour le grand public"): one answer in one shape, a map or a "?", one sentence, one
+- The result for everyone, people who know nothing of Doppler or UTC: one answer in one shape, a map or a "?", one sentence, one
   date, the rest under Details (#106); "See an example" at `/example`, a simulated file through
   the real page and rule, marked as simulated (#108); each plane of a named answer plays the
   file's own sound around its pass (#110); a phone's first screen holds the way to the example
@@ -45,7 +44,7 @@ no open pull request, no branch waiting, `main` at b21a0e2 is what runs.
   cleaning's median CPU went from 20 to 24 s. The `FAMILY_*` constants of `lib/core/leak.ts` were
   tuned on those same files, so these numbers are in-sample: the page keeps "8 of 36", the
   number from before that tuning, until a held-out set confirms the new one.
-- Daily flight history: Fly's own `--schedule daily` on the Machine `8dd71efe06e218` never fired
+- Daily flight history: Fly's own `--schedule daily` on the history Machine never fired
   (31 h, 03-05/11), so `.github/workflows/history-daily.yml` starts it at 06:17 UTC (#113). Runs
   of 05, 06 and 07/11 green; `days.json` lists 309 days up to 2026-11-06 (read 2026-11-07). Its
   secret `FLY_HISTORY_TOKEN` is a deploy token for the app `unheard-history` alone, made
@@ -58,7 +57,7 @@ no open pull request, no branch waiting, `main` at b21a0e2 is what runs.
   (synthetic, real tracks, the ghost eval when the analysis changed), `e2e` (pages in three
   parts, map, no archive, the cleaned video in Chrome, Firefox and WebKit, `/example` naming
   Mesa). Green on #112 (9db28a3) and #113 (ff88796) before they merged.
-- Production, 2026-11-05 07:28 UTC, in a timing lane: colsto's real hour through
+- Production, 2026-11-05 07:28 UTC: colsto's real hour through
   https://unheard.gwendall.com/where with its day, its hour and a place 15 km off gave "Can't
   tell where this was filmed" in 35 s (44 s before #87), no page error, no worker started after
   the answer. Its audio is colsto's, so the script and the file stay off the repo.
@@ -67,12 +66,10 @@ no open pull request, no branch waiting, `main` at b21a0e2 is what runs.
   gets a place: they get "Can't tell".
 
 **Left to do, in order.** Each says what proves it and what starts it.
-1. Traffic. Vercel Hobby allows 1M CDN requests and 1M function calls a month for the whole
-   account, every project together; a visit costs about 20 requests (21 on `/`, 19 on `/where`,
-   counted 2026-11-04); past that the site answers `503 DEPLOYMENT_PAUSED` until the month
-   turns. Pro is 20 USD a month: the founder's call (money). Starts: before any announcement.
+1. Traffic: a visit costs about 20 requests to the host (21 on `/`, 19 on `/where`, counted
+   2026-11-04). The maintainer checks the hosting plan's monthly quotas before any announcement.
 2. Required checks: `check`, `eval` and `e2e` are not required on `main`, so a red pull request
-   can be merged by hand. Recommended: make them required (founder, repository settings).
+   can be merged by hand. Recommended: make them required (a repository setting).
 3. A held-out set for Take them out: recordings that played no part in tuning `FAMILY_*`
    (Livermore's other files, donations, new `?capture=1` recordings). Proof: the same judge
    (named, strong, CPU per file) on them. Then the page's "8 of 36" can change.
@@ -80,16 +77,13 @@ no open pull request, no branch waiting, `main` at b21a0e2 is what runs.
    once 10 to 20 independent phone recordings with GPS and clock exist; gate at least 20 % of
    true claims passed and at most 1 false in 200.
 5. adsb.lol: polls are shared per square, but the limit (about one request every 2 s) is per
-   address and every active square adds its own. A key from adsb.lol is the fix; asking is the
-   founder's (an outside mail).
+   address and every active square adds its own. A key from adsb.lol is the fix; the maintainer asks.
 6. Then "Next" below, in its order.
 
-**Off the repo, on the maintainer's Mac** (for an agent working there): the eval data that may
-not enter git, in `~/code/unheard/evals/.cache/` (`aerosonic`, `livermore`, `colsto`, `history`,
-`terrain`, `wide`; link it into a worktree with `ln -s ~/code/unheard/evals/.cache evals/.cache`);
-the research with its raw data, the per-file tables of the claim check and of the cleaning
-judge, the production smoke script and a work log, under `~/code/.agent-work/unheard/`
-(`HANDOFF.md` there is the index).
+**Data that stays off git.** The evals on AeroSonicDB, Livermore, colsto's hour and the wide
+search read `evals/.cache/`, never committed (`evals/README.md` and `evals/DATASETS.md` say where
+each comes from). The per-file tables behind the claim check and the cleaning judge stay with the
+maintainer, with the data they quote.
 
 ## The product (redesign of 2026-11-03)
 
@@ -215,7 +209,7 @@ What a visitor goes through, and where it lives:
   check does not run again: the page shows the search's tones, with no count since a search cuts them differently, and the check's own finder
   runs only on "Take them out", since that is what evals/leak measures. With no tone, it runs once the
   page is at rest; called off, at once. Its pictures are sketches until then.
-  The answer leads with the town nearest it (`nearestPlace`, "Near Oyster Bay, New York", waited for
+  The answer leads with the town nearest it (`nearestPlace`, "Near Mesa, Arizona", waited for
   1.5 s at most so the answer arrives whole), coordinates second, and the answers' chips read as town
   names. Local time comes from that town's zone; a local hour with typed coordinates asks the nearest
   town when the search starts, the same square it reads; the longitude only when no name answers.
@@ -319,7 +313,7 @@ machine with Node 22), reader `lib/history.ts` (takes a fetcher: the base URL is
   (none passed 5 MB, so none was split). The Bay Area is 6.7 MB a day.
 - Deterministic: the same day built twice gave byte-identical manifests (all 2,551 tile hashes).
 
-Online since 2026-11-03 at https://unheard-history.t3.tigrisbucket.io/ (public Tigris bucket, daily job on a Fly Machine that `.github/workflows/history-daily.yml` starts at 06:17 UTC, "Hosting" in `docs/history-format.md`): 2026 is all there since 2026-11-04, built in 3 h 45 by one-day one-shot Machines (the founder put speed ahead of the cost: about 7.40 USD once, estimated from list prices, so about 10 USD in November, past the 5 USD a month); then about 3 USD a month, which storage brings to 5 USD a month around the end of 2027. 89 GB, 304 days of flights, gaps in "Hosting" in `docs/history-format.md`.
+Online since 2026-11-03 at https://unheard-history.t3.tigrisbucket.io/ (public Tigris bucket, daily job on a Fly Machine that `.github/workflows/history-daily.yml` starts at 06:17 UTC, "Hosting" in `docs/history-format.md`): 2026 is all there since 2026-11-04, built in 3 h 45 by one-day one-shot Machines (speed put ahead of the cost: about 7.40 USD once, from list prices); then about 3 USD a month of storage, growing with the days. 89 GB, 304 days of flights, gaps in "Hosting" in `docs/history-format.md`.
 
 What the page still needs:
 
@@ -346,7 +340,7 @@ its track; a fit is worth how rarely one that good happens at a random spot and 
 must agree on one spot and one start, read exactly; silence prunes the rest; `locate()` does the
 fine search.
 
-Measured (Node on the founder's Mac, shared with other sessions, so times are CPU time; 100 km
+Measured (Node on a shared machine, so times are CPU time; 100 km
 squares, a start within 30 s for every "within"):
 
 | | before, day | day | hour |
@@ -380,8 +374,8 @@ still counted by the sound alone, so this prior can never raise it.
 | Livermore pairs | 40 | 1, now 0 | 14, now 14 | 15, now 15 |
 | Livermore, one recording | 80 | 8, now 0 | 3, now 3 | 4, now 4 |
 
-- No right answer lost in those 124 searches, one gained: colsto's day, from 39 km off (Long Island
-  Sound, 4 km from land) to 164 m. No truth lies at sea, so the rest is wrong answers replaced by
+- No right answer lost in those 124 searches, one gained: colsto's day, from 39 km off (at sea, 4 km
+  from land) to 164 m. No truth lies at sea, so the rest is wrong answers replaced by
   wrong answers on land: on the 16 minutes that gave an answer in the Atlantic on production (the
   hour known), the best is still 37 km off, though the right planes and start now reach the answers
   (fourth, 1.7 km off, 3 s). Phoenix (6 searches, inland, no spot of the square reads 0) cannot move.
@@ -521,7 +515,7 @@ elsewhere, so wide is not safe as it stands.
   estimated. A known place over an unknown day: about 40 kB a day for a square, about 12 MB over the
   archive, range reads from the browser, nothing of the file sent, candidate hours for today's search. An
   unknown place: 6.4 GB raw, a server that receives the tones' shape, which conflicts with "nothing of the
-  file is ever sent": the founder's decision. An index only speeds up; wide needs the stricter rule first.
+  file is ever sent": the maintainer's decision. An index only speeds up; wide needs the stricter rule first.
 - Not run, on purpose: 300 km on this base, 1000 km with every unit, 100 km over a week or a month (about 4 CPU
   hours for the 300 km and 1000 km rows). They cannot decide anything until a stricter wide rule exists, and
   that needs fresh files with many clear flyovers, which we do not have. 300 km has one older number:
@@ -538,7 +532,7 @@ elsewhere, so wide is not safe as it stands.
     planes" does not work: one wrong answer holds 4 of 9.
   - A stricter wide rule: margin 16, or 4 planes and half of the passes, was chosen on the only 9 files of 6
     or more recordings, cut from the same 41 recordings, so running them again proves nothing. Reopen when 10
-    to 20 natural files with 6 or more clear flyovers exist (the founder's `?capture=1` recordings), with fresh
+    to 20 natural files with 6 or more clear flyovers exist (the maintainer's `?capture=1` recordings), with fresh
     null units, about 2 to 4 CPU hours. Even then it serves such files only, not a clip found online.
   - Two tones per flyover: a second tone that reads is common (27 of the 31 flyovers with a plane at the truth
     in the 40 single recordings, 12 with one clearly better than the lead, 5 where the lead does not read at
@@ -670,7 +664,7 @@ Waits for 10 to 20 phone recordings through `?capture=1`, with GPS and a clock i
 
 ## Next
 
-1. Founder: record real flybys with `?capture=1` on a phone (a light-aircraft field, a heliport,
+1. Maintainer: record real flybys with `?capture=1` on a phone (a light-aircraft field, a heliport,
    an approach path), fill `truth`, commit them to `evals/fixtures/real/`. First recordings
    made through the page itself.
 2. Done 2026-11-03 (`lib/core/explain.ts`): a loud line from a plane missing from the data no
@@ -709,7 +703,7 @@ Waits for 10 to 20 phone recordings through `?capture=1`, with GPS and a clock i
    candidates' tones. Both would change results, so they need a measured table.
 6. adsb.lol rate limit (about one request every 2 s per address): listeners of a 0.25° square
    share one upstream poll, at most one every 2 s, but the limit is per address and every active
-   square adds its own requests (Vercel Hobby allows a single rate-limit rule, spent on
+   square adds its own requests (the one rate-limit rule of the host is spent on
    `/api/donate`): ask adsb.lol for a key.
 7. Product, next: a notification when a plane is about to pass close while the sky screen is
    open (Notification API: Android, computers, and iPhones with Unheard on the home screen); a
@@ -742,16 +736,12 @@ Waits for 10 to 20 phone recordings through `?capture=1`, with GPS and a clock i
    - A floor of 15 s of known curve stays open: it would have taken out the jet too, with nothing lost
      on 119 strong and right planes (shortest 23.5 s), mostly with polls from well before the recording.
 
-## Needs the founder
+## Needs the maintainer
 
-- Vercel Pro before any announcement (Handoff, item 1): 20 USD a month, his money.
+- The hosting plan's quotas before any announcement (Handoff, item 1).
 - Make `check`, `eval` and `e2e` required on `main` (Handoff, item 2). Recommended.
-- Try https://unheard.gwendall.com/example on his phone: time to the answer, and the sound of a
-  plane row.
-- Reply to a 2026-11-04 proposal from another doppler-tracking author to share recordings
-  between projects (a reply is drafted, nothing sent): the likeliest source of the independent
-  recordings items 3 and 4 of the handoff wait for.
-- Announcement on X: drafts ready off the repo, he posts himself.
+- Try https://unheard.gwendall.com/example on a real phone: time to the answer, and the sound of
+  a plane row.
 - Commercial or not? AeroSonicDB (CC BY-NC), ADS-B Exchange samples and OpenSky restrict
   commercial use; adsb.lol (ODbL) and the Livermore recordings (CC BY 4.0) do not. The evals use the restricted sets only locally.
 - Request access to AeroSonicDB 3K (3,058 events): an email to its author with the project.

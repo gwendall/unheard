@@ -92,7 +92,7 @@ for (const [name, ext, meta] of [
     expect(download.suggestedFilename()).toBe(`flyby-cleaned.${ext}`);
     await expect(page.getByTestId("check-seen")).toContainText("The picture itself can still give the place away");
     if (meta) {
-      await expect(page.getByTestId("check-removed")).toContainText("48.773, 2.119");
+      await expect(page.getByTestId("check-removed")).toContainText("48.856, 2.299");
       await expect(page.getByTestId("check-removed")).toContainText("iPhone 15 Pro");
       await expect(page.getByTestId("check-removed")).toContainText("2026");
     }
@@ -185,7 +185,7 @@ test("a copy without its tags: the same picture and sound, and nothing the file 
   await shoot(page, "check-tags-video");
   const out = info.outputPath("flyby-no-tags.mp4");
   const bytes = await copyWithoutTags(page, file, out, "flyby-no-tags.mp4", ["video", "audio"]);
-  for (const said of ["iPhone", "+48.77", "2026-05-16", "com.apple.quicktime"]) expect(bytes.includes(said), said).toBe(false);
+  for (const said of ["iPhone", "+48.85", "2026-05-16", "com.apple.quicktime"]) expect(bytes.includes(said), said).toBe(false);
   // It says nothing, so nothing is offered for it.
   await page.getByTestId("where-another").setInputFiles(out);
   await expect(page.getByTestId("check-verdict")).toBeVisible({ timeout: 170_000 });

@@ -17,7 +17,7 @@ const fixture = (): Fixture => JSON.parse(readFileSync(new URL("./fixtures/flyby
 test.use({
   launchOptions: { args: ["--use-fake-ui-for-media-stream", "--use-fake-device-for-media-stream", `--use-file-for-fake-audio-capture=${WAV}`, "--autoplay-policy=no-user-gesture-required"] },
   permissions: ["microphone", "geolocation"],
-  geolocation: { latitude: 48.7731, longitude: 2.1186, accuracy: 10 },
+  geolocation: { latitude: 48.8556, longitude: 2.2986, accuracy: 10 },
 });
 
 const LANGUAGES = [

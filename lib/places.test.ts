@@ -63,7 +63,7 @@ describe("nameKey", () => {
 
 describe("nearest", () => {
   it("names the real recording's spot", async () => {
-    const place = await world().nearest(40.8748, -73.5249);
+    const place = await world().nearest(40.8661, -73.5321);
     expect(place).toMatchObject({ name: "Oyster Bay", region: "New York", country: "United States", countryCode: "US", zone: "America/New_York" });
     expect(place!.distance).toBeGreaterThan(1100);
     expect(place!.distance).toBeLessThan(1250);
@@ -135,7 +135,7 @@ describe("nearest", () => {
 
   it("gives the country in the language asked", async () => {
     expect((await world().nearest(48.86, 2.35, "fr"))?.country).toBe("France");
-    expect((await world().nearest(40.8748, -73.5249, "fr"))?.country).toBe("États-Unis");
+    expect((await world().nearest(40.8661, -73.5321, "fr"))?.country).toBe("États-Unis");
   });
 
   it("stays under 50 ms a call once loaded, on the densest square there is", async () => {
@@ -253,7 +253,7 @@ describe("the files", () => {
 
   it("read back through gzip", async () => {
     const gz = new Map([...files()].map(([path, bytes]) => [path, gzipFixed(bytes)]));
-    expect((await gazetteer(fetcherOf(gz)).nearest(40.8748, -73.5249))?.name).toBe("Oyster Bay");
+    expect((await gazetteer(fetcherOf(gz)).nearest(40.8661, -73.5321))?.name).toBe("Oyster Bay");
   });
 
   it("carry their licence", () => {
@@ -272,8 +272,8 @@ describe("the files", () => {
       }
       return built.get(path) ?? null;
     });
-    await expect(g.nearest(40.8748, -73.5249)).rejects.toThrow("network");
-    expect((await g.nearest(40.8748, -73.5249))?.name).toBe("Oyster Bay");
+    await expect(g.nearest(40.8661, -73.5321)).rejects.toThrow("network");
+    expect((await g.nearest(40.8661, -73.5321))?.name).toBe("Oyster Bay");
   });
 });
 
