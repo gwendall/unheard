@@ -166,7 +166,7 @@ it("where and when", async () => {
     `${new Date().toISOString()}, ${outcomes.length} runs: the Livermore phone recordings (Pathak 2026, CC BY 4.0) searched with only their UTC day or hour and a square of the Bay Area centred on Oakland, against that day of adsb.lol history (ODbL 1.0, © adsb.lol contributors).`,
     "- Error: metres from the best answer to the microphone; within N m counts only answers whose start is also within 30 s. Time: |start error|, seconds.",
     "- Truth in answers: an answer within 250 m and 30 s. Truth in hypotheses: one of the 50 best spots and times before the fine search within 500 m and 30 s.",
-    "- Flag right: confident and within 1 km, or unsure and not. CPU: seconds of the search in Node on the founder's Mac, p50 and p90, then wall ms (the Mac is shared), the spectrogram and traces left out.",
+    "- Flag right: confident and within 1 km, or unsure and not. CPU: seconds of the search in Node on a shared machine, p50 and p90, then wall ms (the Mac is shared), the spectrogram and traces left out.",
     "",
     "| square, window | n | median m | p90 m | <= 250 m | <= 1 km | time s p50 | truth in answers | truth in hypotheses | right aircraft | confident and right | flag right | CPU s p50 / p90 / wall ms |",
     "|---|---|---|---|---|---|---|---|---|---|---|---|---|",

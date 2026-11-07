@@ -76,7 +76,7 @@ All three serve the same readsb "trace" JSON (https://github.com/wiedehopf/reads
 
 #### Unheard's history index (`pnpm history:build <day>`, format in `docs/history-format.md`)
 
-`scripts/history-index.ts` streams a day's tar (never stored), unpacks each `trace_full_<hex>.json` in a worker, keeps the airborne points at or below 10,000 ft (pressure altitude; geometric when there is none) with a speed and a track, tags each aircraft with its kind from tar1090-db's ICAO type table (pinned commit), and writes 1° tiles (`evals/.cache/history/<day>/`, never committed). Measured on seven days on the founder's Mac (8 workers, the machine shared with other agents, so the times vary twice over):
+`scripts/history-index.ts` streams a day's tar (never stored), unpacks each `trace_full_<hex>.json` in a worker, keeps the airborne points at or below 10,000 ft (pressure altitude; geometric when there is none) with a speed and a track, tags each aircraft with its kind from tar1090-db's ICAO type table (pinned commit), and writes 1° tiles (`evals/.cache/history/<day>/`, never committed). Measured on seven days on a shared machine (8 workers, the machine shared with other agents, so the times vary twice over):
 
 | day | tar streamed | worker CPU | writing | peak memory | points kept (aircraft) | tiles | tile median / p99 / busiest | world MB (no jets) | contiguous US MB | Europe MB |
 |---|---|---|---|---|---|---|---|---|---|---|

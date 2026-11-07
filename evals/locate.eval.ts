@@ -147,7 +147,7 @@ it("locate me", async () => {
     "- Distances from the best spot to the truth. Nothing located counts as missed at every distance ('-': the quantile falls on such a run). 'Truth is the mirror': the best spot is more than 250 m off and the mirror spot within 250 m.",
     "- 'Phone clock exact': the same recordings with the clock known to 0.25 s instead of swept over ±2 s. Along one straight track, a clock error of dt moves the spot by speed x dt along it.",
     "- Real: the microphone position itself is only known to tens or hundreds of metres (a public spot near the recorder).",
-    "- Time: locate alone in Node on the founder's Mac, shared with other work (wall), and the CPU time it used; the spectrogram stack (built by analyze() anyway) is left out.",
+    "- Time: locate alone in Node on a machine shared with other work (wall), and the CPU time it used; the spectrogram stack (built by analyze() anyway) is left out.",
     "",
     ...header,
     ...sets.map((name) => row(name, outcomes.filter((o) => o.set === name))),
