@@ -19,6 +19,24 @@ Next.js rules: the generated block at the end of this file.
 - adsb.lol rate-limits at about one request every 2 s per address: never run two recorders, and
   the API route must stay cached.
 - Dev servers through `machine serve` only; Playwright closes its browser (see the global rules).
+- The place rule (`namesAPlace` in `lib/client/where.ts`, #94) is frozen: it changes only with a
+  new held-out test, reported as it comes. Every condition picked after seeing results spends it.
+- A private recording's exact place (Livermore's fitted microphone position) never enters the
+  repo, a page or a demo: report distances only. colsto's audio never enters git.
+- Never load-test adsb.lol or production. Secrets (Vercel, Fly, Tigris) are never printed or
+  committed. No self-hosted runner: this repository is public.
+
+## Proof
+
+- Unit: `pnpm lint`, `pnpm typecheck`, `pnpm test`. Evals in git: `pnpm eval evals/synthetic`,
+  `pnpm eval evals/real-tracks`. Evals on data that stays off git (AeroSonicDB, Livermore,
+  colsto, the wide search) need `evals/.cache/` (`evals/README.md`). E2E: `pnpm e2e`.
+- CI (`.github/workflows/ci.yml`: `check`, `eval`, `e2e`) runs on every pull request; that run
+  is the proof, do not run it again locally. Merge green, at the head CI checked:
+  `gh pr merge <n> --squash --match-head-commit <sha>`.
+- What visitors see gets one check in production once deployed (https://unheard.gwendall.com,
+  production follows `main`). The archive: `days.json` at
+  https://unheard-history.t3.tigrisbucket.io/ lists yesterday after the 06:17 UTC job.
 
 <!-- BEGIN:nextjs-agent-rules -->
 

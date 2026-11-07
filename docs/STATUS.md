@@ -1,6 +1,6 @@
 # Status
 
-Updated 2026-11-04.
+Updated 2026-11-07. A new agent: read "Handoff" just below, then "Next" and "Needs the founder" at the end.
 
 ## Where it is
 
@@ -23,6 +23,73 @@ Updated 2026-11-04.
   unheard@gwendall.com, or GitHub's private vulnerability reporting), `docs/OPEN-SOURCE.md`
   (phases, the go-public checklist as done on 03/11, listening station design). CI runs on
   GitHub's runners; workflows from outside contributors wait for a maintainer's approval.
+
+## Handoff (2026-11-07)
+
+For whoever picks this up: what is live, how it was proved, what is left. Nothing is in flight:
+no open pull request, no branch waiting, `main` at b21a0e2 is what runs.
+
+**Last lots, all merged and deployed.**
+- The result for everyone (founder, 2026-11-04: "il faut vraiment viser un produit pour les
+  normies, pour le grand public"): one answer in one shape, a map or a "?", one sentence, one
+  date, the rest under Details (#106); "See an example" at `/example`, a simulated file through
+  the real page and rule, marked as simulated (#108); each plane of a named answer plays the
+  file's own sound around its pass (#110); a phone's first screen holds the way to the example
+  (#111). Judge any change by what someone who knows nothing of Doppler or UTC sees.
+- Listeners of a 28 km square share one adsb.lol poll every 2 s (#107); the privacy text says
+  what leaves the phone, about 28 km for the planes, about 100 m for ground height and
+  temperature (#109).
+- Take them out: the fill follows time and frequency (#87), then reads a found tone's other
+  lines like the judge does (#112). On the 36 Livermore recordings the page could name before
+  cleaning, it still names a plane after cleaning on 2 (was 7), as strong on 0 (was 4); the
+  cleaning's median CPU went from 20 to 24 s. The `FAMILY_*` constants of `lib/core/leak.ts` were
+  tuned on those same files, so these numbers are in-sample: the page keeps "8 of 36", the
+  number from before that tuning, until a held-out set confirms the new one.
+- Daily flight history: Fly's own `--schedule daily` on the Machine `8dd71efe06e218` never fired
+  (31 h, 03-05/11), so `.github/workflows/history-daily.yml` starts it at 06:17 UTC (#113). Runs
+  of 05, 06 and 07/11 green; `days.json` lists 309 days up to 2026-11-06 (read 2026-11-07). Its
+  secret `FLY_HISTORY_TOKEN` is a deploy token for the app `unheard-history` alone, made
+  2026-11-05 for one year: renew it before 2027-11-05 (`fly tokens create deploy -a
+  unheard-history -x 8760h` piped straight into `gh secret set FLY_HISTORY_TOKEN`, never shown).
+  2026-05-06 is the one day missing since 2026-01-01: adsb.lol never published it.
+
+**Proof that ran on what is live.**
+- CI on every pull request, on GitHub's runners: `check` (lint, typecheck, unit), `eval`
+  (synthetic, real tracks, the ghost eval when the analysis changed), `e2e` (pages in three
+  parts, map, no archive, the cleaned video in Chrome, Firefox and WebKit, `/example` naming
+  Mesa). Green on #112 (9db28a3) and #113 (ff88796) before they merged.
+- Production, 2026-11-05 07:28 UTC, in a timing lane: colsto's real hour through
+  https://unheard.gwendall.com/where with its day, its hour and a place 15 km off gave "Can't
+  tell where this was filmed" in 35 s (44 s before #87), no page error, no worker started after
+  the answer. Its audio is colsto's, so the script and the file stay off the repo.
+- `/example`: 17 to 23 s on a Mac, about 9 MB read from the archive; 1 of the 8 mixes tried names
+  the place, and the page says the mix was chosen to show a clean case. No real test recording
+  gets a place: they get "Can't tell".
+
+**Left to do, in order.** Each says what proves it and what starts it.
+1. Traffic. Vercel Hobby allows 1M CDN requests and 1M function calls a month for the whole
+   account, every project together; a visit costs about 20 requests (21 on `/`, 19 on `/where`,
+   counted 2026-11-04); past that the site answers `503 DEPLOYMENT_PAUSED` until the month
+   turns. Pro is 20 USD a month: the founder's call (money). Starts: before any announcement.
+2. Required checks: `check`, `eval` and `e2e` are not required on `main`, so a red pull request
+   can be merged by hand. Recommended: make them required (founder, repository settings).
+3. A held-out set for Take them out: recordings that played no part in tuning `FAMILY_*`
+   (Livermore's other files, donations, new `?capture=1` recordings). Proof: the same judge
+   (named, strong, CPU per file) on them. Then the page's "8 of 36" can change.
+4. The claim check (section "Does the sound agree with a stated place and time?"): built only
+   once 10 to 20 independent phone recordings with GPS and clock exist; gate at least 20 % of
+   true claims passed and at most 1 false in 200.
+5. adsb.lol: polls are shared per square, but the limit (about one request every 2 s) is per
+   address and every active square adds its own. A key from adsb.lol is the fix; asking is the
+   founder's (an outside mail).
+6. Then "Next" below, in its order.
+
+**Off the repo, on the maintainer's Mac** (for an agent working there): the eval data that may
+not enter git, in `~/code/unheard/evals/.cache/` (`aerosonic`, `livermore`, `colsto`, `history`,
+`terrain`, `wide`; link it into a worktree with `ln -s ~/code/unheard/evals/.cache evals/.cache`);
+the research with its raw data, the per-file tables of the claim check and of the cleaning
+judge, the production smoke script and a work log, under `~/code/.agent-work/unheard/`
+(`HANDOFF.md` there is the index).
 
 ## The product (redesign of 2026-11-03)
 
@@ -104,7 +171,7 @@ What a visitor goes through, and where it lives:
   after and written to the private files as it goes. Where a stretch is 12 dB louder or quieter than the rest,
   the search first brings it to one level, taking off only its broad shape (`levelled`): a level that
   stops draws no line, and a faint plane through it stays. Once a tone is found, the look again goes
-  down to confidence 2 (`LOOK_AGAIN_CONFIDENCE`), and the page still reports from 4. A plane's faint start
+  down to confidence 2 (`LOOK_AGAIN_CONFIDENCE`), and the other lines of a found tone (its harmonics, the fainter ridges beside it) are read the way `analyze()` reads them and go with it (`familyOf`, #112), and the page still reports from 4. A plane's faint start
   stays when the search finds that plane only later: on a 30-minute test sound, 228-220 Hz from 1 to 21 s stays in
   7 of 8 draws, and the page reports it in 3, when a ridge joins it to a flat tone. A video comes back as
   a video (`lib/client/remux.ts`, MP4, MOV, WebM, Matroska): the same packets, never re-encoded, under
@@ -252,7 +319,7 @@ machine with Node 22), reader `lib/history.ts` (takes a fetcher: the base URL is
   (none passed 5 MB, so none was split). The Bay Area is 6.7 MB a day.
 - Deterministic: the same day built twice gave byte-identical manifests (all 2,551 tile hashes).
 
-Online since 2026-11-03 at https://unheard-history.t3.tigrisbucket.io/ (public Tigris bucket, daily job on a scheduled Fly Machine, "Hosting" in `docs/history-format.md`): 2026 is all there since 2026-11-04, built in 3 h 45 by one-day one-shot Machines (the founder put speed ahead of the cost: about 7.40 USD once, estimated from list prices, so about 10 USD in November, past the 5 USD a month); then about 3 USD a month, which storage brings to 5 USD a month around the end of 2027. 89 GB, 304 days of flights, gaps in "Hosting" in `docs/history-format.md`.
+Online since 2026-11-03 at https://unheard-history.t3.tigrisbucket.io/ (public Tigris bucket, daily job on a Fly Machine that `.github/workflows/history-daily.yml` starts at 06:17 UTC, "Hosting" in `docs/history-format.md`): 2026 is all there since 2026-11-04, built in 3 h 45 by one-day one-shot Machines (the founder put speed ahead of the cost: about 7.40 USD once, estimated from list prices, so about 10 USD in November, past the 5 USD a month); then about 3 USD a month, which storage brings to 5 USD a month around the end of 2027. 89 GB, 304 days of flights, gaps in "Hosting" in `docs/history-format.md`.
 
 What the page still needs:
 
@@ -648,7 +715,7 @@ Waits for 10 to 20 phone recordings through `?capture=1`, with GPS and a clock i
    open (Notification API: Android, computers, and iPhones with Unheard on the home screen); a
    result page with its own address to share as a link, beside the picture.
 
-8. Locate me (core only, no UI yet; draft PRs #29 and #30): where the phone
+8. Locate me (core only, no UI yet; #29 and #30, merged): where the phone
    was from the flyby and the tracks, without its GPS (`lib/core/trace.ts`, `lib/core/locate.ts`,
    evals `trace` and `locate`). Loud single flybys land within 250 m 5 times in 6 (median
    123 m); real clips: 6 of 10 within 1 km (median 840 m), 2 of the 4 jets within 70 m now that
@@ -677,6 +744,14 @@ Waits for 10 to 20 phone recordings through `?capture=1`, with GPS and a clock i
 
 ## Needs the founder
 
+- Vercel Pro before any announcement (Handoff, item 1): 20 USD a month, his money.
+- Make `check`, `eval` and `e2e` required on `main` (Handoff, item 2). Recommended.
+- Try https://unheard.gwendall.com/example on his phone: time to the answer, and the sound of a
+  plane row.
+- Reply to a 2026-11-04 proposal from another doppler-tracking author to share recordings
+  between projects (a reply is drafted, nothing sent): the likeliest source of the independent
+  recordings items 3 and 4 of the handoff wait for.
+- Announcement on X: drafts ready off the repo, he posts himself.
 - Commercial or not? AeroSonicDB (CC BY-NC), ADS-B Exchange samples and OpenSky restrict
   commercial use; adsb.lol (ODbL) and the Livermore recordings (CC BY 4.0) do not. The evals use the restricted sets only locally.
 - Request access to AeroSonicDB 3K (3,058 events): an email to its author with the project.
